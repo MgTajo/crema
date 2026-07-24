@@ -1,0 +1,49 @@
+"use strict";
+/* ============================================================
+   domain/art — procedural latte-art SVG generator.
+   Pure rendering logic (no app state), portable to any platform
+   that can draw SVG. Given a pattern, quality and seed it produces
+   a deterministic cup; art() picks a photo when one exists.
+   ============================================================ */
+import { clamp, rng, lerpC, rgb, esc } from '../core/util.js';
+
+let _gid=0;
+function heartPath(cx,cy,s){return `<path d="M ${cx} ${cy+0.36*s} C ${cx-0.98*s} ${cy-0.34*s} ${cx-0.52*s} ${cy-0.98*s} ${cx} ${cy-0.34*s} C ${cx+0.52*s} ${cy-0.98*s} ${cx+0.98*s} ${cy-0.34*s} ${cx} ${cy+0.36*s} Z"/>`;}
+function artShapes(pattern,q,rnd,foam){
+  const jit=m=>(rnd()*2-1)*(1-q)*m; let s='';
+  if(pattern==='heart'){
+    s+=heartPath(50+jit(3),46+jit(3),21+q*2);
+    s+=`<path d="M50 62 L50 74" stroke="${foam}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+  }else if(pattern==='rosetta'){
+    const n=7;
+    for(let i=0;i<n;i++){const t=i/(n-1), y=32+t*37, spread=Math.sin(Math.PI*(0.12+t*0.82));
+      const len=6.5+spread*11.5, thick=2.2+spread*2, off=3+spread*2.2, ang=44-spread*4+jit(5);
+      s+=`<ellipse cx="${50-off}" cy="${y}" rx="${len}" ry="${thick}" transform="rotate(${-ang} ${50-off} ${y})"/>`;
+      s+=`<ellipse cx="${50+off}" cy="${y}" rx="${len}" ry="${thick}" transform="rotate(${ang} ${50+off} ${y})"/>`;}
+    s+=`<path d="M50 28 L50 76" stroke="${foam}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+    s+=`<circle cx="50" cy="75" r="${3+q}"/>`;
+  }else if(pattern==='tulip'){
+    for(let i=0;i<3;i++){const y=62-i*14, sz=15-i*3; s+=heartPath(50+jit(2.5),y,sz);}
+    s+=`<path d="M50 66 L50 76" stroke="${foam}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+  }else if(pattern==='swan'){
+    const n=5;
+    for(let i=0;i<n;i++){const t=i/(n-1), spread=Math.sin(Math.PI*t); const y=52+t*20, len=4+spread*9, off=3+spread*2.5;
+      s+=`<ellipse cx="${44-off}" cy="${y}" rx="${len}" ry="${2+spread*2.4}" transform="rotate(-40 ${44-off} ${y})"/>`;
+      s+=`<ellipse cx="${44+off}" cy="${y}" rx="${len}" ry="${2+spread*2.4}" transform="rotate(20 ${44+off} ${y})"/>`;}
+    s+=`<path d="M56 60 C72 54 70 34 58 28" stroke="${foam}" stroke-width="3.4" fill="none" stroke-linecap="round"/>`;
+    s+=`<circle cx="${57+jit(1.5)}" cy="26" r="4.4"/><path d="M53 25 l-6 -1 l5 3.5 z"/>`;
+  }
+  return s;
+}
+export function cupSVG(pattern,quality,seed,opts={}){
+  const q=clamp(quality,0,1), rnd=rng((seed*131+7)>>>0), gid='g'+(_gid++);
+  const foam=rgb(lerpC([0xD8,0xC6,0xAA],[0xF6,0xEE,0xE1],q));
+  const dx=(rnd()*2-1)*(1-q)*6, dy=(rnd()*2-1)*(1-q)*6, rot=(rnd()*2-1)*(1-q)*11;
+  return `<svg class="cup" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs><radialGradient id="${gid}" cx="42%" cy="36%" r="68%"><stop offset="0%" stop-color="#b5814a"/><stop offset="52%" stop-color="#8a5a30"/><stop offset="100%" stop-color="#583722"/></radialGradient></defs>
+    ${opts.noCup?'':`<circle cx="50" cy="50" r="48.5" fill="#fdf9f3"/><circle cx="50" cy="50" r="45" fill="#f0e6d6"/>`}
+    <circle cx="50" cy="50" r="${opts.noCup?48:42}" fill="url(#${gid})"/>
+    <g transform="translate(${dx} ${dy}) rotate(${rot} 50 50)" fill="${foam}" opacity="0.9">${artShapes(pattern,q,rnd,foam)}</g>
+    <ellipse cx="42" cy="34" rx="20" ry="12" fill="#ffffff" opacity="0.07"/></svg>`;
+}
+export function art(img,pattern,q,seed,alt){ return img?`<img class="photo" src="${img}" alt="${esc(alt||'coffee')}" loading="lazy">`:cupSVG(pattern||'none', q==null?0.9:q, seed); }

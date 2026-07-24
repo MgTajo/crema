@@ -4,15 +4,33 @@ A prototype social network for coffee lovers — post any coffee (latte art or n
 
 **Live demo:** https://mgtajo.github.io/crema/
 
-This is a **static, self-contained web app** — plain HTML/CSS/JS, no build step, no backend, no dependencies. It runs by opening `index.html`, and installs as a **PWA** when served over HTTPS.
+This is a **static, self-contained web app** — plain HTML/CSS/JS, **no build step, no bundler, no dependencies**. The code is organised as native **ES modules** under [`src/`](src/) in clean layers (data → store → domain → ui), so it can grow into a real product. It installs as a **PWA** when served over HTTPS.
 
 ## Run locally
 
+The app uses ES modules, so it must be **served over HTTP** (module scripts don't run from `file://`):
+
 ```bash
-open index.html        # macOS — or just double-click it
-# or, nicer (enables the service worker):
 python3 -m http.server 8000   # → http://localhost:8000
 ```
+
+Then open http://localhost:8000. A server is required anyway for the service worker / PWA install.
+
+## Project structure
+
+```
+index.html        markup + mount points; loads styles.css and src/app.js
+styles.css        all styling (theme tokens, components)
+src/
+  app.js          composition root & boot
+  core/util.js    pure helpers (format, dom, time)
+  data/           assets.js · catalog.js (reference data) · seed.js (the seeded world)
+  store/          persistence.js (the swappable backend seam) · store.js (state + selectors)
+  domain/         art.js (latte-art SVG) · scoring.js (scores & badges)
+  ui/             icons · components · views · overlays · actions
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the layers map onto a real backend + native iOS/Android app.
 
 ## What's inside
 
@@ -23,7 +41,7 @@ python3 -m http.server 8000   # → http://localhost:8000
 | **Posts** | Full detail view, comment likes & replies, @mentions that open profiles, ⋯ menu (copy link, save, report), **Brew this recipe** (one-tap re-log with prefilled create sheet), share (native share / copy link), deep links (`#p/<id>`). |
 | **People** | Tap any name/avatar → user profile with bio, stats, and their pours. Follower/following lists. People-to-follow suggestions. |
 | **Explore** | Working search (people, beans, cafés, pours), challenges with **entry submission** and per-challenge leaderboards, weekly duel voting, full leaderboard, trending pattern feeds (#rosetta …). |
-| **Cafés** | Map + café profiles for **7 real Tübingen cafés**, working filters (open now / deals / top rated), directions to Maps, community pours per café. |
+| **Cafés** | Map + café profiles for **5 real Tübingen cafés** (Südhang, Willi's, Marktschenke, Hanseatica, Waschhaus), working filters (open now / deals / top rated), directions to Maps, community pours per café. |
 | **Profile** | Recent-activity chart with hover tooltips, recent coffees strip, beans passport with **bean detail pages** (origin, process, tasting notes, your pours), pours/saved/badges/stats tabs, **10 badges** with progress. |
 | **Create** | Photo upload (resized in-browser), any drink type, pattern picker for milk drinks, **specific coffee brands available in Germany** (local + international roasters), a **brand → model machine picker** (100+ machines), optional recipe with no fabricated defaults. Adding your own coffee is a **Premium** feature (demo toggle in Settings). |
 | **Notifications** | Mock inbox with unread dot; rows open the relevant post / profile / challenge / café. |
