@@ -248,7 +248,10 @@
   .jstats b{display:block; font-family:var(--serif); font-size:19px; font-weight:600; line-height:1.1}
   .jstats b i{font-style:normal; font-size:12px; color:var(--green)}
   .jstats span{font-size:10px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.3px}
-  .actbars{display:flex; gap:3px; height:44px; margin:0 12px}
+  .actbars{display:flex; gap:3px; height:44px; margin:0 12px; position:relative}
+  .bartip{position:absolute; bottom:100%; margin-bottom:8px; transform:translateX(-50%); background:#2a1d12; color:#fff; font-size:11px; font-weight:600; padding:5px 9px; border-radius:8px; white-space:nowrap; pointer-events:none; box-shadow:var(--sh-sm); z-index:5}
+  .bartip:after{content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:#2a1d12}
+  .actbars .ab{cursor:default}
   .actbars .ab{flex:1; align-self:stretch; background:var(--surface3); border-radius:3px; position:relative; overflow:hidden}
   .actbars .ab i{position:absolute; left:0; right:0; bottom:0; background:linear-gradient(var(--crema),var(--crema-deep)); border-radius:3px}
   .actbars .ab.today i{background:linear-gradient(var(--gold),var(--crema))}
@@ -261,6 +264,16 @@
   .recent .rpimg svg{width:100%; height:100%}
   .recent .rpd{font-size:11px; font-weight:700; margin-top:6px}
   .recent .rpt{font-size:10.5px; color:var(--muted)}
+  .recent .rp{cursor:default}
+  /* beans passport → detail */
+  .passport .bean{cursor:pointer}
+  .passport .bean:active{transform:scale(.96)}
+  .bean-hero{position:relative; height:140px; overflow:hidden}
+  .bean-hero>img{width:100%; height:100%; object-fit:cover}
+  .bean-hero-t{position:absolute; inset:auto 0 0 0; padding:14px 16px; display:flex; align-items:center; gap:11px; color:#fff; background:linear-gradient(transparent, rgba(0,0,0,.72))}
+  .bean-hero-t .fl{font-size:30px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+  .bean-hero-t b{font-family:var(--serif); font-size:21px; font-weight:600; display:block; line-height:1.1}
+  .bean-hero-t span{font-size:12.5px; opacity:.92}
 
   .cmt{display:flex; gap:10px; padding:11px 14px; border-bottom:1px solid var(--line)}
   .cmt .avatar{width:34px; height:34px; font-size:13px}
@@ -496,8 +509,14 @@ const CHALLENGES=[
 ];
 const DUEL={a:{user:'yuki',pattern:'swan',q:.97,img:S.l3,votes:612},b:{user:'mara',pattern:'rosetta',q:.9,img:S.l4,votes:588}};
 const LEADERBOARD=[{u:'yuki',pts:9420},{u:'mara',pts:7810},{u:'sofia',pts:6640},{u:'me',pts:6120},{u:'tom',pts:5980}];
-const BEANS=[{n:'Ethiopia Guji',c:'Ethiopia'},{n:'Colombia Huila',c:'Colombia'},{n:'Brazil Cerrado',c:'Brazil'},
-  {n:'Kenya Nyeri',c:'Kenya'},{n:'Guatemala Antigua',c:'Guatemala'},{n:'Peru Cajamarca',c:'Peru'},{n:'Rwanda Kivu',c:'Rwanda'}];
+const BEANS=[
+  {n:'Ethiopia Guji',c:'Ethiopia',region:'Guji, Oromia',process:'Washed',altitude:'1,950–2,100 m',varietal:'Heirloom',roast:'Light',roaster:'Fika Roasters',notes:['Jasmine','Bergamot','Peach']},
+  {n:'Colombia Huila',c:'Colombia',region:'Huila',process:'Washed',altitude:'1,700–1,900 m',varietal:'Caturra · Castillo',roast:'Light-medium',roaster:'The Barn',notes:['Red apple','Caramel','Orange']},
+  {n:'Brazil Cerrado',c:'Brazil',region:'Cerrado Mineiro',process:'Natural',altitude:'1,100–1,250 m',varietal:'Yellow Bourbon',roast:'Medium',roaster:'Origin Lab',notes:['Chocolate','Hazelnut','Dark cherry']},
+  {n:'Kenya Nyeri',c:'Kenya',region:'Nyeri County',process:'Washed',altitude:'1,700–1,900 m',varietal:'SL28 · SL34',roast:'Light',roaster:'Kurasu',notes:['Blackcurrant','Grapefruit','Brown sugar']},
+  {n:'Guatemala Antigua',c:'Guatemala',region:'Antigua Valley',process:'Washed',altitude:'1,500–1,700 m',varietal:'Bourbon',roast:'Medium',roaster:'Bar Luce',notes:['Cocoa','Almond','Baking spice']},
+  {n:'Peru Cajamarca',c:'Peru',region:'Cajamarca',process:'Washed',altitude:'1,600–1,900 m',varietal:'Typica · Bourbon',roast:'Medium',roaster:'Fika Roasters',notes:['Milk chocolate','Toffee','Mandarin']},
+  {n:'Rwanda Kivu',c:'Rwanda',region:'Lake Kivu',process:'Washed',altitude:'1,700–2,000 m',varietal:'Red Bourbon',roast:'Light',roaster:'The Steam Room',notes:['Red berry','Floral','Honey']}];
 // recent-activity data for the profile "Recent activity" view
 const ACT=[0,2,1,0,1,1,0,1,0,2,1,0,1,0,1,1,1,1,1,1,2];   // coffees/day, last 21 days (oldest→today)
 const RECENT=[   // your latest coffees (most recent first) — mixed drinks
@@ -511,10 +530,28 @@ const RECENT=[   // your latest coffees (most recent first) — mixed drinks
   {ago:11,img:S.l4,drink:'Cappuccino',art:true}];
 function relDay(a){if(a===0)return'Today';if(a===1)return'Yesterday';
   if(a<7)return new Date(Date.now()-a*864e5).toLocaleDateString('en',{weekday:'short'});return a+'d ago';}
-const MYPOURS=[{img:S.l3},{img:S.l5},{img:S.esp},{img:S.l2},{img:S.l4},{img:S.l9},{img:S.cold},{img:S.l6},{img:S.l1}];
+// your older pours — full posts so they open with all their info
+const MYGALLERY=[
+  post({user:'me',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.88,img:S.l3,ago:'2d',caption:'Cleanest rosetta yet — pour high, then cut through fast.',likes:73,
+    recipe:{bean:'Ethiopia Guji',roaster:'Fika Roasters',machine:'Sage Bambino Plus',dose:'18g',yield:'36g',time:'28s',temp:'93°C'},comments:[{u:'sofia',t:'so clean!'}]}),
+  post({user:'me',drink:'Flat white',art:true,pattern:'rosetta',quality:.8,img:S.l5,ago:'3d',caption:'Flat white before a long day. Six leaves if you squint.',likes:41,
+    recipe:{bean:'Colombia Huila',roaster:'The Barn',machine:'Sage Bambino Plus',dose:'18g',yield:'38g',time:'29s'},comments:[]}),
+  post({user:'me',drink:'Espresso',art:false,img:S.esp,ago:'4d',caption:'Naked portafilter, even extraction at last. Dark cherry sweetness.',likes:52,
+    recipe:{bean:'Brazil Cerrado',roaster:'Origin Lab',machine:'Sage Bambino Plus',dose:'18g',yield:'40g',time:'30s'},comments:[{u:'tom',t:'that colour 👌'}]}),
+  post({user:'me',drink:'Cappuccino',art:true,pattern:'tulip',quality:.72,img:S.l6,ago:'5d',caption:'First proper 3-stack tulip. Wobbly but I\'m proud.',likes:66,
+    recipe:{bean:'Guatemala Antigua',roaster:'Crema & Co',machine:'Sage Bambino Plus'},comments:[]}),
+  post({user:'me',drink:'Pour-over',art:false,img:S.l9,ago:'1w',caption:'Slow Sunday V60. 15g in, 250g out, 2:45 total.',likes:38,
+    recipe:{bean:'Kenya Nyeri AA',roaster:'Kurasu',machine:'Hario V60'},comments:[{u:'mara',t:'love a ritual pour'}]}),
+  post({user:'me',drink:'Cappuccino',art:true,pattern:'heart',quality:.6,img:S.l7,ago:'1w',caption:'Back to basics — a clean heart to reset the hands.',likes:29,
+    recipe:{bean:'House blend',machine:'Sage Bambino Plus'},comments:[]}),
+  post({user:'me',drink:'Cold brew',art:false,img:S.cold,ago:'2w',caption:'Batch of cold brew for the week. Bottled and ready.',likes:47,comments:[]}),
+  post({user:'me',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.76,img:S.l2,ago:'2w',caption:'Milk texture finally clicking — glossy and tight.',likes:58,
+    recipe:{bean:'Ethiopia Guji',roaster:'Fika Roasters',machine:'Sage Bambino Plus',dose:'18g',yield:'37g'},comments:[{u:'yuki',t:'texture looks spot on'}]}),
+  post({user:'me',drink:'Latte',art:true,pattern:'rosetta',quality:.84,img:S.l1,ago:'3w',caption:'Morning latte, symmetric enough to post.',likes:61,
+    recipe:{bean:'Peru Cajamarca',roaster:'Fika Roasters',machine:'Sage Bambino Plus',dose:'18g',yield:'36g',time:'27s',temp:'92°C'},comments:[]})];
 
 /* ---------- state ---------- */
-const KEY='crema_v5';
+const KEY='crema_v6';
 let state;
 function freshCreate(){return{drink:'Cappuccino',pattern:'rosetta',caption:'',img:null,
   bean:'',beanCustom:'',roaster:'',machine:'',dose:'',yield:'',time:'',temp:''};}
@@ -523,9 +560,10 @@ function freshState(){return{
   follows:{mara:true,yuki:true,sofia:true,tom:false,dev:false},
   cafeFollow:Object.fromEntries(CAFES.map(c=>[c.id,c.followed])),
   challenges:Object.fromEntries(CHALLENGES.map(c=>[c.id,c.joined])),
-  duelVote:null, streak:7, myPours:MYPOURS.slice(), customBeans:[]
+  duelVote:null, streak:7, myGallery:MYGALLERY.map(p=>JSON.parse(JSON.stringify(p))), customBeans:[]
 };}
-function load(){try{const s=JSON.parse(localStorage.getItem(KEY)); state=s&&s.posts?s:freshState(); if(!state.customBeans)state.customBeans=[];}catch(e){state=freshState();}}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY)); state=s&&s.posts?s:freshState(); if(!state.customBeans)state.customBeans=[]; if(!state.myGallery)state.myGallery=[];}catch(e){state=freshState();}}
+function findPost(id){return state.posts.find(p=>p.id===id)||(state.myGallery||[]).find(p=>p.id===id);}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){/* quota — keep session only */}}
 
 const ui={route:'home', filter:'foryou', overlay:null, profTab:'pours', create:freshCreate()};
@@ -652,11 +690,12 @@ function cafeCard(c){
 }
 
 function renderProfile(){
-  const u=USERS.me, myPosts=state.posts.filter(p=>p.user==='me'), savedPosts=state.posts.filter(p=>p.saved);
-  const pourCount=state.myPours.length+myPosts.length, followingN=Object.values(state.follows).filter(Boolean).length+180;
+  const u=USERS.me, myPosts=state.posts.filter(p=>p.user==='me'), gallery=state.myGallery||[];
+  const allMine=myPosts.concat(gallery), savedPosts=[...state.posts,...gallery].filter(p=>p.saved);
+  const pourCount=allMine.length, followingN=Object.values(state.follows).filter(Boolean).length+180;
   const countries=[...new Set(BEANS.map(b=>b.c))];
   const grid = ui.profTab==='pours'
-    ? `<div class="grid">${myPosts.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}${state.myPours.map((m,i)=>gcell(m.pat||'rosetta',m.q||.85,'mp'+i,m.img)).join('')}</div>`
+    ? `<div class="grid">${allMine.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`
     : ui.profTab==='saved'
     ? (savedPosts.length?`<div class="grid">${savedPosts.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty"><div class="big">🔖</div>No saved pours yet.<br>Tap the bookmark on any post.</div>`)
     : renderStats();
@@ -671,12 +710,12 @@ function renderProfile(){
         <div><b>${ACT.reduce((a,b)=>a+b,0)}</b><span>last 3 weeks</span></div>
         <div><b>${state.streak}&nbsp;🔥</b><span>day streak</span></div>
         <div><b>8.4&nbsp;<i>↗</i></b><span>avg art</span></div></div>
-      <div class="actbars">${ACT.map((c,i)=>`<div class="ab${i===ACT.length-1?' today':''}" title="${c} coffee${c===1?'':'s'}"><i style="height:${c===0?8:c===1?52:100}%"></i></div>`).join('')}</div>
+      <div class="actbars">${ACT.map((c,i)=>{const d=new Date(Date.now()-(ACT.length-1-i)*864e5).toLocaleDateString('en',{weekday:'short',day:'numeric',month:'short'});return `<div class="ab${i===ACT.length-1?' today':''}" data-d="${d}" data-c="${c}"><i style="height:${c===0?8:c===1?52:100}%"></i></div>`;}).join('')}<div class="bartip" id="bartip" hidden></div></div>
       <div class="acthint"><span>3 weeks ago</span><span>today</span></div>
       <div class="recent">${RECENT.map(rp=>`<div class="rp"><div class="rpimg">${art(rp.img,rp.art?'rosetta':'none',rp.art?.85:null,seedOf(rp.img+rp.ago))}</div><div class="rpd">${relDay(rp.ago)}</div><div class="rpt">${rp.drink}</div></div>`).join('')}</div></div>
     <div class="section-h" style="margin-bottom:8px"><h2>Beans passport</h2></div>
-    <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="beans"><b>${BEANS.length} beans</b></div><span>${countries.length} countries</span></div>
-      <div class="beans">${BEANS.map(b=>`<div class="bean"><span class="fl">${flag[b.c]||'🫘'}</span>${b.n}</div>`).join('')}</div></div>
+    <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="beans"><b>${BEANS.length} beans</b></div><span>${countries.length} countries · tap for details</span></div>
+      <div class="beans">${BEANS.map(b=>`<div class="bean" data-action="open-bean" data-id="${b.n}"><span class="fl">${flag[b.c]||'🫘'}</span>${b.n}</div>`).join('')}</div></div>
     <div class="seg" style="margin-top:18px"><button class="${ui.profTab==='pours'?'on':''}" data-action="ptab" data-t="pours">Pours ${pourCount}</button><button class="${ui.profTab==='saved'?'on':''}" data-action="ptab" data-t="saved">Saved</button><button class="${ui.profTab==='stats'?'on':''}" data-action="ptab" data-t="stats">Stats</button></div>
     ${grid}</div>`;
 }
@@ -705,10 +744,11 @@ function renderOverlay(){
   ov.className='overlay show';
   if(ui.overlay.type==='post') ov.innerHTML=overlayPost(ui.overlay.id);
   if(ui.overlay.type==='cafe') ov.innerHTML=overlayCafe(ui.overlay.id);
+  if(ui.overlay.type==='bean') ov.innerHTML=overlayBean(ui.overlay.id);
   if(ui.overlay.type==='create') ov.innerHTML=overlayCreate();
 }
 function overlayPost(id){
-  const p=state.posts.find(x=>x.id===id); if(!p) return '';
+  const p=findPost(id); if(!p) return '';
   const u=USERS[p.user], r=p.recipe, sc=p.art?scoreFromQ(p.quality):null, rows=recipeRows(r);
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov">${icon('back',20)}</button><b>Post</b>
@@ -749,6 +789,25 @@ function overlayCafe(id){
     </div></div>`;
 }
 
+function overlayBean(name){
+  const b=BEANS.find(x=>x.n===name); if(!b) return '';
+  const allMine=state.posts.filter(p=>p.user==='me').concat(state.myGallery||[]);
+  const matches=allMine.filter(p=>{const rb=p.recipe&&p.recipe.bean; return rb&&(rb===b.n||rb.indexOf(b.n)===0||b.n.indexOf(rb)===0);});
+  const rows=[['Origin',b.c],['Region',b.region],['Process',b.process],['Altitude',b.altitude],['Varietal',b.varietal],['Roast level',b.roast]];
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov">${icon('back',20)}</button><b>${b.n}</b></div>
+    <div class="ov-body">
+      <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t"><span class="fl">${flag[b.c]||'🫘'}</span><div><b>${b.n}</b><span>Roasted by ${b.roaster}</span></div></div></div>
+      <div style="padding:16px">
+        <div class="section-h" style="margin:2px 0 10px"><h2>Tasting notes</h2></div>
+        <div class="chips">${b.notes.map(t=>`<span class="chip tag">${t}</span>`).join('')}</div>
+        <div class="section-h" style="margin:18px 0 10px"><h2>Details</h2></div>
+        <div class="recipe-panel open" style="margin:0"><div class="recipe-grid">${rows.map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>
+        <div class="section-h" style="margin:18px 0 10px"><h2>Your pours with this bean</h2></div>
+        ${matches.length?`<div class="grid">${matches.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty" style="padding:22px 0">No pours logged with this bean yet.</div>`}
+        <div style="height:8px"></div>
+      </div></div></div>`;
+}
 function overlayCreate(){
   const c=ui.create, isArt=!!DRINK_ART[c.drink];
   const pats=[['heart','Heart'],['rosetta','Rosetta'],['tulip','Tulip'],['swan','Swan']];
@@ -804,6 +863,7 @@ document.addEventListener('click',e=>{
     case 'filter': ui.filter=t.dataset.f; renderView(); break;
     case 'open-post': ui.overlay={type:'post',id}; renderOverlay(); break;
     case 'open-cafe': ui.overlay={type:'cafe',id}; renderOverlay(); break;
+    case 'open-bean': ui.overlay={type:'bean',id}; renderOverlay(); break;
     case 'open-create': ui.create=freshCreate(); ui.overlay={type:'create'}; renderOverlay(); break;
     case 'close-ov': ui.overlay=null; renderOverlay(); break;
     case 'like': toggleLike(id); break;
@@ -823,6 +883,10 @@ document.addEventListener('click',e=>{
   }
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Enter'){const t=e.target.closest('[data-enter]'); if(t){e.preventDefault(); if(t.dataset.enter==='add-cmt') addComment(t.dataset.id);}} });
+/* recent-activity bar tooltip (hover) */
+document.addEventListener('mouseover',e=>{const ab=e.target.closest('.actbars .ab'); if(!ab)return; const tip=ab.parentElement.querySelector('.bartip'); if(!tip)return;
+  tip.textContent=`${ab.dataset.d} · ${ab.dataset.c} pour${ab.dataset.c==='1'?'':'s'}`; tip.style.left=(ab.offsetLeft+ab.offsetWidth/2)+'px'; tip.hidden=false;});
+document.addEventListener('mouseout',e=>{const ab=e.target.closest('.actbars .ab'); if(!ab)return; const tip=ab.parentElement.querySelector('.bartip'); if(tip)tip.hidden=true;});
 /* file picker + selects */
 document.addEventListener('change',e=>{
   const id=e.target.id;
@@ -846,13 +910,13 @@ function handleUpload(file){
 }
 
 function toggleLike(id){
-  const p=state.posts.find(x=>x.id===id); if(!p) return;
+  const p=findPost(id); if(!p) return;
   p.likedByMe=!p.likedByMe; p.likes+=p.likedByMe?1:-1; save();
   $$('[data-action="like"][data-id="'+id+'"]').forEach(b=>{b.classList.toggle('liked',p.likedByMe); b.innerHTML=icon(p.likedByMe?'heartF':'heart',22)+' <span class="cnt">'+fmt(p.likes)+'</span>';});
   if(p.likedByMe){const hp=$('#hp-'+id); if(hp){hp.classList.remove('go'); void hp.offsetWidth; hp.classList.add('go');}}
 }
 function toggleSave(id){
-  const p=state.posts.find(x=>x.id===id); if(!p) return; p.saved=!p.saved; save();
+  const p=findPost(id); if(!p) return; p.saved=!p.saved; save();
   $$('[data-action="save"][data-id="'+id+'"]').forEach(b=>{b.classList.toggle('saved',p.saved); b.innerHTML=icon(p.saved?'saveF':'save',22);});
   toast(p.saved?'Saved to your collection 🔖':'Removed from saved');
 }
@@ -863,7 +927,7 @@ function toggleFollow(id){
 }
 function addComment(id){
   const inp=$('#cmt-input'); if(!inp) return; const text=inp.value.trim(); if(!text) return;
-  const p=state.posts.find(x=>x.id===id); if(!p) return; p.comments.push({u:'me',t:text,ago:'now'}); save();
+  const p=findPost(id); if(!p) return; p.comments.push({u:'me',t:text,ago:'now'}); save();
   const list=$('#cmt-list'); if(list){if(list.querySelector('.empty')) list.innerHTML=''; list.insertAdjacentHTML('beforeend',commentRow({u:'me',t:text,ago:'now'}));}
   inp.value=''; toast('Comment added 💬');
 }
