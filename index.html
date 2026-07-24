@@ -521,13 +521,50 @@ const MILK_DRINKS=new Set(['Cappuccino','Latte','Flat white','Cortado','Piccolo'
 const DRINK_ART=Object.fromEntries(DRINKS.map(d=>[d,MILK_DRINKS.has(d)]));
 const HAS_MILK=new Set([...MILK_DRINKS,'Iced latte']);   // drinks where milk type matters
 const MILK_LIST=['Whole milk','Semi-skimmed','Skimmed','Lactose-free','Oat','Barista oat','Almond','Soy','Coconut'];
-const BEAN_LIST=['Ethiopia Guji','Ethiopia Yirgacheffe','Colombia Huila','Brazil Cerrado','Kenya Nyeri AA',
-  'Guatemala Antigua','Costa Rica Tarrazú','Peru Cajamarca','Rwanda Kivu','Indonesia Sumatra','House blend'];
-const ROASTER_LIST=['Fika Roasters','Origin Lab','The Barn','Bar Luce','Kurasu','Crema & Co','The Steam Room','Other / home roast'];
-const MACHINE_LIST=['La Marzocco Linea Mini','Rocket Appartamento','Breville Barista Express','Sage Bambino Plus',
-  'Gaggia Classic Pro','Lelit Elizabeth','Profitec Pro 500','ECM Synchronika','Flair 58 (manual lever)','Slayer Espresso',
-  'Hario V60','Chemex','AeroPress','French press','Moka pot','Other'];
-const ADD_BEAN='＋ Add your own bean…';
+/* ---------- machines: brand → model (pick brand first, then model) ---------- */
+const MACHINES={
+  'La Marzocco':['Linea Mini','Linea Micra','GS3 AV','GS3 MP','Linea PB'],
+  'Rocket Espresso':['Appartamento','Appartamento TCA','Mozzafiato Cronometro R','Giotto Cronometro R','R58 Cinquantotto','R Nine One','Bicocca'],
+  'ECM':['Synchronika','Technika V Profi PID','Mechanika V Slim','Classika PID','Puristika'],
+  'Profitec':['GO','Pro 300','Pro 400','Pro 500 PID','Pro 600','Pro 700','Pro 800'],
+  'Lelit':['Anna','Grace','Victoria','Mara X','Bianca','Elizabeth'],
+  'Rancilio':['Silvia','Silvia M','Silvia Pro X'],
+  'Gaggia':['Classic Evo Pro','Classic Pro','Cadorna Prestige','Anima','Magenta Plus'],
+  'Sage':['Bambino','Bambino Plus','Barista Express','Barista Express Impress','Barista Pro','Barista Touch','Barista Touch Impress','Dual Boiler','Oracle','Oracle Touch','Oracle Jet'],
+  'Breville':['Bambino Plus','Barista Express','Barista Pro','Dual Boiler','Oracle Touch'],
+  'Ascaso':['Dream PID','Baby T Plus','Steel Duo PID','Big Dream'],
+  'Quick Mill':['Rubino','Silvano Evo','Vetrano 2B','QM67'],
+  'Bezzera':['Hobby','BZ10','Duo DE','Magica','Unica'],
+  'Nuova Simonelli':['Oscar II','Musica'],
+  'Victoria Arduino':['Eagle One Prima','Pigna'],
+  'DeLonghi':['Dedica','La Specialista Arte','La Specialista Maestro','La Specialista Opera','Magnifica S','Magnifica Evo','Eletta Explore','Dinamica Plus','PrimaDonna Soul','Rivelia'],
+  'Jura':['ENA 8','E6','E8','S8','Z10','GIGA 6'],
+  'Philips':['Series 2200 LatteGo','Series 3200 LatteGo','Series 4300 LatteGo','Series 5400 LatteGo','Series 5500 LatteGo'],
+  'Siemens':['EQ.6 plus','EQ.500','EQ.700','EQ.9 plus'],
+  'Melitta':['Solo','Caffeo Barista TS','CI Touch','Latticia One Touch'],
+  'Saeco':['PicoBaristo Deluxe','Xelsis','GranAroma'],
+  'Nivona':['CafeRomatica 7 series','CafeRomatica 8 series'],
+  'Miele':['CM 5510','CM 6360','CM 7750'],
+  'Flair':['NEO Flex','Classic','58','58x','Pro 2'],
+  'La Pavoni':['Europiccola','Professional'],
+  'Cafelat':['Robot'],
+  'Wacaco':['Minipresso','Nanopresso','Picopresso'],
+  'Hario':['V60','V60 Switch','Mugen','Woodneck'],
+  'Chemex':['Classic','Ottomatic'],
+  'AeroPress':['Original','Go','Clear','XL'],
+  'Fellow':['Stagg [X]','Stagg [XF]'],
+  'Kalita':['Wave 155','Wave 185'],
+  'Origami':['Dripper S','Dripper M'],
+  'Moccamaster':['KBGV Select','KBG','Cup-One'],
+  'Bialetti':['Moka Express','Brikka','Venus'],
+  'Bodum':['Chambord French Press','Pour Over'],
+  'Espro':['P3 Press','Bloom Pour Over'],
+  'Timemore':['French Press','U Pour Over'],
+  'Other':[]
+};
+const MACHINE_BRANDS=Object.keys(MACHINES);
+function combineMachine(brand,model){ if(!brand) return ''; if(brand==='Other') return (model||'').trim(); return model?brand+' '+model:''; }
+const ADD_BEAN='＋ Add your own coffee…';
 const LEVELS=[[1,'First Sips'],[2,'Steam Dreams'],[3,'Heart Starter'],[4,'Heart Artist'],[5,'Tulip Tinkerer'],
   [6,'Rosetta Artist'],[7,'Rosetta Pro'],[8,'Swan Apprentice'],[9,'Swan Master'],[10,'Latte Legend']];
 
@@ -603,9 +640,9 @@ const pin=color=>`<svg viewBox="0 0 24 30" aria-hidden="true"><path d="M12 0C6 0
 const logoMark=(s=26)=>`<svg width="${s}" height="${s}" viewBox="0 0 40 40" style="vertical-align:-4px" aria-hidden="true"><circle cx="20" cy="20" r="18" fill="#8a5a30"/><path d="M20 12c-4.5 3.5-4.5 9 0 12.5 4.5-3.5 4.5-9 0-12.5z" fill="#f3e6d2"/></svg>`;
 
 /* ---------- users ---------- */
-const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Kenya:'🇰🇪',Guatemala:'🇬🇹',Indonesia:'🇮🇩',Peru:'🇵🇪',Rwanda:'🇷🇼','Costa Rica':'🇨🇷'};
+const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Kenya:'🇰🇪',Guatemala:'🇬🇹',Indonesia:'🇮🇩',Peru:'🇵🇪',Rwanda:'🇷🇼','Costa Rica':'🇨🇷',Germany:'🇩🇪',Italy:'🇮🇹','United Kingdom':'🇬🇧',Norway:'🇳🇴',Denmark:'🇩🇰',USA:'🇺🇸'};
 const USERS={
-  me:{id:'me',name:'You',handle:'@you',color:'#8a5a30',level:1,levelName:'First Sips',city:'Munich',followerN:0,pourN:0,bio:''},
+  me:{id:'me',name:'You',handle:'@you',color:'#8a5a30',level:1,levelName:'First Sips',city:'Tübingen',followerN:0,pourN:0,bio:''},
   mara:{id:'mara',name:'Mara Okafor',handle:'@marapours',color:'#a8544a',level:7,levelName:'Rosetta Pro',city:'Lisbon',followerN:8210,pourN:642,bio:'Free pour every morning before the kids wake up. Linea Mini loyalist.'},
   yuki:{id:'yuki',name:'Yuki Tanaka',handle:'@yukilatte',color:'#527a86',level:9,levelName:'Swan Master',city:'Osaka',followerN:15400,pourN:1204,bio:'Chasing the perfect swan since 2019. Kissaten regular, Slayer at home.'},
   tom:{id:'tom',name:'Tom Bright',handle:'@tombrews',color:'#6f7a4e',level:5,levelName:'Tulip Tinkerer',city:'Berlin',followerN:2380,pourN:311,bio:'Berlin balcony barista. Rosettas on weekdays, bikes on weekends.'},
@@ -627,27 +664,27 @@ const SEED_POSTS=[
   post({user:'yuki',drink:'Latte',art:true,pattern:'rosetta',quality:.97,img:S.l3,ago:'2h',caption:'Sunday pour. Milk stretched to exactly 62°C — cleanest symmetry I\'ve managed.',likes:1203,cafe:'Kissaten',
     recipe:{bean:'Kenya Nyeri AA',roaster:'Kurasu',machine:'Slayer Espresso',milk:'Whole milk',dose:'18.5g',yield:'40g',time:'30s',temp:'93°C'},
     comments:[{u:'mara',t:'The neck definition is unreal 😍',likes:24},{u:'sofia',t:'goals. absolute goals.',likes:9}]}),
-  post({user:'lena',drink:'Cappuccino',art:true,pattern:'tulip',quality:.82,ago:'3h',caption:'Tulip stack #4 — The Steam Room let me behind the bar today 🙈',cafe:'The Steam Room',likes:264,
+  post({user:'lena',drink:'Cappuccino',art:true,pattern:'tulip',quality:.82,ago:'3h',caption:'Tulip stack #4 — Café Lieb let me behind the bar today 🙈',cafe:'Café Lieb',likes:264,
     recipe:{bean:'Colombia Huila',roaster:'The Barn',machine:'La Marzocco Linea Mini',milk:'Oat',dose:'18g',yield:'36g'},
     comments:[{u:'tom',t:'behind-the-bar privileges!! clean stacks',likes:6}]}),
   post({user:'mara',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.9,img:S.l2,ago:'4h',caption:'Finally getting the contrast right. Pour high, then drop in close.',likes:342,
-    recipe:{bean:'Ethiopia Guji',roaster:'Fika Roasters',machine:'La Marzocco Linea Mini',milk:'Whole milk',dose:'18g',yield:'38g',time:'28s',temp:'93°C'},
+    recipe:{bean:'Ethiopia Guji',roaster:'The Barn',machine:'La Marzocco Linea Mini',milk:'Whole milk',dose:'18g',yield:'38g',time:'28s',temp:'93°C'},
     comments:[{u:'tom',t:'what milk are you using?',likes:3},{u:'mara',t:'@tombrews whole milk, cold jug straight from the fridge',likes:11}]}),
   post({user:'sofia',drink:'Pour-over',art:false,img:S.l9,ago:'5h',caption:'No milk today — just a clean Chemex to actually taste the Yirgacheffe. Blueberry all the way.',likes:214,
     recipe:{bean:'Ethiopia Yirgacheffe',roaster:'The Barn',machine:'Chemex'},
     comments:[{u:'tom',t:'that origin is unreal filtered',likes:5}]}),
   post({user:'dev',drink:'Cappuccino',art:true,pattern:'heart',quality:.55,img:S.l7,ago:'6h',
     caption:'Third attempt today and the art keeps sinking within seconds. Any tips on milk texture? 🙏',likes:41,
-    recipe:{bean:'Brazil Cerrado',roaster:'Origin Lab',machine:'Gaggia Classic Pro',dose:'17g',yield:'34g',time:'22s',temp:'90°C'},
+    recipe:{bean:'Brazil Cerrado',roaster:'Bonanza',machine:'Gaggia Classic Pro',dose:'17g',yield:'34g',time:'22s',temp:'90°C'},
     comments:[{u:'yuki',t:'Texture looks thin — stretch less, then swirl hard for 10s to fold the foam in.',likes:18},{u:'sofia',t:'Also pour a touch later, let the crema settle first.',likes:7}]}),
-  post({user:'kofi',drink:'Espresso',art:false,img:S.l8,ago:'7h',caption:'Fresh grounds, naked portafilter, zero channeling. Bliss.',cafe:'Origin Lab',likes:451,
-    recipe:{bean:'Kenya Nyeri AA',roaster:'Origin Lab',machine:'Profitec Pro 500',dose:'18g',yield:'42g',time:'31s'},
+  post({user:'kofi',drink:'Espresso',art:false,img:S.l8,ago:'7h',caption:'Fresh grounds, naked portafilter, zero channeling. Bliss.',cafe:'Meisterwerk Kaffee',likes:451,
+    recipe:{bean:'Kenya Nyeri AA',roaster:'Bonanza',machine:'Profitec Pro 500',dose:'18g',yield:'42g',time:'31s'},
     comments:[{u:'dev',t:'teach me your prep routine 🙏',likes:4},{u:'kofi',t:'@devdials WDT, 30 seconds, no shortcuts',likes:15}]}),
   post({user:'tom',drink:'Espresso',art:false,img:S.esp,ago:'8h',caption:'Straight double, no distractions. Finally dialled the Huila in — syrupy and sweet.',likes:132,
     recipe:{bean:'Colombia Huila',roaster:'The Barn',machine:'Rocket Appartamento',dose:'18g',yield:'40g',time:'29s'},
     comments:[{u:'dev',t:'what grinder?',likes:2}]}),
-  post({user:'sofia',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.83,img:S.l6,ago:'9h',caption:'Morning break at my favourite spot. Their milk is spoiling me.',likes:176,cafe:'Bar Luce',
-    recipe:{bean:'Guatemala Antigua',roaster:'Bar Luce',machine:'La Marzocco Linea Mini'},
+  post({user:'sofia',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.83,img:S.l6,ago:'9h',caption:'Morning break at my favourite spot. Their milk is spoiling me.',likes:176,cafe:'Marquardtei',
+    recipe:{bean:'Guatemala Antigua',roaster:'Five Elephant',machine:'La Marzocco Linea Mini'},
     comments:[{u:'mara',t:'that place is magic',likes:8}]}),
   post({user:'june',drink:'Flat white',art:true,pattern:'heart',quality:.93,ago:'10h',caption:'Minimal heart, maximum glow. Seoul morning light does the rest.',likes:892,
     recipe:{bean:'Ethiopia Yirgacheffe',roaster:'Kurasu',machine:'Lelit Elizabeth',milk:'Barista oat',dose:'18g',yield:'36g',time:'27s',temp:'92°C'},
@@ -659,19 +696,29 @@ const SEED_POSTS=[
 ];
 const MYGALLERY=[];   // demo users start fresh — no pours yet; the community feed carries the app
 
+/* Real Tübingen cafés (details are illustrative demo data) */
 const CAFES=[
-  {id:'crema',name:'Crema & Co',area:'Glockenbach',city:'Munich',spec:'Specialty pour-over bar',rating:4.8,followers:2140,followed:false,promo:true,img:S.l4,color:'#8a5a30',x:'28%',y:'42%',
-   blurb:'A tiny neighbourhood roastery obsessed with single-origin espresso and free-poured art. Rotating guest roasters every fortnight.',hours:'Open · closes 18:00',
-   menu:{beans:['Ethiopia Guji','Brazil Cerrado','Kenya Nyeri'],roaster:'Crema & Co',machine:'La Marzocco Linea Mini',milks:['Whole milk','Oat','Almond']}},
-  {id:'steam',name:'The Steam Room',area:'Maxvorstadt',city:'Munich',spec:'Third-wave café',rating:4.6,followers:1180,followed:false,promo:false,img:S.l5,color:'#6f7a4e',x:'58%',y:'30%',
-   blurb:'Student-favourite café near the university with generous milk and a latte-art wall of fame.',hours:'Open · closes 20:00',
-   menu:{beans:['Colombia Huila','Guatemala Antigua'],roaster:'The Barn',machine:'La Marzocco GB5',milks:['Whole milk','Oat','Soy']}},
-  {id:'fika',name:'Fika Roasters',area:'Isarvorstadt',city:'Munich',spec:'Roastery & espresso bar',rating:4.9,followers:3320,followed:true,promo:true,img:S.l9,color:'#a8544a',x:'44%',y:'66%',
-   blurb:'The roaster behind half the beans in this feed. Cupping sessions on Saturdays, open to all.',hours:'Open · closes 17:00',
-   menu:{beans:['Ethiopia Guji','Ethiopia Yirgacheffe','Peru Cajamarca','Rwanda Kivu'],roaster:'Fika Roasters',machine:'Slayer Espresso',milks:['Whole milk','Barista oat','Almond']}},
-  {id:'origin',name:'Origin Lab',area:'Ostend',city:'Munich',spec:'Minimalist coffee lab',rating:4.5,followers:860,followed:false,promo:false,img:S.l7,color:'#527a86',x:'74%',y:'56%',
-   blurb:'Stripped-back space, brew-bar only, rotating experimental fermentations.',hours:'Closed · opens 08:00',
-   menu:{beans:['Brazil Cerrado','Kenya Nyeri','Colombia Huila'],roaster:'Origin Lab',machine:'Profitec Pro 500',milks:['Whole milk','Oat']}}
+  {id:'meisterwerk',name:'Meisterwerk Kaffee',area:'Kelternstraße · Altstadt',city:'Tübingen',spec:'Specialty roastery & espresso bar',rating:4.8,followers:1120,followed:false,promo:true,img:S.l4,color:'#8a5a30',x:'30%',y:'40%',
+   blurb:'Tübingen\'s specialty roaster — house-roasted single origins, meticulous espresso and pour-over in the heart of the old town.',hours:'Open · closes 18:00',
+   menu:{beans:['Meisterwerk Espresso','Meisterwerk Hausmischung'],roaster:'Meisterwerk Kaffee',machine:'La Marzocco Linea PB',milks:['Whole milk','Barista oat','Almond']}},
+  {id:'lieb',name:'Café Lieb',area:'Am Markt · Altstadt',city:'Tübingen',spec:'Traditional Konditorei-Café',rating:4.6,followers:980,followed:false,promo:false,img:S.l5,color:'#a8544a',x:'52%',y:'30%',
+   blurb:'A Tübingen institution — house cakes, classic Konditorei coffee and a terrace right on the market square.',hours:'Open · closes 18:30',
+   menu:{beans:['Crema d\'Oro Intensa','Prodomo'],roaster:'Dallmayr',machine:'Sage Dual Boiler',milks:['Whole milk','Semi-skimmed','Oat']}},
+  {id:'neckarmueller',name:'Neckarmüller',area:'Gartenstraße · am Neckar',city:'Tübingen',spec:'Riverside Brauhaus & café',rating:4.3,followers:1340,followed:false,promo:false,img:S.l1,color:'#b58a3a',x:'22%',y:'66%',
+   blurb:'Iconic riverside brewhouse with a huge terrace on the Neckar — coffee and cake with a view of the Stocherkähne.',hours:'Open · closes 00:00',
+   menu:{beans:['Espresso Crema Classico'],roaster:'Dinzler',machine:'La Marzocco Linea PB',milks:['Whole milk','Oat']}},
+  {id:'marquardtei',name:'Marquardtei',area:'Herrenberger Straße · Südstadt',city:'Tübingen',spec:'Café & bar',rating:4.5,followers:720,followed:false,promo:false,img:S.l7,color:'#527a86',x:'70%',y:'52%',
+   blurb:'Laid-back Südstadt café-bar — good espresso and cake by day, natural wine by night.',hours:'Open · closes 23:00',
+   menu:{beans:['Bumblebee Espresso'],roaster:'The Barn',machine:'La Marzocco Linea Mini',milks:['Whole milk','Oat','Almond']}},
+  {id:'pfuderi',name:'Café Pfüderi',area:'Metzgergasse · Altstadt',city:'Tübingen',spec:'Bakery & café',rating:4.4,followers:640,followed:false,promo:true,img:S.l6,color:'#6f7a4e',x:'42%',y:'62%',
+   blurb:'Neighbourhood bakery-café with a steady flow of flat whites, fresh pastries and student regulars.',hours:'Open · closes 17:00',
+   menu:{beans:['Bel Canto Espresso'],roaster:'Supremo',machine:'Rocket Appartamento',milks:['Whole milk','Oat','Soy']}},
+  {id:'kuckuck',name:'Kuckuck Kaffeebar',area:'Wilhelmstraße · Uni',city:'Tübingen',spec:'Campus coffee bar',rating:4.5,followers:560,followed:false,promo:true,img:S.l9,color:'#9a6b4a',x:'60%',y:'70%',
+   blurb:'Tiny campus coffee bar by the university library — fast, friendly and student-priced.',hours:'Open · closes 19:00',
+   menu:{beans:['Espresso Blend'],roaster:'Five Elephant',machine:'Sage Barista Pro',milks:['Whole milk','Oat','Soy']}},
+  {id:'ammarkt',name:'Café am Markt',area:'Marktplatz · Altstadt',city:'Tübingen',spec:'Old-town coffee house',rating:4.4,followers:700,followed:false,promo:false,img:S.esp,color:'#7a5c8a',x:'46%',y:'22%',
+   blurb:'Bright coffee house on the Marktplatz — filter flights, weekend brunch and calm mornings under the Rathaus.',hours:'Closed · opens 08:00',
+   menu:{beans:['Herr Lutz Espresso'],roaster:'Herr Lutz',machine:'Lelit Bianca',milks:['Whole milk','Barista oat','Coconut']}}
 ];
 const CHALLENGES=[
   {id:'tue',title:'Tulip Tuesday',tag:'#TulipTuesday',pattern:'tulip',ends:'2d',participants:1240,joined:false,
@@ -683,22 +730,51 @@ const CHALLENGES=[
   {id:'swan',title:'Swan Sundays',tag:'#SwanSundays',pattern:'swan',ends:'6d',participants:317,joined:false,
    blurb:'The hardest pour there is. Show us your neck game.'}
 ];
-const DUEL={a:{user:'yuki',pattern:'swan',q:.97,img:S.l3,votes:612},b:{user:'mara',pattern:'rosetta',q:.9,img:S.l4,votes:588}};
 const LEADERBOARD=[{u:'yuki',pts:9420},{u:'june',pts:8710},{u:'mara',pts:7810},{u:'kofi',pts:7100},{u:'sofia',pts:6640},
   {u:'tom',pts:5980},{u:'lena',pts:5230},{u:'aria',pts:3990},{u:'me',pts:0}];
+/* Specific coffee brands you can actually buy in Germany — local roasters + international.
+   c = roaster's country (for the flag); loc: 'DE' local, 'INT' international. */
 const BEANS=[
-  {n:'Ethiopia Guji',c:'Ethiopia',region:'Guji, Oromia',process:'Washed',altitude:'1,950–2,100 m',varietal:'Heirloom',roast:'Light',roaster:'Fika Roasters',notes:['Jasmine','Bergamot','Peach']},
-  {n:'Colombia Huila',c:'Colombia',region:'Huila',process:'Washed',altitude:'1,700–1,900 m',varietal:'Caturra · Castillo',roast:'Light-medium',roaster:'The Barn',notes:['Red apple','Caramel','Orange']},
-  {n:'Brazil Cerrado',c:'Brazil',region:'Cerrado Mineiro',process:'Natural',altitude:'1,100–1,250 m',varietal:'Yellow Bourbon',roast:'Medium',roaster:'Origin Lab',notes:['Chocolate','Hazelnut','Dark cherry']},
-  {n:'Kenya Nyeri',c:'Kenya',region:'Nyeri County',process:'Washed',altitude:'1,700–1,900 m',varietal:'SL28 · SL34',roast:'Light',roaster:'Kurasu',notes:['Blackcurrant','Grapefruit','Brown sugar']},
-  {n:'Guatemala Antigua',c:'Guatemala',region:'Antigua Valley',process:'Washed',altitude:'1,500–1,700 m',varietal:'Bourbon',roast:'Medium',roaster:'Bar Luce',notes:['Cocoa','Almond','Baking spice']},
-  {n:'Peru Cajamarca',c:'Peru',region:'Cajamarca',process:'Washed',altitude:'1,600–1,900 m',varietal:'Typica · Bourbon',roast:'Medium',roaster:'Fika Roasters',notes:['Milk chocolate','Toffee','Mandarin']},
-  {n:'Rwanda Kivu',c:'Rwanda',region:'Lake Kivu',process:'Washed',altitude:'1,700–2,000 m',varietal:'Red Bourbon',roast:'Light',roaster:'The Steam Room',notes:['Red berry','Floral','Honey']}];
+  // ---- Local · roasted in Germany ----
+  {n:'Bumblebee Espresso',roaster:'The Barn',c:'Germany',loc:'DE',origin:'Colombia · Ethiopia blend',roast:'Medium',notes:['Milk chocolate','Red berry','Caramel']},
+  {n:'Espresso Anniversario',roaster:'The Barn',c:'Germany',loc:'DE',origin:'Seasonal blend',roast:'Medium',notes:['Cocoa','Orange','Brown sugar']},
+  {n:'Dark Horse Espresso',roaster:'Bonanza',c:'Germany',loc:'DE',origin:'Seasonal blend',roast:'Medium-dark',notes:['Dark chocolate','Hazelnut','Cherry']},
+  {n:'Espresso Blend',roaster:'Five Elephant',c:'Germany',loc:'DE',origin:'Brazil · Ethiopia',roast:'Medium',notes:['Chocolate','Almond','Orange']},
+  {n:'Buna Dimaa',roaster:'Coffee Circle',c:'Germany',loc:'DE',origin:'Ethiopia · Sidama',roast:'Light-medium',notes:['Jasmine','Blueberry','Honey']},
+  {n:'Bright Eyes Espresso',roaster:'19grams',c:'Germany',loc:'DE',origin:'Seasonal blend',roast:'Medium',notes:['Caramel','Stone fruit','Cocoa']},
+  {n:'Espresso No.1',roaster:'Elbgold',c:'Germany',loc:'DE',origin:'Brazil · Guatemala',roast:'Medium',notes:['Chocolate','Nut','Brown sugar']},
+  {n:'Fair Play Espresso',roaster:'Quijote Kaffee',c:'Germany',loc:'DE',origin:'Direct-trade blend',roast:'Medium',notes:['Cocoa','Nougat','Citrus']},
+  {n:'Hafencity Espresso',roaster:'Speicherstadt',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Dark chocolate','Toffee','Low acidity']},
+  {n:'Bel Canto Espresso',roaster:'Supremo',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Chocolate','Marzipan','Cherry']},
+  {n:'Espresso Crema Classico',roaster:'Dinzler',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Nut','Caramel','Mild']},
+  {n:'MVSM Espresso',roaster:'Man Versus Machine',c:'Germany',loc:'DE',origin:'Seasonal blend',roast:'Medium',notes:['Berry','Chocolate','Caramel']},
+  {n:'Rocket Man Espresso',roaster:'JB Kaffee',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Cocoa','Red apple','Nut']},
+  {n:'Prodomo',roaster:'Dallmayr',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Mild','Balanced','Low acidity']},
+  {n:'Crema d\'Oro Intensa',roaster:'Dallmayr',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Creamy','Chocolate','Nut']},
+  {n:'BellaCrema LaCrema',roaster:'Melitta',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Smooth','Nutty','Chocolate']},
+  // ---- Baden-Württemberg · near Tübingen ----
+  {n:'Meisterwerk Espresso',roaster:'Meisterwerk Kaffee',c:'Germany',loc:'DE',origin:'Tübingen roast · blend',roast:'Medium',notes:['Chocolate','Hazelnut','Caramel']},
+  {n:'Meisterwerk Hausmischung',roaster:'Meisterwerk Kaffee',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Cocoa','Nut','Dark sugar']},
+  {n:'Herr Lutz Espresso',roaster:'Herr Lutz',c:'Germany',loc:'DE',origin:'Stuttgart roast · blend',roast:'Medium',notes:['Caramel','Berry','Chocolate']},
+  {n:'Mókuska Espresso',roaster:'Mókuska Caffè',c:'Germany',loc:'DE',origin:'Stuttgart roast · blend',roast:'Medium',notes:['Chocolate','Almond','Citrus']},
+  // ---- International · available in Germany ----
+  {n:'Qualità Rossa',roaster:'Lavazza',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Chocolate','Dried fruit']},
+  {n:'Qualità Oro',roaster:'Lavazza',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Caramel','Honey','Floral']},
+  {n:'Super Crema',roaster:'Lavazza',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Hazelnut','Brown sugar','Mild']},
+  {n:'Classico',roaster:'Illy',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Caramel','Chocolate','Floral']},
+  {n:'Intenso',roaster:'Illy',c:'Italy',loc:'INT',origin:'Blend',roast:'Dark',notes:['Cocoa','Dried fruit','Bold']},
+  {n:'Intermezzo',roaster:'Segafredo',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium-dark',notes:['Cocoa','Woody','Spice']},
+  {n:'Red Brick Espresso',roaster:'Square Mile',c:'United Kingdom',loc:'INT',origin:'Seasonal blend',roast:'Medium',notes:['Red fruit','Caramel','Chocolate']},
+  {n:'Espresso',roaster:'Tim Wendelboe',c:'Norway',loc:'INT',origin:'Seasonal',roast:'Light',notes:['Berry','Floral','Bright']},
+  {n:'House Espresso',roaster:'The Coffee Collective',c:'Denmark',loc:'INT',origin:'Seasonal',roast:'Light-medium',notes:['Stone fruit','Caramel','Clean']},
+  {n:'Espresso Roast',roaster:'Starbucks',c:'USA',loc:'INT',origin:'Blend',roast:'Dark',notes:['Caramelized','Rich','Bold']}
+];
+const ROASTER_LIST=[...new Set(BEANS.map(b=>b.roaster))].sort().concat('Other / home roast');
 /* activity bars derive from the user's own pours (last 21 days) — empty until they post */
 function activityBars(){const a=Array(21).fill(0);myPosts().forEach(p=>{const i=20-Math.min(20,agoDays(p.ago));if(i>=0)a[i]++;});return a;}
 
 /* ---------- state ---------- */
-const KEY='crema_v9';
+const KEY='crema_v10';
 let state;
 function freshState(){
   // A demo user starts like a fresh download: no pours, no followers, no streak.
@@ -708,9 +784,9 @@ function freshState(){
     follows:{mara:false,yuki:false,sofia:false,tom:false,dev:false,lena:false,kofi:false,june:false,aria:false},
     cafeFollow:{},
     challenges:{},
-    challengeSubs:{}, duelVote:null, streak:0, customBeans:[],
+    challengeSubs:{}, streak:0, customBeans:[],
     onboarded:false, theme:'auto',
-    me:{name:'',handle:'',city:'Munich',machine:'Sage Bambino Plus',favDrink:'Cappuccino',favMilk:'Whole milk',bio:''},
+    me:{name:'',handle:'',city:'Tübingen',machineBrand:'Sage',machineModel:'Bambino Plus',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:''},
     notifications:[]
   };
 }
@@ -731,7 +807,7 @@ function applyMe(){
   handleToUid[h]='me';
 }
 function freshCreate(){return{drink:state.me.favDrink||'Cappuccino',pattern:'rosetta',caption:'',img:null,source:'home',cafe:'',
-  bean:'',beanCustom:'',roaster:'',machine:state.me.machine||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
+  bean:'',beanCustom:'',roaster:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 const ui={route:'home', filter:'foryou', ovStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null};
 function pushOv(o){ui.ovStack.push(o); renderOverlay();}
@@ -748,6 +824,25 @@ const myPosts=()=>allPosts().filter(p=>p.user==='me');
 function beanCatalog(name){return BEANS.find(x=>x.n===name||name.indexOf(x.n)===0||x.n.indexOf(name)===0)||null;}
 function myBeans(){const seen=new Set(),out=[];myPosts().forEach(p=>{const b=p.recipe&&p.recipe.bean;if(b&&!seen.has(b)){seen.add(b);out.push(b);}});state.customBeans.forEach(b=>{if(b&&!seen.has(b)){seen.add(b);out.push(b);}});return out;}
 function myCountries(){return [...new Set(myBeans().map(n=>{const c=beanCatalog(n);return c&&c.c;}).filter(Boolean))];}
+function myRoasters(){const set=new Set();myBeans().forEach(n=>{const c=beanCatalog(n);if(c)set.add(c.roaster);});return [...set];}
+/* brand → model machine picker (used in create, onboarding & settings) */
+function machinePicker(pfx,brand,model){
+  const models=(brand&&MACHINES[brand])||[];
+  return `<div class="rowfields">
+    <div class="field sel"><label>Machine brand</label><select id="${pfx}-mbrand"><option value=""${brand?'':' selected'}>Choose brand…</option>${MACHINE_BRANDS.map(b=>`<option${b===brand?' selected':''}>${esc(b)}</option>`).join('')}</select></div>
+    <div class="field sel"><label>Model</label><select id="${pfx}-mmodel"${brand&&brand!=='Other'?'':' disabled'}><option value=""${model?'':' selected'}>${brand&&brand!=='Other'?'Choose model…':'—'}</option>${models.map(m=>`<option${m===model?' selected':''}>${esc(m)}</option>`).join('')}</select></div>
+  </div>${brand==='Other'?`<div class="field"><label>Your machine</label><input id="${pfx}-mother" placeholder="e.g. Custom lever setup" value="${esc(model||'')}"></div>`:''}`;
+}
+/* branded-coffee <select>, grouped local/international; own-bean option gated behind Premium */
+function beanSelectHTML(cur){
+  const opt=b=>`<option value="${esc(b.n)}"${b.n===cur?' selected':''}>${esc(b.roaster)} — ${esc(b.n)}</option>`;
+  let h=`<option value=""${cur?'':' selected'}>Not sure / choose…</option>`;
+  h+=`<optgroup label="Local · roasted in Germany">${BEANS.filter(b=>b.loc!=='INT').map(opt).join('')}</optgroup>`;
+  h+=`<optgroup label="International · sold in Germany">${BEANS.filter(b=>b.loc==='INT').map(opt).join('')}</optgroup>`;
+  if(state.customBeans.length) h+=`<optgroup label="Your coffees">${state.customBeans.map(n=>`<option${n===cur?' selected':''}>${esc(n)}</option>`).join('')}</optgroup>`;
+  if(state.me.premium) h+=`<option${cur===ADD_BEAN?' selected':''}>${ADD_BEAN}</option>`;
+  return h;
+}
 const postLink=id=>location.href.split('#')[0]+'#p/'+id;
 
 function renderAppbar(){
@@ -844,7 +939,6 @@ function searchHTML(q){
 }
 
 function renderExplore(){
-  const d=DUEL, av=d.a.votes+(state.duelVote==='a'?1:0), bv=d.b.votes+(state.duelVote==='b'?1:0), tot=av+bv, ap=Math.round(av/tot*100), bp=100-ap;
   const sugg=Object.values(USERS).filter(u=>u.id!=='me'&&!state.follows[u.id]).sort((a,b)=>b.followerN-a.followerN).slice(0,6);
   const lbPrev=LEADERBOARD.slice(0,5);
   const meIn=lbPrev.some(r=>r.u==='me');
@@ -860,12 +954,6 @@ function renderExplore(){
       <div class="ch-top" data-action="open-challenge" data-id="${c.id}"><span class="ends">Ends in ${c.ends}</span>${cupSVG(c.pattern,.9,c.id.charCodeAt(0))}</div>
       <div class="ch-b"><h3>${c.title}</h3><p>${fmt(c.participants)} joined · ${c.tag}</p>
         <button class="btn ${j?'ghost':''} sm block" data-action="join" data-id="${c.id}">${j?'✓ Joined':'Join challenge'}</button></div></div>`;}).join('')}</div>
-    <div class="section-h"><h2>This week's duel</h2></div>
-    <div class="duel"><div class="duel-row">
-      <div class="duel-side ${state.duelVote==='a'?'pick':''}" data-action="vote" data-side="a"><div class="m">${art(d.a.img,d.a.pattern,d.a.q,7)}</div></div>
-      <div class="duel-mid">VS</div>
-      <div class="duel-side ${state.duelVote==='b'?'pick':''}" data-action="vote" data-side="b"><div class="m">${art(d.b.img,d.b.pattern,d.b.q,9)}</div></div></div>
-      ${state.duelVote?`<div class="duel-bar"><b class="a" style="flex:${ap}">${USERS[d.a.user].name.split(' ')[0]} ${ap}%</b><b class="b" style="flex:${bp}">${bp}% ${USERS[d.b.user].name.split(' ')[0]}</b></div>`:`<div style="padding:11px 13px;text-align:center;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line)">Tap a cup to vote · ${fmt(tot)} votes</div>`}</div>
     <div class="section-h"><h2>Weekly leaderboard</h2><a data-action="open-board">Full list</a></div>
     <div class="lb">${lbPrev.map((r,i)=>lbRow(r,i)).join('')}${meIn?'':lbRow(LEADERBOARD.find(r=>r.u==='me'),LEADERBOARD.findIndex(r=>r.u==='me'))}</div>
     <div class="section-h"><h2>Trending patterns</h2></div>
@@ -904,7 +992,7 @@ function cafeCard(c){
 function renderProfile(){
   const u=USERS.me, mine=myPosts(), savedPosts=allPosts().filter(p=>p.saved);
   const pourCount=mine.length, followingN=Object.values(state.follows).filter(Boolean).length;
-  const hasPours=pourCount>0, beans=myBeans(), countries=myCountries(), ACT=activityBars();
+  const hasPours=pourCount>0, beans=myBeans(), roasters=myRoasters(), ACT=activityBars();
   const recent=mine.slice().sort((a,b)=>agoDays(a.ago)-agoDays(b.ago)).slice(0,8);
   const grid = ui.profTab==='pours'
     ? (hasPours?`<div class="grid">${mine.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty"><div class="big">☕</div>No pours yet.<br>Tap ＋ to log your first coffee.</div>`)
@@ -923,12 +1011,12 @@ function renderProfile(){
   const startedHTML = `<div class="journey"><h3>Your journey starts here</h3><p class="sub" style="margin-bottom:12px">Log your first coffee to start a streak, earn badges and climb the weekly leaderboard.</p>
       <div style="padding:0 12px 14px"><button class="btn block" data-action="open-create">${icon('bolt',18)} Log your first coffee</button></div></div>`;
   const passportHTML = beans.length?`<div class="section-h" style="margin-bottom:8px"><h2>Beans passport</h2></div>
-    <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="coffee beans"><b>${beans.length} bean${beans.length===1?'':'s'}</b></div><span>${countries.length} countr${countries.length===1?'y':'ies'} · tap for details</span></div>
+    <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="coffee beans"><b>${beans.length} bean${beans.length===1?'':'s'}</b></div><span>${roasters.length} roaster${roasters.length===1?'':'s'} · tap for details</span></div>
       <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return cat?`<div class="bean" data-action="open-bean" data-id="${esc(cat.n)}"><span class="fl">${flag[cat.c]||'🫘'}</span>${cat.n}</div>`:`<div class="bean" data-action="toast" data-msg="Your own bean — details coming soon">🫘 ${esc(n)}</div>`;}).join('')}</div></div>`:'';
   return `<div class="pad">
     <div class="prof-top"><div class="prof-av" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px">${initials(u.name)}</div>
       <div class="prof-id"><b>${esc(u.name)}</b><div class="h">${u.handle}${u.city?` · 📍 ${esc(u.city)}`:''}</div>
-        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} Level ${u.level} · ${u.levelName}</span></div></div>
+        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} Level ${u.level} · ${u.levelName}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:linear-gradient(135deg,#f5d78a,#e0b25a);color:#5a3d17;border-color:#e6c98a">✦ PREMIUM</span>`:''}</div></div>
     <div class="bio">${bioHTML}</div>
     <div class="stats">
       <div><b>${pourCount}</b><span>Pours</span></div>
@@ -953,12 +1041,12 @@ function renderStats(){
   const pats=mine.filter(p=>p.pattern).map(p=>p.pattern);
   const styleCount={}; pats.forEach(p=>styleCount[p]=(styleCount[p]||0)+1);
   const topStyle=Object.keys(styleCount).sort((a,b)=>styleCount[b]-styleCount[a])[0];
-  const beans=myBeans(), countries=myCountries();
+  const beans=myBeans(), roasters=myRoasters();
   const rows=[
     ['Favourite drink',state.me.favDrink||'—',''],
     ['Most-used style',topStyle?cap(topStyle):'—',topStyle?Math.round(styleCount[topStyle]/pats.length*100)+'% of art pours':''],
     ['Current streak',`${state.streak||0} day${state.streak===1?'':'s'}`,''],
-    ['Beans tried',''+beans.length,countries.length?`${countries.length} countr${countries.length===1?'y':'ies'}`:''],
+    ['Beans tried',''+beans.length,roasters.length?`${roasters.length} roaster${roasters.length===1?'':'s'}`:''],
     ['Total pours',''+mine.length,'']
   ];
   return `<div class="lb" style="margin-top:2px">${rows.map(r=>`<div class="lb-row"><div style="flex:1"><b style="font-size:14px">${r[0]}</b></div><div style="text-align:right"><b style="font-family:var(--serif);font-size:16px">${esc(r[1])}</b>${r[2]?`<div style="font-size:11px;color:var(--green);font-weight:700">${esc(r[2])}</div>`:''}</div></div>`).join('')}</div>`;
@@ -966,7 +1054,7 @@ function renderStats(){
 function computeBadges(){
   const mine=myPosts(), n=mine.length, pats=p=>mine.filter(x=>x.pattern===p).length;
   const beansN=myBeans().length;
-  const countries=myCountries().length;
+  const roasters=myRoasters().length;
   return [
     {i:'☕',n:'First pour',d:'Post your first coffee',e:n>0},
     {i:'🔥',n:'Week streak',d:'7 days of coffee in a row',e:state.streak>=7},
@@ -974,7 +1062,7 @@ function computeBadges(){
     {i:'🌷',n:'Tulip time',d:'Post your first tulip',e:pats('tulip')>=1},
     {i:'🦢',n:'Swan whisperer',d:'Post a swan',e:pats('swan')>=1,p:pats('swan')+'/1'},
     {i:'🫘',n:'Bean explorer',d:'Log 7 different beans',e:beansN>=7,p:Math.min(beansN,7)+'/7'},
-    {i:'🌍',n:'Globetrotter',d:'Beans from 5 countries',e:countries>=5},
+    {i:'🌍',n:'Roaster hopper',d:'Try beans from 5 roasters',e:roasters>=5},
     {i:'🧊',n:'Cold brew curious',d:'Post a cold brew',e:mine.some(p=>p.drink==='Cold brew')},
     {i:'🎯',n:'Challenger',d:'Join a challenge',e:Object.values(state.challenges).some(Boolean)},
     {i:'💯',n:'Century club',d:'Log 100 pours',e:false,p:n+'/100'}];
@@ -1065,7 +1153,7 @@ function overlayCafe(id){
 function overlayBean(name){
   const b=BEANS.find(x=>x.n===name); if(!b) return '';
   const matches=myPosts().filter(p=>{const rb=p.recipe&&p.recipe.bean; return rb&&(rb===b.n||rb.indexOf(b.n)===0||b.n.indexOf(rb)===0);});
-  const rows=[['Origin',b.c],['Region',b.region],['Process',b.process],['Altitude',b.altitude],['Varietal',b.varietal],['Roast level',b.roast]];
+  const rows=[['Roaster',b.roaster],['Origin',b.origin],['Roast level',b.roast],['Availability',b.loc==='INT'?'Sold in Germany':'Roasted in Germany']];
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(b.n)}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${b.n}</b></div>
     <div class="ov-body">
@@ -1241,9 +1329,17 @@ function overlaySettings(){
       <div class="field"><label>Bio</label><textarea id="sp-bio" placeholder="Say a little about your coffee…">${esc(m.bio)}</textarea></div>
       <div class="rowfields">
         <div class="field"><label>City</label><input id="sp-city" value="${esc(m.city)}"></div>
-        <div class="field sel"><label>Machine</label><select id="sp-machine">${MACHINE_LIST.map(x=>`<option${x===m.machine?' selected':''}>${x}</option>`).join('')}</select></div></div>
-      <div class="field sel"><label>Go-to milk</label><select id="sp-milk">${MILK_LIST.map(x=>`<option${x===m.favMilk?' selected':''}>${x}</option>`).join('')}</select></div>
+        <div class="field sel"><label>Go-to milk</label><select id="sp-milk">${MILK_LIST.map(x=>`<option${x===m.favMilk?' selected':''}>${x}</option>`).join('')}</select></div></div>
+      ${machinePicker('sp',m.machineBrand,m.machineModel)}
       <button class="btn block" data-action="save-profile">Save profile</button>
+      <div class="rlabel" style="margin-top:18px">Crema Premium</div>
+      ${m.premium
+        ? `<div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">✦</div><div style="flex:1">Premium active<div style="font-size:11.5px;color:var(--muted);font-weight:500">Add your own coffees · early features</div></div><span class="lvlchip" style="background:linear-gradient(135deg,#f5d78a,#e0b25a);color:#5a3d17;border-color:#e6c98a">ACTIVE</span></div>
+           <button class="btn ghost block" data-action="toggle-premium">Turn off Premium (demo)</button>`
+        : `<div style="background:linear-gradient(135deg,var(--st1),var(--st2));border:1px solid var(--st3);border-radius:var(--r-sm);padding:14px;margin-bottom:2px">
+             <b style="font-family:var(--serif);font-size:16px;color:var(--st4)">✦ Crema Premium</b>
+             <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 12px">Add your own coffees &amp; roasters, and get early access to new features.</div>
+             <button class="btn block" data-action="toggle-premium">Try Premium (demo)</button></div>`}
       <div class="rlabel" style="margin-top:18px">Appearance</div>
       <div class="seg">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(x=>`<button class="${th===x[0]?'on':''}" data-action="set-theme" data-t="${x[0]}">${x[1]}</button>`).join('')}</div>
       <div class="rlabel" style="margin-top:18px">About</div>
@@ -1266,7 +1362,7 @@ function overlayOnboard(){
     <button class="btn ghost block" style="margin-top:8px" data-action="ob-skip">Skip the tour</button>`;
   if(s===2) body=`
     <h2 class="obh2">Your setup</h2><p class="obsub">We'll prefill new posts with this — change it anytime in Settings.</p>
-    <div class="field sel"><label>Machine / brewer</label><select id="ob-machine">${MACHINE_LIST.map(x=>`<option${x===state.me.machine?' selected':''}>${x}</option>`).join('')}</select></div>
+    ${machinePicker('ob',state.me.machineBrand,state.me.machineModel)}
     <div class="rowfields"><div class="field sel"><label>Go-to drink</label><select id="ob-drink">${DRINKS.map(d=>`<option${d===state.me.favDrink?' selected':''}>${d}</option>`).join('')}</select></div>
     <div class="field sel"><label>Go-to milk</label><select id="ob-milk">${MILK_LIST.map(x=>`<option${x===state.me.favMilk?' selected':''}>${x}</option>`).join('')}</select></div></div>
     <div style="display:flex;gap:10px;margin-top:6px"><button class="btn ghost" data-action="ob-back">Back</button><button class="btn" style="flex:1" data-action="ob-next">Continue</button></div>`;
@@ -1319,12 +1415,11 @@ function overlayCreate(){
       : `<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">Pick a café above to load the beans and gear they use.</div>`)
       : `
       <div class="rlabel">Recipe <span>· optional — add only what you know</span></div>
-      <div class="field sel"><label>Bean</label><select id="c-bean">${sel(mkList([...BEAN_LIST,...state.customBeans],c.bean),c.bean,'Not sure / choose…',ADD_BEAN)}</select></div>
-      ${c.bean===ADD_BEAN?`<div class="field"><label>Your bean</label><input id="c-bean-custom" placeholder="e.g. Ethiopia Sidamo — Local Roastery" value="${esc(c.beanCustom)}"></div>`:''}
-      <div class="rowfields">
-        <div class="field sel"><label>Roaster</label><select id="c-roaster">${sel(mkList(ROASTER_LIST,c.roaster),c.roaster,'Optional')}</select></div>
-        <div class="field sel"><label>Machine / brewer</label><select id="c-machine">${sel(mkList(MACHINE_LIST,c.machine),c.machine,'Optional')}</select></div>
-      </div>
+      <div class="field sel"><label>Coffee / beans</label><select id="c-bean">${beanSelectHTML(c.bean)}</select></div>
+      ${c.bean===ADD_BEAN?`<div class="field"><label>Your coffee</label><input id="c-bean-custom" placeholder="e.g. My Local Roastery — House Espresso" value="${esc(c.beanCustom)}"></div>`:''}
+      ${!state.me.premium?`<div style="font-size:11.5px;color:var(--muted);margin:-4px 2px 11px">🔒 Adding your own coffee is a <b style="color:var(--crema-deep);cursor:pointer" data-action="open-settings">Premium</b> feature.</div>`:''}
+      <div class="field sel"><label>Roaster</label><select id="c-roaster">${sel(mkList(ROASTER_LIST,c.roaster),c.roaster,'Optional')}</select></div>
+      ${machinePicker('c',c.machineBrand,c.machineModel)}
       <div class="rowfields">
         <div class="field"><label>Dose in</label><input id="c-dose" placeholder="—" value="${esc(c.dose)}"></div>
         <div class="field"><label>Yield out</label><input id="c-yield" placeholder="—" value="${esc(c.yield)}"></div>
@@ -1384,7 +1479,6 @@ document.addEventListener('click',e=>{
     case 'join':{ state.challenges[id]=!state.challenges[id]; save(); renderView();
       const top=ui.ovStack[ui.ovStack.length-1]; if(top&&(top.type==='challenge'||top.type==='challenges')) renderOverlay();
       toast(state.challenges[id]?'Joined challenge! 🎯':'Left challenge'); break;}
-    case 'vote': if(!state.duelVote){state.duelVote=t.dataset.side; save(); renderView(); toast('Vote counted ✓');} break;
     case 'ptab': ui.profTab=t.dataset.t; renderView(); break;
 
     case 'submit-entry': pushOv({type:'picker',id}); break;
@@ -1413,9 +1507,10 @@ document.addEventListener('click',e=>{
     case 'submit-post': submitPost(); break;
 
     case 'set-theme': state.theme=t.dataset.t; save(); applyTheme(); renderOverlay(); break;
-    case 'save-profile':{ const g=i=>{const el=$('#'+i); return el?el.value:'';};
-      state.me.name=(g('sp-name')||state.me.name).trim(); state.me.handle=g('sp-handle')||state.me.handle; state.me.bio=g('sp-bio'); state.me.city=g('sp-city').trim(); state.me.machine=g('sp-machine'); state.me.favMilk=g('sp-milk')||state.me.favMilk;
+    case 'save-profile':{ syncSettings();
+      state.me.name=(state.me.name||'').trim(); state.me.city=(state.me.city||'').trim(); state.me.handle=(state.me.handle||'').trim();
       save(); applyMe(); popOv(); toast('Profile updated ✓'); break;}
+    case 'toggle-premium': state.me.premium=!state.me.premium; save(); renderOverlay(); toast(state.me.premium?'Premium unlocked ✦':'Premium turned off'); break;
 
     case 'ob-next': syncOb(); ui.obStep=Math.min(3,(ui.obStep||1)+1); renderOverlay(); break;
     case 'ob-back': syncOb(); ui.obStep=Math.max(1,(ui.obStep||1)-1); renderOverlay(); break;
@@ -1439,8 +1534,12 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='c-photo-cam'||id==='c-photo-lib'){ if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]); return; }
-  if(id==='c-drink'||id==='c-bean'||id==='c-cafe'){ syncCreate(); renderOverlay(); return; }
-  if(id==='c-roaster'||id==='c-machine'||id==='c-milk') syncCreate();
+  if(id==='c-mbrand'){ syncCreate(); ui.create.machineModel=''; renderOverlay(); return; }
+  if(id==='c-bean'){ syncCreate(); const cat=beanCatalog(ui.create.bean); if(cat) ui.create.roaster=cat.roaster; renderOverlay(); return; }
+  if(id==='c-drink'||id==='c-cafe'){ syncCreate(); renderOverlay(); return; }
+  if(id==='c-roaster'||id==='c-mmodel'||id==='c-mother'||id==='c-milk'){ syncCreate(); return; }
+  if(id==='ob-mbrand'){ syncOb(); state.me.machineModel=''; renderOverlay(); return; }
+  if(id==='sp-mbrand'){ syncSettings(); state.me.machineModel=''; renderOverlay(); return; }
 });
 /* activity-bar tooltip */
 document.addEventListener('mouseover',e=>{const ab=e.target.closest('.actbars .ab'); if(!ab)return; const tip=ab.parentElement.querySelector('.bartip'); if(!tip)return;
@@ -1449,15 +1548,25 @@ document.addEventListener('mouseout',e=>{const ab=e.target.closest('.actbars .ab
 
 function syncCreate(){ if(!ui.create) ui.create=freshCreate();
   const g=i=>{const el=$('#'+i); return el?el.value:undefined;}, c=ui.create;
-  ['caption','drink','cafe','bean','bean-custom','roaster','machine','milk','dose','yield','time','temp'].forEach(f=>{
-    const v=g('c-'+f); if(v!==undefined) c[f==='bean-custom'?'beanCustom':f]=v;});}
+  ['caption','drink','cafe','bean','bean-custom','roaster','milk','dose','yield','time','temp','mbrand'].forEach(f=>{
+    const v=g('c-'+f); if(v!==undefined) c[f==='bean-custom'?'beanCustom':f==='mbrand'?'machineBrand':f]=v;});
+  if(c.machineBrand==='Other'){const mo=g('c-mother'); if(mo!==undefined) c.machineModel=mo;}
+  else{const mm=g('c-mmodel'); if(mm!==undefined) c.machineModel=mm;}}
 function syncOb(){ const g=i=>{const el=$('#'+i); return el?el.value:undefined;};
   const n=g('ob-name'); if(n!==undefined&&n.trim()) state.me.name=n.trim();
   const h=g('ob-handle'); if(h!==undefined) state.me.handle=h.trim();
   const c=g('ob-city'); if(c!==undefined&&c.trim()) state.me.city=c.trim();
-  const m=g('ob-machine'); if(m!==undefined) state.me.machine=m;
+  const mb=g('ob-mbrand'); if(mb!==undefined) state.me.machineBrand=mb;
+  if(state.me.machineBrand==='Other'){const mo=g('ob-mother'); if(mo!==undefined) state.me.machineModel=mo;}
+  else{const mm=g('ob-mmodel'); if(mm!==undefined) state.me.machineModel=mm;}
   const d=g('ob-drink'); if(d!==undefined) state.me.favDrink=d;
   const mk=g('ob-milk'); if(mk!==undefined) state.me.favMilk=mk; }
+function syncSettings(){ const g=i=>{const el=$('#'+i); return el?el.value:undefined;};
+  const set=(id,k)=>{const v=g(id); if(v!==undefined) state.me[k]=v;};
+  set('sp-name','name'); set('sp-handle','handle'); set('sp-bio','bio'); set('sp-city','city'); set('sp-milk','favMilk');
+  const mb=g('sp-mbrand'); if(mb!==undefined) state.me.machineBrand=mb;
+  if(state.me.machineBrand==='Other'){const mo=g('sp-mother'); if(mo!==undefined) state.me.machineModel=mo;}
+  else{const mm=g('sp-mmodel'); if(mm!==undefined) state.me.machineModel=mm;} }
 
 function handleUpload(file){
   if(!file.type||!file.type.startsWith('image/')){toast('That file isn\'t an image'); return;}
@@ -1532,11 +1641,12 @@ function submitPost(){
     recipe.machine=cafe.menu.machine;
     if(HAS_MILK.has(drink)&&c.milk) recipe.milk=c.milk;
   }else{
-    let bean=c.bean===ADD_BEAN?T(c.beanCustom):T(c.bean);
-    if(c.bean===ADD_BEAN && bean && !BEAN_LIST.includes(bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
+    let bean=c.bean===ADD_BEAN?(state.me.premium?T(c.beanCustom):''):T(c.bean);
+    if(c.bean===ADD_BEAN && state.me.premium && bean && !BEANS.some(b=>b.n===bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
     if(bean) recipe.bean=bean;
     if(c.roaster) recipe.roaster=(c.roaster==='Other / home roast'?'home roast':c.roaster);
-    if(c.machine) recipe.machine=c.machine;
+    const machine=combineMachine(c.machineBrand,c.machineModel);
+    if(machine) recipe.machine=machine;
     if(HAS_MILK.has(drink)&&c.milk) recipe.milk=c.milk;
     if(T(c.dose)) recipe.dose=T(c.dose);
     if(T(c.yield)) recipe.yield=T(c.yield);
