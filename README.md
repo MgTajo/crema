@@ -30,7 +30,7 @@ python3 -m http.server 8000   # → http://localhost:8000
 | **Settings** | Edit profile (name, bio, city, machine), **light/dark/auto theme**, scores & levels explainer, demo reset. |
 | **PWA** | Manifest + service worker + icons — installable, works offline after first visit. |
 
-- **Data:** everything is mock data kept in `localStorage` (key `crema_v7`). Reset via Settings → Reset the demo.
+- **Data:** everything is mock data kept in `localStorage` (key `crema_v9`). New visitors start like a fresh download — empty profile, no pours — while the community feed, challenges, leaderboards and cafés are already populated. Reset via Settings → Reset the demo.
 - **Photos:** seed feed uses bundled stock images in `assets/`; your posts use photos you upload (never leave the browser).
 - **Latte art:** posts without photos render generated SVG cups (quality-aware — wobbly to crisp).
 
