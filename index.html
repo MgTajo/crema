@@ -455,6 +455,8 @@ const DRINKS=['Cappuccino','Latte','Flat white','Cortado','Piccolo','Mocha','Mac
   'Espresso','Doppio','Americano','Long black','Pour-over','Filter','Cold brew','Aeropress','Iced latte'];
 const MILK_DRINKS=new Set(['Cappuccino','Latte','Flat white','Cortado','Piccolo','Mocha','Macchiato']);
 const DRINK_ART=Object.fromEntries(DRINKS.map(d=>[d,MILK_DRINKS.has(d)]));
+const HAS_MILK=new Set([...MILK_DRINKS,'Iced latte']);   // drinks where milk type matters
+const MILK_LIST=['Whole milk','Semi-skimmed','Skimmed','Lactose-free','Oat','Barista oat','Almond','Soy','Coconut'];
 const BEAN_LIST=['Ethiopia Guji','Ethiopia Yirgacheffe','Colombia Huila','Brazil Cerrado','Kenya Nyeri AA',
   'Guatemala Antigua','Costa Rica Tarrazú','Peru Cajamarca','Rwanda Kivu','Indonesia Sumatra','House blend'];
 const ROASTER_LIST=['Fika Roasters','Origin Lab','The Barn','Bar Luce','Kurasu','Crema & Co','The Steam Room','Other / home roast'];
@@ -559,13 +561,13 @@ let seedId=100;
 const post=o=>({id:'p'+(seedId++),likedByMe:false,saved:false,comments:[],img:null,...o});
 const SEED_POSTS=[
   post({user:'yuki',drink:'Latte',art:true,pattern:'rosetta',quality:.97,img:S.l3,ago:'2h',caption:'Sunday pour. Milk stretched to exactly 62°C — cleanest symmetry I\'ve managed.',likes:1203,cafe:'Kissaten',
-    recipe:{bean:'Kenya Nyeri AA',roaster:'Kurasu',machine:'Slayer Espresso',dose:'18.5g',yield:'40g',time:'30s',temp:'93°C'},
+    recipe:{bean:'Kenya Nyeri AA',roaster:'Kurasu',machine:'Slayer Espresso',milk:'Whole milk',dose:'18.5g',yield:'40g',time:'30s',temp:'93°C'},
     comments:[{u:'mara',t:'The neck definition is unreal 😍',likes:24},{u:'sofia',t:'goals. absolute goals.',likes:9}]}),
   post({user:'lena',drink:'Cappuccino',art:true,pattern:'tulip',quality:.82,ago:'3h',caption:'Tulip stack #4 — The Steam Room let me behind the bar today 🙈',cafe:'The Steam Room',likes:264,
-    recipe:{bean:'Colombia Huila',roaster:'The Barn',machine:'La Marzocco Linea Mini',dose:'18g',yield:'36g'},
+    recipe:{bean:'Colombia Huila',roaster:'The Barn',machine:'La Marzocco Linea Mini',milk:'Oat',dose:'18g',yield:'36g'},
     comments:[{u:'tom',t:'behind-the-bar privileges!! clean stacks',likes:6}]}),
   post({user:'mara',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.9,img:S.l2,ago:'4h',caption:'Finally getting the contrast right. Pour high, then drop in close.',likes:342,
-    recipe:{bean:'Ethiopia Guji',roaster:'Fika Roasters',machine:'La Marzocco Linea Mini',dose:'18g',yield:'38g',time:'28s',temp:'93°C'},
+    recipe:{bean:'Ethiopia Guji',roaster:'Fika Roasters',machine:'La Marzocco Linea Mini',milk:'Whole milk',dose:'18g',yield:'38g',time:'28s',temp:'93°C'},
     comments:[{u:'tom',t:'what milk are you using?',likes:3},{u:'mara',t:'@tombrews whole milk, cold jug straight from the fridge',likes:11}]}),
   post({user:'sofia',drink:'Pour-over',art:false,img:S.l9,ago:'5h',caption:'No milk today — just a clean Chemex to actually taste the Yirgacheffe. Blueberry all the way.',likes:214,
     recipe:{bean:'Ethiopia Yirgacheffe',roaster:'The Barn',machine:'Chemex'},
@@ -584,14 +586,14 @@ const SEED_POSTS=[
     recipe:{bean:'Guatemala Antigua',roaster:'Bar Luce',machine:'La Marzocco Linea Mini'},
     comments:[{u:'mara',t:'that place is magic',likes:8}]}),
   post({user:'june',drink:'Flat white',art:true,pattern:'heart',quality:.93,ago:'10h',caption:'Minimal heart, maximum glow. Seoul morning light does the rest.',likes:892,
-    recipe:{bean:'Ethiopia Yirgacheffe',roaster:'Kurasu',machine:'Lelit Elizabeth',dose:'18g',yield:'36g',time:'27s',temp:'92°C'},
+    recipe:{bean:'Ethiopia Yirgacheffe',roaster:'Kurasu',machine:'Lelit Elizabeth',milk:'Barista oat',dose:'18g',yield:'36g',time:'27s',temp:'92°C'},
     comments:[{u:'sofia',t:'that contrast 🤍',likes:21}]}),
   post({user:'dev',drink:'Cold brew',art:false,img:S.cold,ago:'12h',caption:'18h cold brew, summer staple. Didn\'t note a recipe — just eyeballed it, honestly.',likes:88,
     comments:[{u:'tom',t:'looks so refreshing',likes:3}]}),
   post({user:'aria',drink:'Iced latte',art:false,ago:'1d',caption:'Melbourne says it\'s winter. My iced latte disagrees.',likes:157,
     comments:[{u:'lena',t:'respect. iced supremacy ❄️',likes:9}]}),
   post({user:'me',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.86,img:S.l1,ago:'1d',caption:'Morning ritual before work. Small win but a symmetric one ☕',likes:58,
-    recipe:{bean:'Ethiopia Guji',roaster:'Fika Roasters',machine:'Sage Bambino Plus',dose:'18g',yield:'36g',time:'27s',temp:'92°C'},
+    recipe:{bean:'Ethiopia Guji',roaster:'Fika Roasters',machine:'Sage Bambino Plus',milk:'Whole milk',dose:'18g',yield:'36g',time:'27s',temp:'92°C'},
     comments:[{u:'mara',t:'coming along so nicely 👏',likes:6}]})
 ];
 const MYGALLERY=[
@@ -648,7 +650,7 @@ const BEANS=[
 const ACT=[0,2,1,0,1,1,0,1,0,2,1,0,1,0,1,1,1,1,1,1,2];
 
 /* ---------- state ---------- */
-const KEY='crema_v7';
+const KEY='crema_v8';
 let state;
 function freshState(){
   const posts=SEED_POSTS.map(clone), gallery=MYGALLERY.map(clone);
@@ -662,7 +664,7 @@ function freshState(){
     challenges:Object.fromEntries(CHALLENGES.map(c=>[c.id,c.joined])),
     challengeSubs:{}, duelVote:null, streak:7, customBeans:[],
     onboarded:false, theme:'auto',
-    me:{name:'Magnus',city:'Munich',machine:'Sage Bambino Plus',favDrink:'Cappuccino',
+    me:{name:'Magnus',city:'Munich',machine:'Sage Bambino Plus',favDrink:'Cappuccino',favMilk:'Whole milk',
       bio:'Weekend home barista chasing the perfect rosetta. Bambino Plus + Niche Zero. Recovering over-extractor. ☕📈'},
     notifications:[
       {u:'yuki',type:'comment',text:'commented: “texture looks spot on”',time:'2h',read:false,post:gRosetta&&gRosetta.id},
@@ -675,13 +677,13 @@ function freshState(){
 }
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY)); state=s&&s.posts?s:freshState();
   ['customBeans','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
-  if(!state.me)state.me=freshState().me; if(!state.challengeSubs)state.challengeSubs={};
+  if(!state.me)state.me=freshState().me; if(!state.me.favMilk)state.me.favMilk='Whole milk'; if(!state.challengeSubs)state.challengeSubs={};
  }catch(e){state=freshState();}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){/* quota — session only */}}
 function findPost(id){return state.posts.find(p=>p.id===id)||(state.myGallery||[]).find(p=>p.id===id);}
 function applyMe(){USERS.me.name=state.me.name||USERS.me.name; USERS.me.city=state.me.city||USERS.me.city; USERS.me.bio=state.me.bio||'';}
 function freshCreate(){return{drink:state.me.favDrink||'Cappuccino',pattern:'rosetta',caption:'',img:null,
-  bean:'',beanCustom:'',roaster:'',machine:state.me.machine||'',dose:'',yield:'',time:'',temp:''};}
+  bean:'',beanCustom:'',roaster:'',machine:state.me.machine||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 const ui={route:'home', filter:'foryou', ovStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null};
 function pushOv(o){ui.ovStack.push(o); renderOverlay();}
@@ -712,6 +714,7 @@ function recipeRows(r){
   const rows=[]; const bean=[r.bean,r.roaster].filter(Boolean).join(' · ');
   if(bean) rows.push(['bean','Bean',bean]);
   if(r.machine) rows.push(['mach','Machine / brewer',r.machine]);
+  if(r.milk) rows.push(['h','Milk',r.milk]);
   if(r.dose) rows.push(['h','Dose in',r.dose]);
   if(r.yield) rows.push(['h','Yield out',r.yield]);
   if(r.time) rows.push(['h','Time',r.time]);
@@ -749,6 +752,7 @@ function postCard(p){
       <div class="chips">
         <span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>
         ${p.art?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}
+        ${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}
         ${r&&r.machine?`<span class="chip"><span class="g">${icon('mach',12)}</span>${esc(r.machine)}</span>`:''}
         ${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}
       </div>
@@ -956,7 +960,7 @@ function overlayPost(id){
         ${p.user==='me'?'':`<button class="followmini ${state.follows[p.user]?'on':''}" data-action="follow" data-id="${p.user}">${state.follows[p.user]?'Following':'Follow'}</button>`}
         <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
       <div class="p-body"><div class="cap"><b>${u.name}</b> ${mentionify(p.caption)}</div>
-        <div class="chips"><span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>${p.art?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
+        <div class="chips"><span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>${p.art?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
       ${rows.length?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0">${recipePanel(r)}
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ Brew this recipe</button></div></div></div>`:''}
       ${p.art?`<div class="scoreblk"><div style="font-family:var(--serif);font-size:16px;margin-bottom:12px">Art score · ${sc.total}</div>${sbar('Symmetry',sc.symmetry)}${sbar('Contrast',sc.contrast)}${sbar('Definition',sc.definition)}</div>`:''}
@@ -1174,6 +1178,7 @@ function overlaySettings(){
       <div class="rowfields">
         <div class="field"><label>City</label><input id="sp-city" value="${esc(m.city)}"></div>
         <div class="field sel"><label>Machine</label><select id="sp-machine">${MACHINE_LIST.map(x=>`<option${x===m.machine?' selected':''}>${x}</option>`).join('')}</select></div></div>
+      <div class="field sel"><label>Go-to milk</label><select id="sp-milk">${MILK_LIST.map(x=>`<option${x===m.favMilk?' selected':''}>${x}</option>`).join('')}</select></div>
       <button class="btn block" data-action="save-profile">Save profile</button>
       <div class="rlabel" style="margin-top:18px">Appearance</div>
       <div class="seg">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(x=>`<button class="${th===x[0]?'on':''}" data-action="set-theme" data-t="${x[0]}">${x[1]}</button>`).join('')}</div>
@@ -1196,7 +1201,8 @@ function overlayOnboard(){
   if(s===2) body=`
     <h2 class="obh2">Your setup</h2><p class="obsub">We'll prefill new posts with this — change it anytime in Settings.</p>
     <div class="field sel"><label>Machine / brewer</label><select id="ob-machine">${MACHINE_LIST.map(x=>`<option${x===state.me.machine?' selected':''}>${x}</option>`).join('')}</select></div>
-    <div class="field sel"><label>Go-to drink</label><select id="ob-drink">${DRINKS.map(d=>`<option${d===state.me.favDrink?' selected':''}>${d}</option>`).join('')}</select></div>
+    <div class="rowfields"><div class="field sel"><label>Go-to drink</label><select id="ob-drink">${DRINKS.map(d=>`<option${d===state.me.favDrink?' selected':''}>${d}</option>`).join('')}</select></div>
+    <div class="field sel"><label>Go-to milk</label><select id="ob-milk">${MILK_LIST.map(x=>`<option${x===state.me.favMilk?' selected':''}>${x}</option>`).join('')}</select></div></div>
     <div style="display:flex;gap:10px;margin-top:6px"><button class="btn ghost" data-action="ob-back">Back</button><button class="btn" style="flex:1" data-action="ob-next">Continue</button></div>`;
   if(s===3){
     const sugg=Object.values(USERS).filter(u=>u.id!=='me').sort((a,b)=>b.followerN-a.followerN).slice(0,5);
@@ -1220,11 +1226,12 @@ function overlayCreate(){
       <label class="create-prev uploader">
         ${c.img?`<img class="photo" src="${c.img}" alt="your coffee photo">`:cupSVG(isArt?c.pattern:'none',.85,999)}
         <span class="up-hint">${icon('cam',15)} ${c.img?'Change photo':'Add your coffee photo'}</span>
-        <input type="file" id="c-photo" accept="image/*" capture="environment" style="display:none">
+        <input type="file" id="c-photo" accept="image/*" style="display:none">
       </label>
       <div class="field sel"><label>Drink</label><select id="c-drink">${DRINKS.map(d=>`<option${d===c.drink?' selected':''}>${d}</option>`).join('')}</select></div>
       ${isArt?`<div class="field"><label>Latte-art pattern</label>
         <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div></div>`:''}
+      ${HAS_MILK.has(c.drink)?`<div class="field sel"><label>Milk</label><select id="c-milk">${sel(mkList(MILK_LIST,c.milk),c.milk,'Optional')}</select></div>`:''}
       <div class="field"><label>Caption</label><textarea id="c-caption" placeholder="Say something about this coffee…">${esc(c.caption)}</textarea></div>
       <div class="rlabel">Recipe <span>· optional — add only what you know</span></div>
       <div class="field sel"><label>Bean</label><select id="c-bean">${sel(mkList([...BEAN_LIST,...state.customBeans],c.bean),c.bean,'Not sure / choose…',ADD_BEAN)}</select></div>
@@ -1321,7 +1328,7 @@ document.addEventListener('click',e=>{
 
     case 'set-theme': state.theme=t.dataset.t; save(); applyTheme(); renderOverlay(); break;
     case 'save-profile':{ const g=i=>{const el=$('#'+i); return el?el.value:'';};
-      state.me.name=(g('sp-name')||state.me.name).trim(); state.me.bio=g('sp-bio'); state.me.city=g('sp-city').trim(); state.me.machine=g('sp-machine');
+      state.me.name=(g('sp-name')||state.me.name).trim(); state.me.bio=g('sp-bio'); state.me.city=g('sp-city').trim(); state.me.machine=g('sp-machine'); state.me.favMilk=g('sp-milk')||state.me.favMilk;
       save(); applyMe(); popOv(); toast('Profile updated ✓'); break;}
 
     case 'ob-next': syncOb(); ui.obStep=Math.min(3,(ui.obStep||1)+1); renderOverlay(); break;
@@ -1347,7 +1354,7 @@ document.addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='c-photo'){ if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]); return; }
   if(id==='c-drink'||id==='c-bean'){ syncCreate(); renderOverlay(); return; }
-  if(id==='c-roaster'||id==='c-machine') syncCreate();
+  if(id==='c-roaster'||id==='c-machine'||id==='c-milk') syncCreate();
 });
 /* activity-bar tooltip */
 document.addEventListener('mouseover',e=>{const ab=e.target.closest('.actbars .ab'); if(!ab)return; const tip=ab.parentElement.querySelector('.bartip'); if(!tip)return;
@@ -1356,13 +1363,14 @@ document.addEventListener('mouseout',e=>{const ab=e.target.closest('.actbars .ab
 
 function syncCreate(){ if(!ui.create) ui.create=freshCreate();
   const g=i=>{const el=$('#'+i); return el?el.value:undefined;}, c=ui.create;
-  ['caption','drink','bean','bean-custom','roaster','machine','dose','yield','time','temp'].forEach(f=>{
+  ['caption','drink','bean','bean-custom','roaster','machine','milk','dose','yield','time','temp'].forEach(f=>{
     const v=g('c-'+f); if(v!==undefined) c[f==='bean-custom'?'beanCustom':f]=v;});}
 function syncOb(){ const g=i=>{const el=$('#'+i); return el?el.value:undefined;};
   const n=g('ob-name'); if(n!==undefined&&n.trim()) state.me.name=n.trim();
   const c=g('ob-city'); if(c!==undefined&&c.trim()) state.me.city=c.trim();
   const m=g('ob-machine'); if(m!==undefined) state.me.machine=m;
-  const d=g('ob-drink'); if(d!==undefined) state.me.favDrink=d; }
+  const d=g('ob-drink'); if(d!==undefined) state.me.favDrink=d;
+  const mk=g('ob-milk'); if(mk!==undefined) state.me.favMilk=mk; }
 
 function handleUpload(file){
   if(!file.type||!file.type.startsWith('image/')){toast('That file isn\'t an image'); return;}
@@ -1405,7 +1413,7 @@ function brewAgain(id){
   const p=findPost(id); if(!p) return; const r=p.recipe||{};
   ui.create=freshCreate();
   Object.assign(ui.create,{drink:p.drink||ui.create.drink, pattern:p.pattern||ui.create.pattern,
-    bean:r.bean||'', roaster:r.roaster||'', machine:r.machine||ui.create.machine,
+    bean:r.bean||'', roaster:r.roaster||'', machine:r.machine||ui.create.machine, milk:r.milk||ui.create.milk,
     dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||''});
   ui.ovStack=[]; pushOv({type:'create'}); toast('Recipe loaded — brew it again ☕');
 }
@@ -1434,6 +1442,7 @@ function submitPost(){
   if(bean) recipe.bean=bean;
   if(c.roaster) recipe.roaster=(c.roaster==='Other / home roast'?'home roast':c.roaster);
   if(c.machine) recipe.machine=c.machine;
+  if(HAS_MILK.has(drink)&&c.milk) recipe.milk=c.milk;
   if(T(c.dose)) recipe.dose=T(c.dose);
   if(T(c.yield)) recipe.yield=T(c.yield);
   if(T(c.time)) recipe.time=T(c.time);
