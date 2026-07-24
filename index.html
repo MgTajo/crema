@@ -238,6 +238,30 @@
   .ov-body::-webkit-scrollbar{display:none}
   .grab{width:38px; height:5px; border-radius:99px; background:var(--line2); margin:9px auto 2px}
 
+  /* drink chip + recipe label */
+  .chip.drinkchip{color:#fff; background:var(--crema); border-color:var(--crema)}
+  .rlabel{font-family:var(--serif); font-size:15px; font-weight:600; margin:8px 2px 10px}
+  .rlabel span{font-family:var(--sans); font-size:11.5px; color:var(--muted); font-weight:600}
+  /* profile · recent activity */
+  .jstats{display:flex; gap:8px; margin:2px 12px 12px}
+  .jstats>div{flex:1; background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:9px 4px; text-align:center}
+  .jstats b{display:block; font-family:var(--serif); font-size:19px; font-weight:600; line-height:1.1}
+  .jstats b i{font-style:normal; font-size:12px; color:var(--green)}
+  .jstats span{font-size:10px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.3px}
+  .actbars{display:flex; gap:3px; height:44px; margin:0 12px}
+  .actbars .ab{flex:1; align-self:stretch; background:var(--surface3); border-radius:3px; position:relative; overflow:hidden}
+  .actbars .ab i{position:absolute; left:0; right:0; bottom:0; background:linear-gradient(var(--crema),var(--crema-deep)); border-radius:3px}
+  .actbars .ab.today i{background:linear-gradient(var(--gold),var(--crema))}
+  .acthint{display:flex; justify-content:space-between; margin:5px 12px 8px; font-size:10.5px; color:var(--muted); font-weight:600}
+  .recent{display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; padding:2px 12px 14px}
+  .recent::-webkit-scrollbar{display:none}
+  .recent .rp{flex:none; width:74px; text-align:center}
+  .recent .rpimg{width:74px; height:74px; border-radius:14px; overflow:hidden; border:1px solid var(--line); position:relative; background:radial-gradient(120% 120% at 30% 20%,#efe0cd,#d3bb9c)}
+  .recent .rpimg img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+  .recent .rpimg svg{width:100%; height:100%}
+  .recent .rpd{font-size:11px; font-weight:700; margin-top:6px}
+  .recent .rpt{font-size:10.5px; color:var(--muted)}
+
   .cmt{display:flex; gap:10px; padding:11px 14px; border-bottom:1px solid var(--line)}
   .cmt .avatar{width:34px; height:34px; font-size:13px}
   .cmt .cbody{flex:1}
@@ -327,14 +351,21 @@ const seedOf=id=>(''+id).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
 
 /* ---------- stock images (bundled, swappable) ---------- */
 const S={l1:'assets/l1.jpg',l2:'assets/l2.jpg',l3:'assets/l3.jpg',l4:'assets/l4.jpg',l5:'assets/l5.jpg',
-  l6:'assets/l6.jpg',l7:'assets/l7.jpg',l8:'assets/l8.jpg',l9:'assets/l9.jpg',beans:'assets/beans.jpg'};
+  l6:'assets/l6.jpg',l7:'assets/l7.jpg',l8:'assets/l8.jpg',l9:'assets/l9.jpg',beans:'assets/beans.jpg',
+  esp:'assets/esp.jpg',cold:'assets/cold.jpg'};
 
 /* ---------- pick-lists ---------- */
+const DRINKS=['Cappuccino','Latte','Flat white','Cortado','Piccolo','Mocha','Macchiato',
+  'Espresso','Doppio','Americano','Long black','Pour-over','Filter','Cold brew','Aeropress','Iced latte'];
+const MILK_DRINKS=new Set(['Cappuccino','Latte','Flat white','Cortado','Piccolo','Mocha','Macchiato']);
+const DRINK_ART=Object.fromEntries(DRINKS.map(d=>[d,MILK_DRINKS.has(d)]));   // which drinks carry latte art
 const BEAN_LIST=['Ethiopia Guji','Ethiopia Yirgacheffe','Colombia Huila','Brazil Cerrado','Kenya Nyeri AA',
   'Guatemala Antigua','Costa Rica Tarrazú','Peru Cajamarca','Rwanda Kivu','Indonesia Sumatra','House blend'];
 const ROASTER_LIST=['Fika Roasters','Origin Lab','The Barn','Bar Luce','Kurasu','Crema & Co','The Steam Room','Other / home roast'];
 const MACHINE_LIST=['La Marzocco Linea Mini','Rocket Appartamento','Breville Barista Express','Sage Bambino Plus',
-  'Gaggia Classic Pro','Lelit Elizabeth','Profitec Pro 500','ECM Synchronika','Flair 58 (manual lever)','Slayer Espresso','Other'];
+  'Gaggia Classic Pro','Lelit Elizabeth','Profitec Pro 500','ECM Synchronika','Flair 58 (manual lever)','Slayer Espresso',
+  'Hario V60','Chemex','AeroPress','French press','Moka pot','Other'];
+const ADD_BEAN='＋ Add your own bean…';
 
 /* ---------- SVG latte-art generator (fallback art + skill journey) ---------- */
 let _gid=0;
@@ -376,8 +407,8 @@ function cupSVG(pattern,quality,seed,opts={}){
     <g transform="translate(${dx} ${dy}) rotate(${rot} 50 50)" fill="${foam}" opacity="0.9">${artShapes(pattern,q,rnd,foam)}</g>
     <ellipse cx="42" cy="34" rx="20" ry="12" fill="#ffffff" opacity="0.07"/></svg>`;
 }
-/* photo if present, else generated cup */
-function art(img,pattern,q,seed){ return img?`<img class="photo" src="${img}" alt="latte art" loading="lazy">`:cupSVG(pattern,q,seed); }
+/* photo if present, else generated cup (plain coffee when no latte-art pattern) */
+function art(img,pattern,q,seed){ return img?`<img class="photo" src="${img}" alt="coffee" loading="lazy">`:cupSVG(pattern||'none', q==null?0.9:q, seed); }
 
 /* ---------- icons ---------- */
 const I={
@@ -422,23 +453,28 @@ const initials=n=>n.split(' ').map(w=>w[0]).slice(0,2).join('');
 let seedId=100;
 const post=o=>({id:'p'+(seedId++),likedByMe:false,saved:false,comments:[],img:null,...o});
 const SEED_POSTS=[
-  post({user:'yuki',pattern:'rosetta',quality:.97,img:S.l3,ago:'2h',caption:'Sunday pour. Milk stretched to exactly 62°C — cleanest symmetry I\'ve managed.',likes:1203,cafe:'Kissaten',
+  post({user:'yuki',drink:'Latte',art:true,pattern:'rosetta',quality:.97,img:S.l3,ago:'2h',caption:'Sunday pour. Milk stretched to exactly 62°C — cleanest symmetry I\'ve managed.',likes:1203,cafe:'Kissaten',
     recipe:{bean:'Kenya Nyeri AA',roaster:'Kurasu',machine:'Slayer Espresso',dose:'18.5g',yield:'40g',time:'30s',temp:'93°C'},
     comments:[{u:'mara',t:'The neck definition is unreal 😍'},{u:'sofia',t:'goals. absolute goals.'}]}),
-  post({user:'mara',pattern:'rosetta',quality:.9,img:S.l2,ago:'4h',caption:'Finally getting the contrast right. Pour high, then drop in close.',likes:342,
+  post({user:'mara',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.9,img:S.l2,ago:'4h',caption:'Finally getting the contrast right. Pour high, then drop in close.',likes:342,
     recipe:{bean:'Ethiopia Guji',roaster:'Fika Roasters',machine:'La Marzocco Linea Mini',dose:'18g',yield:'38g',time:'28s',temp:'93°C'},
     comments:[{u:'tom',t:'what milk are you using?'},{u:'mara',t:'@tombrews whole milk, cold jug straight from the fridge'}]}),
-  post({user:'dev',pattern:'heart',quality:.55,img:S.l7,ago:'5h',
+  post({user:'sofia',drink:'Pour-over',art:false,img:S.l9,ago:'5h',caption:'No milk today — just a clean Chemex to actually taste the Yirgacheffe. Blueberry all the way.',likes:214,
+    recipe:{bean:'Ethiopia Yirgacheffe',roaster:'The Barn',machine:'Chemex'},
+    comments:[{u:'tom',t:'that origin is unreal filtered'}]}),
+  post({user:'dev',drink:'Cappuccino',art:true,pattern:'heart',quality:.55,img:S.l7,ago:'6h',
     caption:'Third attempt today and the art keeps sinking within seconds. Any tips on milk texture? 🙏',likes:41,
     recipe:{bean:'Brazil Cerrado',roaster:'Origin Lab',machine:'Gaggia Classic Pro',dose:'17g',yield:'34g',time:'22s',temp:'90°C'},
     comments:[{u:'yuki',t:'Texture looks thin — stretch less, then swirl hard for 10s to fold the foam in.'},{u:'sofia',t:'Also pour a touch later, let the crema settle first.'}]}),
-  post({user:'sofia',pattern:'rosetta',quality:.83,img:S.l6,ago:'7h',caption:'Espresso break at my favourite spot. Their milk is spoiling me.',likes:176,cafe:'Bar Luce',
-    recipe:{bean:'Guatemala Antigua',roaster:'Bar Luce',machine:'La Marzocco Linea Mini',dose:'18g',yield:'36g',time:'27s',temp:'92°C'},
+  post({user:'tom',drink:'Espresso',art:false,img:S.esp,ago:'8h',caption:'Straight double, no distractions. Finally dialled the Huila in — syrupy and sweet.',likes:132,
+    recipe:{bean:'Colombia Huila',roaster:'The Barn',machine:'Rocket Appartamento',dose:'18g',yield:'40g',time:'29s'},
+    comments:[{u:'dev',t:'what grinder?'}]}),
+  post({user:'sofia',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.83,img:S.l6,ago:'9h',caption:'Morning break at my favourite spot. Their milk is spoiling me.',likes:176,cafe:'Bar Luce',
+    recipe:{bean:'Guatemala Antigua',roaster:'Bar Luce',machine:'La Marzocco Linea Mini'},
     comments:[{u:'mara',t:'that place is magic'}]}),
-  post({user:'tom',pattern:'rosetta',quality:.78,img:S.l5,ago:'9h',caption:'Left side is finally catching up to the right. Symmetry, slowly.',likes:210,
-    recipe:{bean:'Colombia Huila',roaster:'The Barn',machine:'Rocket Appartamento',dose:'18g',yield:'37g',time:'29s',temp:'93°C'},
-    comments:[{u:'dev',t:'clean stacks!'}]}),
-  post({user:'me',pattern:'rosetta',quality:.86,img:S.l1,ago:'1d',caption:'Morning ritual before work. Small win but a symmetric one ☕',likes:58,
+  post({user:'dev',drink:'Cold brew',art:false,img:S.cold,ago:'12h',caption:'18h cold brew, summer staple. Didn\'t note a recipe — just eyeballed it, honestly.',likes:88,
+    comments:[{u:'tom',t:'looks so refreshing'}]}),
+  post({user:'me',drink:'Cappuccino',art:true,pattern:'rosetta',quality:.86,img:S.l1,ago:'1d',caption:'Morning ritual before work. Small win but a symmetric one ☕',likes:58,
     recipe:{bean:'Ethiopia Guji',roaster:'Fika Roasters',machine:'Sage Bambino Plus',dose:'18g',yield:'36g',time:'27s',temp:'92°C'},
     comments:[{u:'mara',t:'coming along so nicely 👏'}]})
 ];
@@ -462,28 +498,37 @@ const DUEL={a:{user:'yuki',pattern:'swan',q:.97,img:S.l3,votes:612},b:{user:'mar
 const LEADERBOARD=[{u:'yuki',pts:9420},{u:'mara',pts:7810},{u:'sofia',pts:6640},{u:'me',pts:6120},{u:'tom',pts:5980}];
 const BEANS=[{n:'Ethiopia Guji',c:'Ethiopia'},{n:'Colombia Huila',c:'Colombia'},{n:'Brazil Cerrado',c:'Brazil'},
   {n:'Kenya Nyeri',c:'Kenya'},{n:'Guatemala Antigua',c:'Guatemala'},{n:'Peru Cajamarca',c:'Peru'},{n:'Rwanda Kivu',c:'Rwanda'}];
-const JOURNEY=[
-  {mo:'Oct',q:.30,pat:'heart'},{mo:'Nov',q:.40,pat:'heart'},{mo:'Dec',q:.50,pat:'heart'},
-  {mo:'Jan',q:.58,pat:'tulip'},{mo:'Feb',q:.66,pat:'tulip'},{mo:'Mar',q:.72,pat:'rosetta'},
-  {mo:'Apr',q:.79,pat:'rosetta'},{mo:'May',q:.84,pat:'rosetta'},{mo:'Now',q:.87,pat:'rosetta'}];
-const jScore=q=>(3.6+q*6).toFixed(1);
-const MYPOURS=[{img:S.l3},{img:S.l5},{img:S.l8},{img:S.l2},{img:S.l4},{img:S.l9},{img:S.l7},{img:S.l6},{img:S.l1}];
+// recent-activity data for the profile "Recent activity" view
+const ACT=[0,2,1,0,1,1,0,1,0,2,1,0,1,0,1,1,1,1,1,1,2];   // coffees/day, last 21 days (oldest→today)
+const RECENT=[   // your latest coffees (most recent first) — mixed drinks
+  {ago:0,img:S.l1,drink:'Cappuccino',art:true},
+  {ago:0,img:S.esp,drink:'Espresso',art:false},
+  {ago:1,img:S.l5,drink:'Flat white',art:true},
+  {ago:2,img:S.l9,drink:'Pour-over',art:false},
+  {ago:4,img:S.l2,drink:'Cappuccino',art:true},
+  {ago:6,img:S.cold,drink:'Cold brew',art:false},
+  {ago:8,img:S.l6,drink:'Latte',art:true},
+  {ago:11,img:S.l4,drink:'Cappuccino',art:true}];
+function relDay(a){if(a===0)return'Today';if(a===1)return'Yesterday';
+  if(a<7)return new Date(Date.now()-a*864e5).toLocaleDateString('en',{weekday:'short'});return a+'d ago';}
+const MYPOURS=[{img:S.l3},{img:S.l5},{img:S.esp},{img:S.l2},{img:S.l4},{img:S.l9},{img:S.cold},{img:S.l6},{img:S.l1}];
 
 /* ---------- state ---------- */
-const KEY='crema_v4';
+const KEY='crema_v5';
 let state;
+function freshCreate(){return{drink:'Cappuccino',pattern:'rosetta',caption:'',img:null,
+  bean:'',beanCustom:'',roaster:'',machine:'',dose:'',yield:'',time:'',temp:''};}
 function freshState(){return{
   posts:SEED_POSTS.map(p=>JSON.parse(JSON.stringify(p))),
   follows:{mara:true,yuki:true,sofia:true,tom:false,dev:false},
   cafeFollow:Object.fromEntries(CAFES.map(c=>[c.id,c.followed])),
   challenges:Object.fromEntries(CHALLENGES.map(c=>[c.id,c.joined])),
-  duelVote:null, streak:7, myPours:MYPOURS.slice()
+  duelVote:null, streak:7, myPours:MYPOURS.slice(), customBeans:[]
 };}
-function load(){try{const s=JSON.parse(localStorage.getItem(KEY)); state=s&&s.posts?s:freshState();}catch(e){state=freshState();}}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY)); state=s&&s.posts?s:freshState(); if(!state.customBeans)state.customBeans=[];}catch(e){state=freshState();}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){/* quota — keep session only */}}
 
-const ui={route:'home', filter:'foryou', overlay:null, profTab:'pours',
-  create:{pattern:'rosetta',caption:'',img:null,bean:BEAN_LIST[0],roaster:ROASTER_LIST[0],machine:MACHINE_LIST[3]}};
+const ui={route:'home', filter:'foryou', overlay:null, profTab:'pours', create:freshCreate()};
 
 /* ============================================================ RENDER */
 function scoreFromQ(q){const b=3.6+q*6; return{total:b.toFixed(1),
@@ -500,17 +545,36 @@ function renderAppbar(){
   else if(ui.route==='profile') bar.innerHTML=`<div class="title">Profile</div><div class="actions"><button class="iconbtn" data-action="reset">${icon('gear',20)}</button></div>`;
 }
 
+/* recipe: only render fields the user actually provided (no fabricated defaults) */
+function recipeRows(r){
+  if(!r) return [];
+  const rows=[]; const bean=[r.bean,r.roaster].filter(Boolean).join(' · ');
+  if(bean) rows.push(['bean','Bean',bean]);
+  if(r.machine) rows.push(['mach','Machine / brewer',r.machine]);
+  if(r.dose) rows.push(['h','Dose in',r.dose]);
+  if(r.yield) rows.push(['h','Yield out',r.yield]);
+  if(r.time) rows.push(['h','Time',r.time]);
+  if(r.temp) rows.push(['h','Temp',r.temp]);
+  return rows;
+}
+function recipePanel(r){
+  const rows=recipeRows(r); if(!rows.length) return '';
+  return `<div class="recipe-grid">${rows.map(x=>x[0]==='bean'?`<div class="recipe-bean">🫘 <div><span>${x[1]}</span><b>${x[2]}</b></div></div>`:x[0]==='mach'?`<div class="recipe-mach"><span>${x[1]}</span><b>${x[2]}</b></div>`:`<div><span>${x[1]}</span><b>${x[2]}</b></div>`).join('')}</div>`;
+}
+function recipeBtnLabel(r){ return (r.dose&&r.yield)?`Recipe · ${r.dose} in → ${r.yield} out`:'Recipe'; }
+
 function postCard(p){
-  const u=USERS[p.user], following=p.user==='me'||state.follows[p.user], sc=scoreFromQ(p.quality), r=p.recipe, top=p.comments[0];
+  const u=USERS[p.user], following=p.user==='me'||state.follows[p.user], r=p.recipe, top=p.comments[0];
+  const rows=recipeRows(r);
   return `<div class="card" data-post="${p.id}">
     <div class="p-head">${avatar(p.user)}
       <div class="who"><b>${u.name} <span class="lvlchip">Lv${u.level}</span></b><span>${u.handle}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}</span></div>
       ${p.user==='me'?'':`<button class="followmini ${following?'on':''}" data-action="follow" data-id="${p.user}">${following?'Following':'Follow'}</button>`}
       <span class="kebab" data-action="toast" data-msg="More options — coming soon">⋯</span></div>
     <div class="media" data-action="open-post" data-id="${p.id}">
-      <div class="score">Art <b>${sc.total}</b></div>
+      ${p.art?`<div class="score">Art <b>${scoreFromQ(p.quality).total}</b></div>`:''}
       ${art(p.img,p.pattern,p.quality,seedOf(p.id))}
-      <div class="patt">${cap(p.pattern)}</div>
+      <div class="patt">${p.art?cap(p.pattern):p.drink}</div>
       <div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
     <div class="p-act">
       <button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}">${icon(p.likedByMe?'heartF':'heart',22)} <span class="cnt">${fmt(p.likes)}</span></button>
@@ -520,16 +584,13 @@ function postCard(p){
     <div class="p-body">
       <div class="cap"><b>${u.name}</b> ${p.caption}</div>
       <div class="chips">
-        <span class="chip tag" data-action="toast" data-msg="#${p.pattern} feed — coming soon">#${p.pattern}</span>
-        ${r?`<span class="chip"><span class="g">${icon('mach',12)}</span>${r.machine}</span>`:''}
+        <span class="chip drinkchip">${p.drink||'Coffee'}</span>
+        ${p.art?`<span class="chip tag" data-action="toast" data-msg="#${p.pattern} feed — coming soon">#${p.pattern}</span>`:''}
+        ${r&&r.machine?`<span class="chip"><span class="g">${icon('mach',12)}</span>${r.machine}</span>`:''}
         ${p.cafe?`<span class="chip">📍 ${p.cafe}</span>`:''}
       </div>
-      ${r?`<button class="recipe-btn" data-action="recipe" data-id="${p.id}">☕ Recipe · ${r.dose} in → ${r.yield} out ▾</button>
-      <div class="recipe-panel" id="rp-${p.id}"><div class="recipe-grid">
-        <div class="recipe-bean">🫘 <div><span>Bean</span><b>${r.bean}${r.roaster&&r.roaster!=='—'?' · '+r.roaster:''}</b></div></div>
-        <div class="recipe-mach"><span>Machine</span><b>${r.machine}</b></div>
-        <div><span>Dose in</span><b>${r.dose}</b></div><div><span>Yield out</span><b>${r.yield}</b></div>
-        <div><span>Shot time</span><b>${r.time}</b></div><div><span>Temp</span><b>${r.temp}</b></div></div></div>`:''}
+      ${rows.length?`<button class="recipe-btn" data-action="recipe" data-id="${p.id}">☕ ${recipeBtnLabel(r)} ▾</button>
+      <div class="recipe-panel" id="rp-${p.id}">${recipePanel(r)}</div>`:''}
       ${p.comments.length?`<div class="cmt-preview">${p.comments.length>1?`<span class="more" data-action="open-post" data-id="${p.id}">View all ${p.comments.length} comments</span>`:''}<div class="one"><b>${(USERS[top.u]||{name:'Guest'}).name.split(' ')[0]}</b> ${top.t}</div></div>`:''}
     </div></div>`;
 }
@@ -605,9 +666,14 @@ function renderProfile(){
         <span class="lvl">${icon('bolt',13)} Level ${u.level} · ${u.levelName}</span></div></div>
     <div class="bio">Weekend home barista chasing the perfect rosetta. Bambino Plus + Niche Zero. Recovering over-extractor. ☕📈</div>
     <div class="stats"><div><b>${pourCount}</b><span>Pours</span></div><div><b>1.2k</b><span>Followers</span></div><div><b>${followingN}</b><span>Following</span></div><div><b>${state.streak} 🔥</b><span>Day streak</span></div></div>
-    <div class="journey"><h3>Your journey</h3><p class="sub">From your first wobbly heart to today's rosettas — 9 months of pours.</p>
-      ${sparkline(JOURNEY.map(j=>j.q))}
-      <div class="tl">${JOURNEY.map((j,i)=>`<div class="mo ${i===JOURNEY.length-1?'now':''}"><div class="cw">${cupSVG(j.pat,j.q,50+i)}</div><div class="ml">${j.mo}</div><div class="sc">avg ${jScore(j.q)}</div></div>`).join('')}</div></div>
+    <div class="journey"><h3>Recent activity</h3><p class="sub">Your last few weeks of coffee.</p>
+      <div class="jstats">
+        <div><b>${ACT.reduce((a,b)=>a+b,0)}</b><span>last 3 weeks</span></div>
+        <div><b>${state.streak}&nbsp;🔥</b><span>day streak</span></div>
+        <div><b>8.4&nbsp;<i>↗</i></b><span>avg art</span></div></div>
+      <div class="actbars">${ACT.map((c,i)=>`<div class="ab${i===ACT.length-1?' today':''}" title="${c} coffee${c===1?'':'s'}"><i style="height:${c===0?8:c===1?52:100}%"></i></div>`).join('')}</div>
+      <div class="acthint"><span>3 weeks ago</span><span>today</span></div>
+      <div class="recent">${RECENT.map(rp=>`<div class="rp"><div class="rpimg">${art(rp.img,rp.art?'rosetta':'none',rp.art?.85:null,seedOf(rp.img+rp.ago))}</div><div class="rpd">${relDay(rp.ago)}</div><div class="rpt">${rp.drink}</div></div>`).join('')}</div></div>
     <div class="section-h" style="margin-bottom:8px"><h2>Beans passport</h2></div>
     <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="beans"><b>${BEANS.length} beans</b></div><span>${countries.length} countries</span></div>
       <div class="beans">${BEANS.map(b=>`<div class="bean"><span class="fl">${flag[b.c]||'🫘'}</span>${b.n}</div>`).join('')}</div></div>
@@ -643,21 +709,18 @@ function renderOverlay(){
 }
 function overlayPost(id){
   const p=state.posts.find(x=>x.id===id); if(!p) return '';
-  const u=USERS[p.user], sc=scoreFromQ(p.quality), r=p.recipe;
+  const u=USERS[p.user], r=p.recipe, sc=p.art?scoreFromQ(p.quality):null, rows=recipeRows(r);
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov">${icon('back',20)}</button><b>Post</b>
       <button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}">${icon(p.likedByMe?'heartF':'heart',22)} <span class="cnt">${fmt(p.likes)}</span></button></div>
     <div class="ov-body">
-      <div class="media"><div class="score">Art <b>${sc.total}</b></div>${art(p.img,p.pattern,p.quality,seedOf(p.id))}<div class="patt">${cap(p.pattern)}</div><div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
+      <div class="media">${p.art?`<div class="score">Art <b>${sc.total}</b></div>`:''}${art(p.img,p.pattern,p.quality,seedOf(p.id))}<div class="patt">${p.art?cap(p.pattern):p.drink}</div><div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">${avatar(p.user)}<div class="who"><b>${u.name} <span class="lvlchip">Lv${u.level}</span></b><span>${u.handle}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}</span></div>
         ${p.user==='me'?'':`<button class="followmini ${state.follows[p.user]?'on':''}" data-action="follow" data-id="${p.user}">${state.follows[p.user]?'Following':'Follow'}</button>`}</div>
-      <div class="p-body"><div class="cap"><b>${u.name}</b> ${p.caption}</div></div>
-      ${r?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0"><div class="recipe-grid">
-        <div class="recipe-bean">🫘 <div><span>Bean</span><b>${r.bean}${r.roaster&&r.roaster!=='—'?' · '+r.roaster:''}</b></div></div>
-        <div class="recipe-mach"><span>Machine</span><b>${r.machine}</b></div>
-        <div><span>Dose in</span><b>${r.dose}</b></div><div><span>Yield out</span><b>${r.yield}</b></div>
-        <div><span>Shot time</span><b>${r.time}</b></div><div><span>Temp</span><b>${r.temp}</b></div></div></div></div>`:''}
-      <div class="scoreblk"><div style="font-family:var(--serif);font-size:16px;margin-bottom:12px">Art score · ${sc.total}</div>${sbar('Symmetry',sc.symmetry)}${sbar('Contrast',sc.contrast)}${sbar('Definition',sc.definition)}</div>
+      <div class="p-body"><div class="cap"><b>${u.name}</b> ${p.caption}</div>
+        <div class="chips"><span class="chip drinkchip">${p.drink||'Coffee'}</span>${p.cafe?`<span class="chip">📍 ${p.cafe}</span>`:''}</div></div>
+      ${rows.length?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0">${recipePanel(r)}</div></div>`:''}
+      ${p.art?`<div class="scoreblk"><div style="font-family:var(--serif);font-size:16px;margin-bottom:12px">Art score · ${sc.total}</div>${sbar('Symmetry',sc.symmetry)}${sbar('Contrast',sc.contrast)}${sbar('Definition',sc.definition)}</div>`:''}
       <div style="padding:6px 14px 4px;font-weight:700;font-family:var(--serif);font-size:16px">${p.comments.length} comments</div>
       <div id="cmt-list">${p.comments.map(commentRow).join('')||`<div class="empty" style="padding:24px">Be the first to comment.</div>`}</div>
     </div>
@@ -687,31 +750,36 @@ function overlayCafe(id){
 }
 
 function overlayCreate(){
-  const c=ui.create, pats=[['heart','Heart'],['rosetta','Rosetta'],['tulip','Tulip'],['swan','Swan']];
-  const opts=(list,cur)=>list.map(o=>`<option ${o===cur?'selected':''}>${o}</option>`).join('');
+  const c=ui.create, isArt=!!DRINK_ART[c.drink];
+  const pats=[['heart','Heart'],['rosetta','Rosetta'],['tulip','Tulip'],['swan','Swan']];
+  const esc=s=>(''+s).replace(/"/g,'&quot;');
+  const sel=(list,cur,ph,extra)=>`<option value=""${cur?'':' selected'}>${ph}</option>`+list.map(o=>`<option${o===cur?' selected':''}>${o}</option>`).join('')+(extra?`<option${cur===extra?' selected':''}>${extra}</option>`:'');
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom">
     <div class="grab"></div>
-    <div class="ov-bar" style="border:0"><b>New pour</b><button class="iconbtn" data-action="close-ov">${icon('x',20)}</button></div>
+    <div class="ov-bar" style="border:0"><b>New coffee</b><button class="iconbtn" data-action="close-ov">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 16px">
       <label class="create-prev uploader">
-        ${c.img?`<img class="photo" src="${c.img}">`:cupSVG(c.pattern,.85,999)}
-        <span class="up-hint">${icon('cam',15)} ${c.img?'Change photo':'Add your latte photo'}</span>
+        ${c.img?`<img class="photo" src="${c.img}">`:cupSVG(isArt?c.pattern:'none',.85,999)}
+        <span class="up-hint">${icon('cam',15)} ${c.img?'Change photo':'Add your coffee photo'}</span>
         <input type="file" id="c-photo" accept="image/*" capture="environment" style="display:none">
       </label>
-      <div class="field"><label>Latte-art pattern</label>
-        <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div></div>
-      <div class="field"><label>Caption</label><textarea id="c-caption" placeholder="Say something about this pour…">${c.caption}</textarea></div>
+      <div class="field sel"><label>Drink</label><select id="c-drink">${DRINKS.map(d=>`<option${d===c.drink?' selected':''}>${d}</option>`).join('')}</select></div>
+      ${isArt?`<div class="field"><label>Latte-art pattern</label>
+        <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div></div>`:''}
+      <div class="field"><label>Caption</label><textarea id="c-caption" placeholder="Say something about this coffee…">${c.caption||''}</textarea></div>
+      <div class="rlabel">Recipe <span>· optional — add only what you know</span></div>
+      <div class="field sel"><label>Bean</label><select id="c-bean">${sel([...BEAN_LIST,...state.customBeans],c.bean,'Not sure / choose…',ADD_BEAN)}</select></div>
+      ${c.bean===ADD_BEAN?`<div class="field"><label>Your bean</label><input id="c-bean-custom" placeholder="e.g. Ethiopia Sidamo — Local Roastery" value="${esc(c.beanCustom)}"></div>`:''}
       <div class="rowfields">
-        <div class="field sel"><label>Bean</label><select id="c-bean">${opts(BEAN_LIST,c.bean)}</select></div>
-        <div class="field sel"><label>Roaster</label><select id="c-roaster">${opts(ROASTER_LIST,c.roaster)}</select></div>
+        <div class="field sel"><label>Roaster</label><select id="c-roaster">${sel(ROASTER_LIST,c.roaster,'Optional')}</select></div>
+        <div class="field sel"><label>Machine / brewer</label><select id="c-machine">${sel(MACHINE_LIST,c.machine,'Optional')}</select></div>
       </div>
-      <div class="field sel"><label>Espresso machine</label><select id="c-machine">${opts(MACHINE_LIST,c.machine)}</select></div>
       <div class="rowfields">
-        <div class="field"><label>Dose in</label><input id="c-dose" placeholder="18g"></div>
-        <div class="field"><label>Yield out</label><input id="c-yield" placeholder="36g"></div>
-        <div class="field"><label>Shot time</label><input id="c-time" placeholder="27s"></div>
-        <div class="field"><label>Temp</label><input id="c-temp" placeholder="93°C"></div></div>
-      <button class="btn block" style="margin-top:6px" data-action="submit-post">${icon('bolt',18)} Post pour</button>
+        <div class="field"><label>Dose in</label><input id="c-dose" placeholder="—" value="${esc(c.dose)}"></div>
+        <div class="field"><label>Yield out</label><input id="c-yield" placeholder="—" value="${esc(c.yield)}"></div>
+        <div class="field"><label>Time</label><input id="c-time" placeholder="—" value="${esc(c.time)}"></div>
+        <div class="field"><label>Temp</label><input id="c-temp" placeholder="—" value="${esc(c.temp)}"></div></div>
+      <button class="btn block" style="margin-top:6px" data-action="submit-post">${icon('bolt',18)} Post</button>
       <div style="height:8px"></div>
     </div></div>`;
 }
@@ -736,7 +804,7 @@ document.addEventListener('click',e=>{
     case 'filter': ui.filter=t.dataset.f; renderView(); break;
     case 'open-post': ui.overlay={type:'post',id}; renderOverlay(); break;
     case 'open-cafe': ui.overlay={type:'cafe',id}; renderOverlay(); break;
-    case 'open-create': ui.create={pattern:'rosetta',caption:'',img:null,bean:BEAN_LIST[0],roaster:ROASTER_LIST[0],machine:MACHINE_LIST[3]}; ui.overlay={type:'create'}; renderOverlay(); break;
+    case 'open-create': ui.create=freshCreate(); ui.overlay={type:'create'}; renderOverlay(); break;
     case 'close-ov': ui.overlay=null; renderOverlay(); break;
     case 'like': toggleLike(id); break;
     case 'save': toggleSave(id); break;
@@ -757,13 +825,14 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{ if(e.key==='Enter'){const t=e.target.closest('[data-enter]'); if(t){e.preventDefault(); if(t.dataset.enter==='add-cmt') addComment(t.dataset.id);}} });
 /* file picker + selects */
 document.addEventListener('change',e=>{
-  if(e.target.id==='c-photo'&&e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]);
-  if(e.target.id==='c-bean') ui.create.bean=e.target.value;
-  if(e.target.id==='c-roaster') ui.create.roaster=e.target.value;
-  if(e.target.id==='c-machine') ui.create.machine=e.target.value;
+  const id=e.target.id;
+  if(id==='c-photo'){ if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]); return; }
+  if(id==='c-drink'||id==='c-bean'){ syncCreate(); renderOverlay(); return; }  // re-render toggles pattern picker / custom-bean field
+  if(id==='c-roaster'||id==='c-machine') syncCreate();
 });
-function syncCreate(){const c=$('#c-caption'); if(c) ui.create.caption=c.value;
-  const b=$('#c-bean'); if(b) ui.create.bean=b.value; const r=$('#c-roaster'); if(r) ui.create.roaster=r.value; const m=$('#c-machine'); if(m) ui.create.machine=m.value;}
+function syncCreate(){const g=id=>{const el=$('#'+id);return el?el.value:undefined;}, c=ui.create;
+  ['caption','drink','bean','bean-custom','roaster','machine','dose','yield','time','temp'].forEach(f=>{
+    const v=g('c-'+f); if(v!==undefined) c[f==='bean-custom'?'beanCustom':f]=v;});}
 
 /* downscale uploaded photo so it displays fast & fits storage */
 function handleUpload(file){
@@ -799,14 +868,27 @@ function addComment(id){
   inp.value=''; toast('Comment added 💬');
 }
 function submitPost(){
-  syncCreate(); const c=ui.create; const val=s=>{const el=$('#'+s); return el?el.value.trim():'';};
-  const caption=c.caption.trim()||'New pour ☕';
-  const recipe={bean:c.bean,roaster:c.roaster==='Other / home roast'?'home roast':c.roaster,machine:c.machine,
-    dose:val('c-dose')||'18g',yield:val('c-yield')||'36g',time:val('c-time')||'27s',temp:val('c-temp')||'93°C'};
-  const np=post({user:'me',pattern:c.pattern,quality:.85,img:c.img,ago:'now',caption,recipe,likes:0,comments:[]});
+  syncCreate(); const c=ui.create; const T=v=>(v||'').trim();
+  const drink=c.drink||'Cappuccino', isArt=!!DRINK_ART[drink];
+  const caption=T(c.caption)||`${drink} ☕`;
+  // resolve bean (custom entry wins); remember custom beans for next time
+  let bean=c.bean===ADD_BEAN?T(c.beanCustom):T(c.bean);
+  if(c.bean===ADD_BEAN && bean && !BEAN_LIST.includes(bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
+  // recipe: keep only what the user actually entered — no defaults
+  const recipe={};
+  if(bean) recipe.bean=bean;
+  if(c.roaster) recipe.roaster=(c.roaster==='Other / home roast'?'home roast':c.roaster);
+  if(c.machine) recipe.machine=c.machine;
+  if(T(c.dose)) recipe.dose=T(c.dose);
+  if(T(c.yield)) recipe.yield=T(c.yield);
+  if(T(c.time)) recipe.time=T(c.time);
+  if(T(c.temp)) recipe.temp=T(c.temp);
+  const hasRecipe=Object.keys(recipe).length>0;
+  const np=post({user:'me',drink,art:isArt,pattern:isArt?(c.pattern||'rosetta'):null,quality:isArt?.85:null,
+    img:c.img,ago:'now',caption,recipe:hasRecipe?recipe:null,likes:0,comments:[]});
   state.posts.unshift(np); if(state.streak<8) state.streak++; save();
   ui.overlay=null; ui.route='home'; ui.filter='foryou'; render();
-  setTimeout(()=>toast(c.img?'Pour posted! Streak kept 🔥':'Posted ☕ (add a photo next time!)'),120);
+  setTimeout(()=>toast(c.img?'Posted! Streak kept 🔥':'Posted ☕ (add a photo next time)'),120);
 }
 
 let toastT; function toast(msg){const el=$('#toast'); el.innerHTML=msg; el.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),1900);}
