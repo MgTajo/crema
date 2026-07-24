@@ -23,14 +23,14 @@ python3 -m http.server 8000   # → http://localhost:8000
 | **Posts** | Full detail view, comment likes & replies, @mentions that open profiles, ⋯ menu (copy link, save, report), **Brew this recipe** (one-tap re-log with prefilled create sheet), share (native share / copy link), deep links (`#p/<id>`). |
 | **People** | Tap any name/avatar → user profile with bio, stats, and their pours. Follower/following lists. People-to-follow suggestions. |
 | **Explore** | Working search (people, beans, cafés, pours), challenges with **entry submission** and per-challenge leaderboards, weekly duel voting, full leaderboard, trending pattern feeds (#rosetta …). |
-| **Cafés** | Map + café profiles, working filters (open now / deals / top rated), directions to Maps, community pours per café. |
+| **Cafés** | Map + café profiles for **7 real Tübingen cafés**, working filters (open now / deals / top rated), directions to Maps, community pours per café. |
 | **Profile** | Recent-activity chart with hover tooltips, recent coffees strip, beans passport with **bean detail pages** (origin, process, tasting notes, your pours), pours/saved/badges/stats tabs, **10 badges** with progress. |
-| **Create** | Photo upload (resized in-browser), any drink type, pattern picker for milk drinks, bean/roaster/machine dropdowns incl. **add-your-own bean**, optional recipe with no fabricated defaults. |
+| **Create** | Photo upload (resized in-browser), any drink type, pattern picker for milk drinks, **specific coffee brands available in Germany** (local + international roasters), a **brand → model machine picker** (100+ machines), optional recipe with no fabricated defaults. Adding your own coffee is a **Premium** feature (demo toggle in Settings). |
 | **Notifications** | Mock inbox with unread dot; rows open the relevant post / profile / challenge / café. |
 | **Settings** | Edit profile (name, bio, city, machine), **light/dark/auto theme**, scores & levels explainer, demo reset. |
 | **PWA** | Manifest + service worker + icons — installable, works offline after first visit. |
 
-- **Data:** everything is mock data kept in `localStorage` (key `crema_v9`). New visitors start like a fresh download — empty profile, no pours — while the community feed, challenges, leaderboards and cafés are already populated. Reset via Settings → Reset the demo.
+- **Data:** everything is mock data kept in `localStorage` (key `crema_v10`). New visitors start like a fresh download — empty profile, no pours, based in **Tübingen** — while the community feed, challenges, leaderboards and cafés are already populated. Reset via Settings → Reset the demo.
 - **Photos:** seed feed uses bundled stock images in `assets/`; your posts use photos you upload (never leave the browser).
 - **Latte art:** posts without photos render generated SVG cups (quality-aware — wobbly to crisp).
 
