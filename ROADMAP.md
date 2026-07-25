@@ -61,22 +61,27 @@ the DB is authoritative. Cheap insurance, and it keeps the PWA working offline.
 
 **No code changes. The app keeps running exactly as today.**
 
-1. Supabase project, **EU (Frankfurt)** region. Save the project URL + anon key.
-2. Cloudflare account → R2 bucket (`crema-media`), EU jurisdiction.
-3. Bind a custom domain to the bucket (e.g. `media.crema.app`) and enable Image
-   Transformations on that zone.
-4. Apple Developer Program ($99/yr) and Google Play Console ($25 one-time) — **start these now**,
-   Apple's enrolment can take days and blocks Phase 2 testing.
-5. Decide the bundle identifier (`app.crema.ios` / `app.crema.android`) — painful to change later.
+1. ✅ **DONE** — Supabase project, EU region (`diabtvahplwoipvrprvb.supabase.co`).
+2. ✅ **DONE** — Cloudflare R2 bucket (named `coffee`, not `crema-media` as originally planned),
+   EU jurisdiction.
+3. ✅ **DONE** — Custom domain `media.crema-app.com` bound to the bucket, Image Transformations
+   enabled on the `crema-app.com` zone.
+4. ⬜ Apple Developer Program / Google Play Console — not started. Blocks Phase 2 testing.
+5. ⬜ Bundle identifier — not decided. Only needed once Phase 2 starts.
 
 ✅ **Working product:** unchanged web app, plus infrastructure ready to point at.
-*Rough effort: 1 day, mostly waiting on account verification.*
+*Status: infra done except the store enrolments, which only matter for Phase 2.*
 
 ---
 
 # Phase 1 — Backend
 
-## Step 1.1 — Make the store async (no backend yet)
+**Status: complete. All of 1.1–1.8 are built, deployed, and verified against the live
+Supabase project — not just committed. See [`supabase/README.md`](supabase/README.md) for
+the operational setup notes and known gaps (Cloudflare cache purge on delete, no
+account-deletion flow yet).**
+
+## Step 1.1 — Make the store async (no backend yet) ✅ DONE
 
 Pure plumbing that de-risks everything after it. Still 100% `localStorage`.
 
@@ -100,11 +105,12 @@ works in ES modules). `LocalStoragePersistence` methods become `async` — they 
 resolved values.
 
 ✅ **Working product:** the app, behaving identically. Nothing user-visible changed.
-*Rough effort: half a day.*
+*Done. `store.js`/`persistence.js` async throughout; `makePersistence(session)` is the actual
+sign-in/out seam, ahead of what this step originally sketched.*
 
 ---
 
-## Step 1.2 — Schema + RLS (database only)
+## Step 1.2 — Schema + RLS (database only) ✅ DONE
 
 Write the schema in the Supabase SQL editor. **The app doesn't touch it yet.**
 
@@ -196,70 +202,82 @@ Start with views (`select count(*)`) for likes/comments/followers. Denormalize i
 columns with triggers only when it measurably hurts. Premature counters cause drift bugs.
 
 ✅ **Working product:** unchanged app, plus a database you can seed and query by hand.
-*Rough effort: 2–3 days including RLS testing.*
+*Done. Live in [`supabase/schema.sql`](supabase/schema.sql). Counts are aggregate embeds
+(`likes(count)`, `comments(count)`), not the views this step sketched — PostgREST couldn't
+embed the view via a foreign key, so aggregates ended up simpler and equally free of drift.
+RLS re-verified with two real signed-in users via [`supabase/rls-test.mjs`](supabase/rls-test.mjs)
+— 17/17 passing, not just eyeballed.*
 
 ---
 
-## Step 1.3 — Auth, additive
+## Step 1.3 — Auth, additive ✅ DONE
 
 Add sign-in without taking anything away.
 
-1. Enable Email, Apple, and Google providers in Supabase.
-   **If you ship Google sign-in, Apple requires Sign in with Apple too.**
-2. Add a Settings entry: *Sign in / Create account* (signed out) or *Signed in as … / Sign out*.
-3. On first sign-in, create the `profiles` row from the local `state.me` — the onboarding data
-   the user already entered.
-4. Wire `makePersistence(session)` and re-run `load()` on auth state change.
-
-At this point `RemotePersistence` can still be a stub that throws — just don't flip anyone to it
-yet. Or implement it as read-your-own-blob to prove the seam end to end.
+1. ✅ Email enabled. ⬜ Apple / Google providers — not enabled yet (buttons exist in the UI
+   and do the PKCE dance, but there's nothing configured on the Supabase side to receive it).
+2. ✅ Settings has *Sign in / Create account* / *Signed in as … / Sign out*.
+3. ✅ `ensureProfile()` creates the `profiles` row from local `state.me` on first sign-in.
+4. ✅ `makePersistence(session)` wired; `useSession()` reloads on auth change.
 
 ✅ **Working product:** app works signed out (exactly as today) **and** signed in (same
 experience, now with a real account). Two modes, both functional.
-*Rough effort: 2 days.*
+*Done, beyond the "stub that throws" this step allowed for — `RemotePersistence` never
+existed; posts went straight to granular per-domain modules (`data/posts.js`, `data/social.js`
+etc.) in the shape step 1.5 describes. Apple/Google sign-in is the one open item — low
+priority until Phase 2 needs App Store sign-in requirements.*
 
 ---
 
-## Step 1.4 — Reference data from the DB
+## Step 1.4 — Reference data from the DB ✅ DONE
 
 Lowest-risk real migration: read-only data with no writes and no auth complexity.
 
-1. Seed `cafes`, `beans`, `challenges` tables from
-   [`src/data/seed.js`](src/data/seed.js) and [`src/data/catalog.js`](src/data/catalog.js).
-2. Add `data/remote.js` that fetches them, with the bundled arrays as fallback on any error.
-3. Cache in `localStorage` with a short TTL so offline/PWA still works.
+1. ✅ `cafes`, `beans`, `challenges` seeded from `src/data/seed.js` / `catalog.js` into
+   [`supabase/seed.sql`](supabase/seed.sql) (generated, not hand-transcribed).
+2. ✅ `data/remote.js` fetches them; bundled arrays stay the fallback on any error.
+3. ✅ Cached in `localStorage` with a 15-minute TTL (`REFERENCE_TTL_MS` in `config.js`).
 
-Add real **lat/lng** to cafés here — Phase 2 needs them for the native map, and the current
-`x`/`y` percentages are decorative only.
+⚠️ Café **lat/lng** are in, but they're **approximate** — derived from each café's street/area
+name, not real geocoded addresses. Fine for the current decorative-ish map pins (now projected
+from real coordinates instead of hand-placed `x`/`y`); **verify against actual addresses before
+Phase 2's native map uses them for real navigation.**
 
 ✅ **Working product:** app looks identical, but editing a café row in Supabase changes what
 users see. First proof the backend is live.
-*Rough effort: 2 days.*
+*Done and confirmed live — editing a café's rating in the dashboard was used as the literal
+proof-of-life test.*
 
 ---
 
-## Step 1.5 — Posts (the first genuinely social step)
+## Step 1.5 — Posts (the first genuinely social step) ✅ DONE
 
 The big one. Signed-in users' posts live server-side and are visible to everyone.
 
-1. Implement `RemotePersistence` properly — but **not** as one blob. Expand the store into
-   granular calls behind the same selectors:
+1. ✅ `data/posts.js` — granular calls, not one blob:
 
    | Store today | Becomes |
    | --- | --- |
-   | `feedPosts()` | `GET /posts?…` (paginated, newest first) |
-   | `myPosts()` | `GET /posts?user_id=eq.me` |
-   | `submitPost()` in `ui/actions.js` | `POST /posts` |
-   | `findPost(id)` | `GET /posts?id=eq.…` |
+   | `feedPosts()` | `fetchFeed()` → `GET /posts?…` (paginated, newest first) |
+   | `myPosts()` | `fetchMine()` → `GET /posts?user_id=eq…` |
+   | `submitPost()` in `ui/actions.js` | `createPost()` → `POST /posts` |
+   | `findPost(id)` | `fetchPost(id)` |
 
-2. Keep the optimistic pattern the UI already uses: mutate `state`, repaint immediately, then
-   fire the network call and reconcile on failure.
-3. Add **pagination** — the current feed renders everything. Infinite scroll on `created_at`.
-4. Signed-out users keep reading the bundled seed feed.
+2. ✅ Optimistic: mutate → repaint → network call → revert on failure, throughout.
+3. ✅ Keyset pagination on `created_at`, infinite scroll wired to `#view`'s scroll event.
+4. ✅ Signed-out keeps the bundled seed feed — unchanged and re-verified after every later step.
 
 ✅ **Working product:** two accounts on two devices see each other's posts. It's a social
 network now.
-*Rough effort: 4–5 days.*
+*Done, and confirmed live with real accounts across the whole session — not just posts, but
+likes/comments appearing across accounts too (1.7).*
+
+**One trap worth keeping in the roadmap:** PostgREST can't disambiguate a `profiles` embed
+when a table reaches it two ways (direct FK + through a join table like `likes`). A bare
+`profiles(...)` embed returns `300 Multiple Choices`, not rows — every embed in `data/`
+names its foreign key explicitly (`profiles!posts_user_id_fkey(...)`) to avoid this. Hit
+this on `posts`, `comments`, and `challenge_entries`; will hit it again on any future table
+reachable from `profiles` two ways.
 
 ---
 
@@ -267,41 +285,58 @@ network now.
 
 Until now posts carried base64 data URLs (works, but heavy). Now they carry R2 keys.
 
-### Upload path
+### Upload path ✅ DONE
 
-1. **Keep the client-side resize.** `handleUpload()` in
-   [`src/ui/actions.js`](src/ui/actions.js) already downscales to 1080px on canvas — port that
-   behaviour forward. A CDN optimizer downstream doesn't make uploading a 12MP original free.
-2. Supabase **Edge Function** `POST /upload-url`: verifies the JWT, generates an object key
-   (`posts/{user_id}/{uuid}.jpg`), returns a **presigned PUT URL** for R2.
-3. Client PUTs bytes straight to R2 — they never transit Supabase.
-4. Client saves `image_key` on the post row.
+1. ✅ Client-side resize kept — `handleUpload()` still downscales to 1080px on canvas before
+   anything else happens.
+2. ✅ Two Edge Functions, not one: `upload-url` (verifies the JWT, generates
+   `posts/{user_id}/{uuid}.jpg`, returns a presigned PUT) and `delete-image` (same JWT check,
+   verifies the key belongs to the caller before issuing the R2 delete). Both in
+   [`supabase/functions/`](supabase/functions/).
+3. ✅ Client PUTs straight to R2 with the presigned URL — bytes never transit Supabase.
+4. ✅ The returned key is what gets stored on the post (`image_key`).
 
-### Delivery
-
-Serve through the custom domain with transformations in the URL:
+### Delivery ✅ DONE
 
 ```
-https://media.crema.app/cdn-cgi/image/width=800,format=auto/posts/<key>
+https://media.crema-app.com/cdn-cgi/image/width=800,format=auto/posts/<key>
 ```
 
-Build a small helper (`data/media.js`) so call sites ask for `imageUrl(key, 'feed'|'thumb'|'hero')`
-rather than hand-writing transformation strings. Feed cards, the 3-up grid, and café heroes all
-want different widths.
+(`media.crema-app.com`, not the `media.crema.app` placeholder above — real domain, registered
+during this build.) `data/media.js` exports exactly the `imageUrl(key, 'feed'|'thumb'|'hero')`
+helper this step asked for; every render site (feed cards, 3-up grid, post hero, profile
+activity, create-sheet preview) goes through it. Café images were left untouched — still
+bundled assets, not part of this migration; `imageUrl()` passes them through unchanged since
+they don't match the R2-key shape.
 
 ### Migration + cleanup
 
-- Existing base64 images: either leave them (they're per-browser demo data and will age out) or
-  upload on next edit. Not worth a migration job.
-- **Account deletion must purge R2 objects**, not just DB rows. Write this now, while the
-  data model is small — GDPR requires it and retrofitting is worse.
+- ✅ Existing base64 images left as-is, per the plan.
+- ⬜ **Account deletion still does not purge R2** — because there is **no account-deletion
+  feature in the app at all yet**, not even a DB-only one. `deleteImage()` exists and post
+  deletion already calls it, so the R2 side is ready the moment a delete-account flow exists.
+  This is the one real gap left against this step's own instruction to "write this now" —
+  flagging it rather than treating it as done.
+- ⬜ **New gap this step surfaced, not in the original plan:** deleting an R2 object doesn't
+  purge Cloudflare's edge cache. A deleted photo can stay reachable at its old URL for up to
+  the cache's `max-age` (currently 4h). Matters more once account deletion is real — GDPR
+  wants "gone," and a cached copy technically isn't.
 
 ✅ **Working product:** photos load fast from CDN, in the right size per surface.
-*Rough effort: 3 days.*
+*Done and proven against the live project end-to-end — sign-in, presign, PUT, direct GET, and
+a real CDN resize all returned 200, verified with disposable test accounts rather than trusted
+on faith. Three real deploy bugs were found and fixed in the process, all specific to this
+project's setup rather than the code: (1) a stale R2 secret — only the access key ID had been
+rotated into Supabase, not its matching secret, caught by comparing `supabase secrets list`
+timestamps; (2) the bucket's **EU jurisdiction** requires its own S3 endpoint
+(`<account>.eu.r2.cloudflarestorage.com`, not the default host) — new `R2_JURISDICTION`
+secret added to both functions to handle it; (3) Cloudflare Image Transformations' allowed-origins
+list didn't include the `media.` subdomain by default, rejecting every transform with error
+9401 until added explicitly in the dashboard.*
 
 ---
 
-## Step 1.7 — Social graph
+## Step 1.7 — Social graph ✅ DONE
 
 `follows`, `likes`, `saves`, `comments`, `comment_likes`, `cafe_follows` as real tables.
 
@@ -310,44 +345,55 @@ These are the highest-traffic writes in the app, and all of them are already opt
 `save()`). Keep that: mutate local, repaint, POST, revert on failure.
 
 Add here:
-- **Rate limiting** on comments (spam surface).
-- **Report handling** — the Report button is currently a toast that does nothing. Make it write
-  a `reports` row. You need a moderation story before the App Store review, not after.
-- **Block/mute** — Apple's review guidelines expect moderation tools in social apps with UGC.
+- ✅ **Rate limiting** on comments — enforced in Postgres (a trigger, 10/minute), not just the
+  client, since a client-side limit is decoration.
+- ✅ **Report handling** — writes a real `reports` row with a reason picker, not a toast.
+- ✅ **Block/mute** — blocking filters the Following-tab feed server-side and is invisible to
+  the blocked user; deleting your own post is in the same menu.
 
 ✅ **Working product:** the full social loop — follow, like, comment, save — across accounts.
-*Rough effort: 4 days.*
+*Done. `data/social.js` + [`supabase/step-1.7.sql`](supabase/step-1.7.sql). The two transitional
+hacks that existed before this step landed (`state.localLikes`/`localSaves`, bridging local
+interactions onto remote posts) are gone — likes/saves/follows are real rows now, and the
+Following tab is a server-side filtered query, not a client-side filter over one page.*
 
 ---
 
-## Step 1.8 — Challenges, leaderboard, notifications
+## Step 1.8 — Challenges, leaderboard, notifications ✅ DONE
 
-1. **Challenges**: `challenge_joins` + `challenge_entries`. Entry votes become real rows, not
-   the current `seedOf(id)` hash in `challengeEntries()`.
-2. **Leaderboard**: a scheduled job (pg_cron) computing weekly points from pours, art scores and
-   challenge results into a `leaderboard_weekly` table. Don't compute on read.
-3. **Notifications**: rows generated by Postgres triggers on `likes`/`comments`/`follows`.
-   The inbox UI already exists and reads a `notifications` array — point it at the table.
+1. ✅ **Challenges**: `challenge_joins` + `challenge_entries` + `entry_votes` are real rows.
+   The old `seedOf(id)*7 % 480` fake vote hash is gone; entries are tappable to vote, with
+   RLS enforcing you can only enter a post you actually own.
+2. ✅ **Leaderboard**: `leaderboard_weekly`, filled by `refresh_leaderboard_weekly()` from
+   pours, art quality, likes received, and challenge results. ✅ `pg_cron` enabled and
+   `crema-leaderboard` scheduled at `0 3 * * *` (03:00 UTC daily) — verified active in
+   `cron.job`, not just submitted.
+3. ✅ **Notifications**: rows generated by `security definer` triggers on `likes`/`comments`/`follows`,
+   with **no insert policy** — a client cannot forge one even if it tried. The existing inbox
+   UI reads straight off the table now.
 
 Push *delivery* is Phase 2 (needs a native app). The data model lands here so the inbox is real.
 
 ✅ **Working product:** a feature-complete web app on a real backend. This is a legitimate
 public beta — you could launch it as a PWA and get users before any native work.
-*Rough effort: 4–5 days.*
+*Fully done, including the leaderboard schedule.*
 
 ---
 
-### Phase 1 checkpoint
+### Phase 1 checkpoint — ✅ REACHED
 
 | | Before | After |
 | --- | --- | --- |
-| Accounts | none | Email / Apple / Google |
-| Data | one `localStorage` blob | Postgres + RLS |
-| Media | base64 in browser | R2 + CDN transforms |
-| Social | simulated | real, cross-user |
-| Signed-out | the whole app | preserved as demo mode |
+| Accounts | none | ✅ Email. ⬜ Google (client code done, dashboard setup pending). ⬜ Apple (blocked on Developer Program enrollment) |
+| Data | one `localStorage` blob | ✅ Postgres + RLS (17/17 policy tests passing) |
+| Media | base64 in browser | ✅ R2 + CDN transforms, verified end-to-end |
+| Social | simulated | ✅ real, cross-user — follows, likes, saves, comments, reports, blocks |
+| Signed-out | the whole app | ✅ preserved as demo mode, re-verified after every step |
+| Leaderboard | computed on read | ✅ `pg_cron`, daily at 03:00 UTC |
 
-**Total: roughly 4–6 weeks solo.**
+**Open items carried into Phase 2 planning:** Sign in with Apple (needs Developer Program
+enrollment first), account-deletion flow (and its R2/cache purge), Cloudflare cache purge on
+image delete.
 
 ---
 
@@ -478,13 +524,16 @@ Non-code work that reliably takes longer than expected:
 - **Legal**: privacy policy + terms (public URLs, required by both stores).
 - **Apple privacy nutrition labels** and **Play Data safety** form — must match what you
   actually collect.
-- **GDPR**: EU data region (done in Phase 0), consent, export, and deletion — deletion must
-  purge R2 too (Step 1.6).
+- ✅ **GDPR**: EU data region done (Phase 0 — Supabase EU + R2 EU jurisdiction, both confirmed).
+  ⬜ Consent, export, and deletion still open — deletion must purge R2 too, and `deleteImage()`
+  is ready for that call the moment a delete flow exists (Step 1.6).
 - **Assets**: icon (you have `icon-512.png`), screenshots per required device size, description,
   keywords.
-- **Account deletion in-app** — Apple requires it for any app with account creation.
-- **Moderation** — reports, blocking, and a contact route (Step 1.7). Reviewers check this for
-  UGC apps.
+- ⬜ **Account deletion in-app** — Apple requires it, and **nothing exists yet**: no delete-account
+  UI, no auth-user removal, no R2 purge trigger. This is the single largest concrete gap left
+  anywhere in Phase 1/2.7 as of this checkpoint.
+- ✅ **Moderation** — reports and blocking are real (Step 1.7). ⬜ A contact route for reviewers
+  is not built.
 
 Budget **1–2 weeks** including at least one rejection round. Rejections are normal; the common
 ones here will be moderation tooling, account deletion, and IAP compliance.
@@ -512,10 +561,13 @@ ones here will be moderation tooling, account deletion, and IAP compliance.
 
 ## Quick reference
 
+**Phase 1 (1.1–1.8): done and verified live.** Phase 2 hasn't started.
+
 | | |
 | --- | --- |
-| **Do first** | Apple/Google developer enrolment (slow), Supabase EU project |
-| **Riskiest step** | 1.5 (posts) — the first real data migration |
-| **Most-underestimated** | 1.2 RLS policies, and 2.7 store review |
-| **Never break** | signed-out demo mode |
-| **Never trust the client** | premium entitlement, ownership checks (enforce in RLS) |
+| **Do next** | Apple/Google developer enrolment (slow — start now, it blocks Phase 2 testing) |
+| **Biggest real gap** | account deletion — doesn't exist in-app at all, blocks 2.7 store review |
+| **Was the riskiest step** | 1.5 (posts) — went cleanly; the actual surprises were three R2/Cloudflare deploy-config bugs in 1.6, not the data migration itself |
+| **Most-underestimated, confirmed** | 1.2 RLS — worth every minute; `rls-test.mjs` has caught nothing wrong so far across 17 assertions, twice |
+| **Never break** | signed-out demo mode — re-verified after every step this session, still intact |
+| **Never trust the client** | premium entitlement, ownership checks (enforce in RLS) — holds; also true for the R2 upload path now (JWT-derived key prefix, never client-supplied) |

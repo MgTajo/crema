@@ -174,16 +174,23 @@ create policy "leaderboard is public" on leaderboard_weekly for select using (tr
 -- no client writes: only refresh_leaderboard_weekly() (security definer) fills it
 
 -- ============================================================
--- SCHEDULING  — run this block separately.
+-- SCHEDULING
 --
--- If it errors with "extension pg_cron is not available", enable
--- pg_cron first: Dashboard → Database → Extensions → pg_cron.
--- Everything above works without it; you would just need to call
--- refresh_leaderboard_weekly() yourself.
+-- Refreshes once a day at 03:00 UTC — off-peak for a Tübingen-timezone
+-- user base, and points enough don't move within a day to justify
+-- finer granularity. cron.schedule() upserts by job name, so re-running
+-- this after an edit updates the existing schedule rather than
+-- duplicating it.
+--
+-- If this errors with "extension pg_cron is not available", enable it
+-- first: Dashboard → Database → Extensions → pg_cron. Everything above
+-- this block works without it; you would just need to call
+-- refresh_leaderboard_weekly() by hand until it's enabled.
 -- ============================================================
--- create extension if not exists pg_cron;
--- select cron.schedule('crema-leaderboard', '*/15 * * * *',
---                      $$select refresh_leaderboard_weekly()$$);
+create extension if not exists pg_cron;
+
+select cron.schedule('crema-leaderboard', '0 3 * * *',
+                      $$select refresh_leaderboard_weekly()$$);
 
 -- Populate it once now, so the board isn't empty before the first run:
 select refresh_leaderboard_weekly();
