@@ -24,6 +24,16 @@ export const USERS={
 /* handle → user id (mutated by the store's applyMe when the local user renames) */
 export const handleToUid={}; Object.values(USERS).forEach(u=>handleToUid[u.handle.slice(1)]=u.id);
 
+/* Authors that arrive with remote posts join the same map, keyed by their
+   auth uuid. Everything in ui/ looks people up through USERS, so a remote
+   profile renders exactly like a seeded one. */
+export function registerUser(u){
+  if(!u||!u.id) return null;
+  USERS[u.id]=Object.assign({followerN:0,pourN:0,bio:'',city:'',level:1},USERS[u.id],u);
+  if(u.handle) handleToUid[u.handle.replace(/^@/,'')]=u.id;
+  return USERS[u.id];
+}
+
 /* ---------- seed posts ---------- */
 let seedId=100;
 export const post=o=>({id:'p'+(seedId++),likedByMe:false,saved:false,comments:[],img:null,...o});
@@ -93,5 +103,7 @@ export const CHALLENGES=[
   {id:'swan',title:'Swan Sundays',tag:'#SwanSundays',pattern:'swan',ends:'6d',participants:317,joined:false,
    blurb:'The hardest pour there is. Show us your neck game.'}
 ];
+/* Refilled in place from leaderboard_weekly once the scheduled job has
+   run (see store.hydrateSocial); stays the bundled fallback until then. */
 export const LEADERBOARD=[{u:'yuki',pts:9420},{u:'june',pts:8710},{u:'mara',pts:7810},{u:'kofi',pts:7100},{u:'sofia',pts:6640},
   {u:'tom',pts:5980},{u:'lena',pts:5230},{u:'aria',pts:3990},{u:'me',pts:0}];

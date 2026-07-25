@@ -6,13 +6,14 @@
    one pushes a descriptor, closing pops it.
    ============================================================ */
 import { $, esc, fmt, cap, initials, seedOf } from '../core/util.js';
+import { BACKEND } from '../config.js';
 import { S } from '../data/assets.js';
 import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ROASTER_LIST, BEANS, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, LEADERBOARD } from '../data/seed.js';
-import { state, ui, findPost, allPosts, myPosts, freshCreate } from '../store/store.js';
+import { state, ui, session, findPost, allPosts, myPosts, freshCreate, entryCache } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
 import { scoreFromQ } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanSelectHTML, lbRow, gcell } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanSelectHTML, lbRow, gcell, commentCount } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -31,6 +32,7 @@ export function renderOverlay(){
     T==='user'?overlayUser(top.id):
     T==='notifs'?overlayNotifs():
     T==='menu'?overlayMenu(top.id):
+    T==='report'?overlayReport(top.id):
     T==='tag'?overlayTag(top.id):
     T==='challenge'?overlayChallenge(top.id):
     T==='challenges'?overlayChallenges():
@@ -40,6 +42,7 @@ export function renderOverlay(){
     T==='settings'?overlaySettings():
     T==='picker'?overlayPicker(top.id):
     T==='onboard'?overlayOnboard():
+    T==='auth'?overlayAuth():
     T==='create'?overlayCreate():'';
 }
 
@@ -61,8 +64,9 @@ function overlayPost(id){
         <div class="chips"><span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>${p.art?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
       ${rows.length?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0">${recipePanel(r)}
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ Brew this recipe</button></div></div></div>`:''}
-      <div style="padding:14px 14px 4px;font-weight:700;font-family:var(--serif);font-size:16px">${p.comments.length} comments</div>
-      <div id="cmt-list">${p.comments.map((c,i)=>commentRow(c,p.id,i)).join('')||`<div class="empty" style="padding:24px">Be the first to comment.</div>`}</div>
+      <div style="padding:14px 14px 4px;font-weight:700;font-family:var(--serif);font-size:16px">${commentCount(p)} comments</div>
+      <div id="cmt-list">${p.comments.length?p.comments.map((c,i)=>commentRow(c,p.id,i)).join(''):
+        (commentCount(p)?`<div class="empty" style="padding:24px">Loading comments…</div>`:`<div class="empty" style="padding:24px">Be the first to comment.</div>`)}</div>
     </div>
     <div class="composer">${avatar('me')}<input id="cmt-input" placeholder="Add a comment…" data-enter="add-cmt" data-id="${p.id}" aria-label="Add a comment"><button class="send" data-action="add-cmt" data-id="${p.id}" aria-label="Send">${icon('sendF',20)}</button></div>
   </div>`;
@@ -138,13 +142,37 @@ function overlayNotifs(){
 
 function overlayMenu(id){
   const p=findPost(id); if(!p) return '';
+  const mine=p.user==='me', who=USERS[p.user];
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="Post options">
     <div class="grab"></div>
     <div class="ov-body" style="padding:4px 18px 18px">
       <div class="mrow" data-action="menu-copy" data-id="${id}"><div class="mi">🔗</div>Copy link</div>
       ${p.recipe?`<div class="mrow" data-action="brew" data-id="${id}"><div class="mi">☕</div>Brew this recipe</div>`:''}
       <div class="mrow" data-action="menu-save" data-id="${id}"><div class="mi">🔖</div>${p.saved?'Remove from saved':'Save to collection'}</div>
-      <div class="mrow danger" data-action="menu-report" data-id="${id}"><div class="mi">🚩</div>Report</div>
+      ${mine?`<div class="mrow danger" data-action="menu-delete" data-id="${id}"><div class="mi">🗑️</div>Delete this pour</div>`
+            :`<div class="mrow danger" data-action="menu-report" data-id="${id}"><div class="mi">🚩</div>Report</div>
+              <div class="mrow danger" data-action="menu-block" data-id="${p.user}"><div class="mi">🚫</div>Block ${esc((who&&who.name||'this person').split(' ')[0])}</div>`}
+      <button class="btn ghost block" style="margin-top:14px" data-action="close-ov">Cancel</button>
+    </div></div>`;
+}
+
+/* Reporting writes a `reports` row now. A moderation route has to exist
+   before store review, not after. */
+const REPORT_REASONS=[
+  ['spam','Spam or misleading'],
+  ['harassment','Harassment or hate'],
+  ['nudity','Nudity or sexual content'],
+  ['violence','Violence or self-harm'],
+  ['ip','Not their content'],
+  ['other','Something else']
+];
+function overlayReport(id){
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="Report">
+    <div class="grab"></div>
+    <div class="ov-bar" style="border:0"><b>Report this pour</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
+    <div class="ov-body" style="padding:0 18px 18px">
+      <p style="font-size:13px;color:var(--ink2);line-height:1.5;margin:0 0 12px">Thanks for helping keep Crema kind. Reports are reviewed by a human — the author isn't told who reported them.</p>
+      ${REPORT_REASONS.map(r=>`<div class="mrow" data-action="report-send" data-id="${id}" data-reason="${r[0]}"><div class="mi">🚩</div>${r[1]}</div>`).join('')}
       <button class="btn ghost block" style="margin-top:14px" data-action="close-ov">Cancel</button>
     </div></div>`;
 }
@@ -162,7 +190,12 @@ function overlayTag(pat){
     </div></div></div>`;
 }
 
+/* Signed in, entries are rows from challenge_entries with real vote
+   counts. Signed out, the demo keeps its deterministic stand-in so the
+   screen still looks alive. */
 function challengeEntries(ch){
+  const remote=entryCache[ch.id];
+  if(remote) return remote;
   const list=allPosts().filter(p=>p.art&&p.pattern===ch.pattern);
   const sub=state.challengeSubs[ch.id];
   if(sub&&!list.some(p=>p.id===sub)){const sp=findPost(sub); if(sp)list.unshift(sp);}
@@ -189,7 +222,9 @@ function overlayChallenge(id){
           <div class="who" style="flex:1"><b>${USERS[e.p.user].name}${e.mine?' (you)':''}</b><span>${cap(ch.pattern)}</span></div>
           <div class="lb-pts">▲ ${e.votes}</div></div>`).join('')}</div>
         <div class="section-h" style="margin-top:4px"><h2>All entries</h2></div>
-        <div class="grid">${entries.map(e=>`<div class="entrywrap">${e.mine?'<span class="entrytag">YOURS</span>':''}${gcell(e.p.pattern,e.p.quality,e.p.id,e.p.img)}<div class="ev">▲ ${e.votes}</div></div>`).join('')}</div>`:
+        <div class="grid">${entries.map(e=>`<div class="entrywrap">${e.mine?'<span class="entrytag">YOURS</span>':''}${gcell(e.p.pattern,e.p.quality,e.p.id,e.p.img)}
+          ${e.id?`<div class="ev${e.votedByMe?' on':''}" data-action="vote-entry" data-id="${e.id}" data-ch="${ch.id}" role="button" title="${e.votedByMe?'Remove your vote':'Vote for this pour'}" style="cursor:pointer">▲ ${e.votes}</div>`
+                :`<div class="ev">▲ ${e.votes}</div>`}</div>`).join('')}</div>`:
         `<div class="empty"><div class="big">🦢</div>No entries yet — be the first!</div>`}
     </div></div></div>`;
 }
@@ -258,7 +293,8 @@ function overlaySettings(){
     <div class="grab"></div>
     <div class="ov-bar" style="border:0"><b>Settings</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 18px">
-      <div class="rlabel">Profile</div>
+      ${BACKEND?`<div class="rlabel">Account</div>${accountBlock()}`:''}
+      <div class="rlabel"${BACKEND?' style="margin-top:18px"':''}>Profile</div>
       <div class="rowfields">
         <div class="field"><label>Name</label><input id="sp-name" value="${esc(m.name)}" placeholder="Your name"></div>
         <div class="field"><label>Username</label><input id="sp-handle" value="${esc(USERS.me.handle)}"></div></div>
@@ -281,7 +317,47 @@ function overlaySettings(){
       <div class="rlabel" style="margin-top:18px">About</div>
       <div class="mrow" data-action="open-scoring"><div class="mi">⭐</div>How levels work</div>
       <div class="mrow" data-action="reset"><div class="mi">🔄</div>Reset the demo</div>
-      <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">Crema demo · no account, your data stays in this browser</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">${session?'Signed in · your pours sync to your account':'Crema demo · no account, your data stays in this browser'}</div>
+    </div></div>`;
+}
+
+/* Account block in Settings — the only entry point to auth. Additive by
+   design: signed out, the app behaves exactly as it always has. */
+function accountBlock(){
+  if(session) return `
+    <div class="mrow" style="cursor:default"><div class="mi">☕</div>
+      <div style="flex:1">Signed in<div style="font-size:11.5px;color:var(--muted);font-weight:500">${esc(session.user.email||session.user.id)}</div></div>
+      <span class="lvlchip" style="color:var(--green);border-color:var(--pm2);background:var(--pm1)">SYNCED</span></div>
+    <button class="btn ghost block" data-action="sign-out">Sign out</button>`;
+  return `
+    <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px;margin-bottom:2px">
+      <b style="font-family:var(--serif);font-size:16px">Keep your pours</b>
+      <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 12px">An account syncs your coffee log across devices and lets other people see your pours. Everything you've logged here comes with you.</div>
+      <button class="btn block" data-action="open-auth">Sign in / Create account</button></div>`;
+}
+
+function overlayAuth(){
+  const a=ui.auth||(ui.auth={mode:'in',error:'',notice:'',busy:false,email:''});
+  const up=a.mode==='up';
+  const banner=(text,color,bg,border)=>`<div style="background:${bg};border:1px solid ${border};color:${color};border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin-bottom:12px">${esc(text)}</div>`;
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${up?'Create account':'Sign in'}">
+    <div class="grab"></div>
+    <div class="ov-bar" style="border:0"><b>${up?'Create account':'Sign in'}</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
+    <div class="ov-body" style="padding:0 16px 18px">
+      ${a.notice?banner(a.notice,'var(--green)','var(--pm1)','var(--pm2)'):''}
+      ${a.error?banner(a.error,'var(--terra)','rgba(168,84,74,.10)','rgba(168,84,74,.28)'):''}
+      <div class="field"><label>Email</label><input id="au-email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" value="${esc(a.email||'')}"></div>
+      <div class="field"><label>Password</label><input id="au-pw" type="password" autocomplete="${up?'new-password':'current-password'}" placeholder="${up?'At least 6 characters':'Your password'}" data-enter="auth-submit"></div>
+      <button class="btn block"${a.busy?' disabled':''} data-action="auth-submit">${a.busy?'Just a moment…':(up?'Create account':'Sign in')}</button>
+      <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:11.5px">
+        <i style="flex:1;height:1px;background:var(--line)"></i>or<i style="flex:1;height:1px;background:var(--line)"></i></div>
+      <button class="btn ghost block" data-action="auth-oauth" data-p="google">Continue with Google</button>
+      <button class="btn ghost block" style="margin-top:8px" data-action="auth-oauth" data-p="apple">Continue with Apple</button>
+      <div style="text-align:center;margin-top:16px;font-size:13px">
+        <span style="color:var(--muted)">${up?'Already have an account? ':'New to Crema? '}</span>
+        <b style="color:var(--crema-deep);cursor:pointer" data-action="auth-mode">${up?'Sign in':'Create one'}</b></div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center;line-height:1.5">You can keep using Crema without an account — everything stays in this browser.</div>
+      <div style="height:6px"></div>
     </div></div>`;
 }
 function overlayOnboard(){

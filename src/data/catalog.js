@@ -102,7 +102,15 @@ export const BEANS=[
   {n:'House Espresso',roaster:'The Coffee Collective',c:'Denmark',loc:'INT',origin:'Seasonal',roast:'Light-medium',notes:['Stone fruit','Caramel','Clean']},
   {n:'Espresso Roast',roaster:'Starbucks',c:'USA',loc:'INT',origin:'Blend',roast:'Dark',notes:['Caramelized','Rich','Bold']}
 ];
-export const ROASTER_LIST=[...new Set(BEANS.map(b=>b.roaster))].sort().concat('Other / home roast');
+/* Derived from BEANS. Kept as a stable array so importers hold one
+   reference; data/remote.js calls rebuildRoasterList() after refilling
+   BEANS from the database. */
+export const ROASTER_LIST=[];
+export function rebuildRoasterList(){
+  ROASTER_LIST.length=0;
+  ROASTER_LIST.push(...[...new Set(BEANS.map(b=>b.roaster))].sort(),'Other / home roast');
+}
+rebuildRoasterList();
 
 /* look up a catalog bean by (possibly partial) name */
 export function beanCatalog(name){return BEANS.find(x=>x.n===name||name.indexOf(x.n)===0||x.n.indexOf(name)===0)||null;}

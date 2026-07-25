@@ -15,9 +15,10 @@ small, contained changes rather than a rewrite.
                         │                               │
                         └───────────────┬───────────────┘
                                      data/                                   content
-                        assets.js · catalog.js · seed.js
+              assets.js · catalog.js · seed.js          (bundled / fallback)
+              supabase.js · profiles.js · posts.js · remote.js   (backend)
                                         │
-                                     core/util.js                            pure helpers
+                                config.js · core/util.js                     pure helpers
 ```
 
 A module only imports from layers **below** it. Nothing in `data/`, `domain/`, `core/` or
@@ -29,7 +30,8 @@ A module only imports from layers **below** it. Nothing in `data/`, `domain/`, `
 | Layer | Files | Responsibility | Becomes, in the target app |
 | --- | --- | --- | --- |
 | **core** | `core/util.js` | Pure format/time/dom helpers | Shared utilities (the DOM helpers are the only web-only part) |
-| **data** | `data/assets.js`, `data/catalog.js`, `data/seed.js` | The catalog (drinks, machines, beans, levels) and the seeded world (users, posts, cafés, challenges) | Backend database + API responses |
+| **data** | `data/assets.js`, `data/catalog.js`, `data/seed.js` | The catalog (drinks, machines, beans, levels) and the seeded world (users, posts, cafés, challenges) — now the **offline/fallback** copy | Bundled fallback dataset |
+| **data (backend)** | `data/supabase.js`, `data/profiles.js`, `data/posts.js`, `data/remote.js` | The only modules that touch the network: auth + PostgREST, and the row⇄app mapping per domain | The same, pointed at production |
 | **store** | `store/store.js`, `store/persistence.js` | The single source of truth: `state`, `ui`, selectors, and the persistence adapter | The client cache / API layer talking to your backend |
 | **domain** | `domain/art.js`, `domain/scoring.js` | Craft logic: latte-art rendering, art scores, badges | Same logic, shared between client and server |
 | **ui** | `ui/*` | Rendering (`views`, `overlays`, `components`, `icons`) and interaction (`actions`, `app`) | Native screens & view models |
@@ -42,32 +44,40 @@ Today all persisted data flows through **one object**: the adapter in
 
 ```js
 // store.js — unaware of storage mechanics
-const persistence = new LocalStoragePersistence(KEY);
-export function load(){ const s = persistence.read(); state = s && s.posts ? s : freshState(); … }
-export function save(){ persistence.write(state); }
+let persistence = makePersistence(session, KEY);
+export async function load(){ const s = await persistence.read(); state = s && s.posts ? s : freshState(); … }
+export function save(){ Promise.resolve(persistence.write(state)).catch(warn); }   // fire-and-forget
 ```
 
-To move to a backend you write a second adapter with the same three methods (a
-`RemotePersistence` sketch is already in that file) and hand it to the store. **No view,
-overlay, component or action changes.**
+Every adapter method is `async`, `load()` is awaited once in `app.js` before the first
+`render()`, and `save()` is optimistic — the UI has already repainted, so a failed write
+warns rather than blocks. **No view, overlay, component or action changed for any of it.**
 
-### Making it async
-
-A network backend is asynchronous, so the one real code change beyond the adapter is to
-`await` the store's `load()`/`save()`:
-
-- `load()` → `async`; `await` it once in `app.js` boot before the first `render()`.
-- `save()` → fire-and-forget (optimistic UI: mutate `state`, repaint, then `await persistence.write`).
-
-The interaction layer already mutates `state` first and repaints immediately, so optimistic
-updates map onto it naturally.
+`makePersistence(session, KEY)` is the whole sign-in migration: signed out it returns the
+shared demo store, signed in the same adapter under a user-scoped key. `useSession()` swaps
+it and reloads.
 
 ## From seed data to API
 
-`data/seed.js` is deliberately the shape a backend would return: arrays of users, posts,
-cafés, challenges. When the backend exists, `freshState()` in the store stops cloning
-`SEED_POSTS` and instead hydrates from `persistence.read()` (i.e. the API). The `data/catalog.js`
-reference lists (drinks, machines, beans) become read-only catalog endpoints.
+`data/seed.js` is deliberately the shape a backend returns, which is why it doubles as the
+fallback dataset. Domains migrate **one at a time**, each behind its own module, and each one
+degrades to the bundled arrays if the network fails:
+
+| Domain | Module | Migrated |
+| --- | --- | --- |
+| Cafés, beans, challenges | `data/remote.js` | ✅ read-only, TTL-cached, refills the exported arrays in place |
+| Posts | `data/posts.js` | ✅ paginated feed, optimistic create |
+| Profiles | `data/profiles.js` | ✅ created from local `state.me` on first sign-in |
+| Follows, likes, saves, comments | — | still local; `state.localLikes` / `localSaves` bridge them onto remote posts |
+| Notifications, challenges, leaderboard | — | still local |
+
+Whatever has not migrated keeps living in the state blob, per user. That is what makes every
+step end in a working app rather than a half-migrated one.
+
+The backend is reached only through `data/supabase.js` — a ~150-line client (GoTrue auth with
+PKCE + refresh, and PostgREST queries) rather than a vendored SDK, so the app stays buildless
+and self-contained. Endpoints and the publishable key live in `src/config.js`; setting
+`SUPABASE_URL` to `''` forces pure demo mode.
 
 ## Toward native (iOS/Android)
 

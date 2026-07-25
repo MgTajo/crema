@@ -30,7 +30,7 @@ src/
   ui/             icons · components · views · overlays · actions
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for how the layers map onto a real backend + native iOS/Android app.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the layers map onto a real backend + native iOS/Android app, and [ROADMAP.md](ROADMAP.md) for the step-by-step plan to get there.
 
 ## What's inside
 

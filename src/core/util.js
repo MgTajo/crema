@@ -25,4 +25,14 @@ export const initials=n=>n.split(' ').map(w=>w[0]).slice(0,2).join('');
 
 /* ---------- relative-time helpers ---------- */
 export function agoDays(a){if(!a||a==='now')return 0;const m=(''+a).match(/(\d+)([hdw])/);if(!m)return 0;const n=+m[1];return m[2]==='h'?0:m[2]==='d'?n:n*7;}
+/* timestamptz → the compact relative label the UI already speaks ('2h', '3d') */
+export function agoFrom(iso){
+  const t=Date.parse(iso); if(!isFinite(t)) return 'now';
+  const mins=Math.max(0,(Date.now()-t)/60000);
+  if(mins<1) return 'now';
+  if(mins<60) return Math.floor(mins)+'m';
+  const h=mins/60; if(h<24) return Math.floor(h)+'h';
+  const d=h/24;    if(d<7)  return Math.floor(d)+'d';
+  return Math.floor(d/7)+'w';
+}
 export function agoLabel(a){const d=agoDays(a);if(d===0)return'Today';if(d===1)return'Yesterday';if(d<7)return new Date(Date.now()-d*864e5).toLocaleDateString('en',{weekday:'short'});return a+' ago';}

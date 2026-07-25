@@ -56,9 +56,13 @@ export function recipePanel(r){
 }
 export const recipeBtnLabel=r=>(r.dose&&r.yield)?`Recipe · ${r.dose} in → ${r.yield} out`:'Recipe';
 
+/* Remote posts carry a comment count from the feed query and load the
+   thread only when opened, so prefer the count when we have one. */
+export const commentCount = p => (p.commentN!=null ? p.commentN : p.comments.length);
+
 export function postCard(p){
   const u=USERS[p.user], following=p.user==='me'||state.follows[p.user], r=p.recipe, top=p.comments[0];
-  const rows=recipeRows(r);
+  const rows=recipeRows(r), cn=commentCount(p);
   return `<div class="card" data-post="${p.id}">
     <div class="p-head">
       <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
@@ -70,7 +74,7 @@ export function postCard(p){
       <div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
     <div class="p-act">
       <button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}" aria-label="Like">${icon(p.likedByMe?'heartF':'heart',22)} <span class="cnt">${fmt(p.likes)}</span></button>
-      <button class="act" data-action="open-post" data-id="${p.id}" aria-label="Comments">${icon('chat',22)} ${p.comments.length}</button>
+      <button class="act" data-action="open-post" data-id="${p.id}" aria-label="Comments">${icon('chat',22)} ${cn}</button>
       <button class="act" data-action="share-post" data-id="${p.id}" aria-label="Share">${icon('send',20)}</button>
       <div class="grow"></div>
       <button class="act save ${p.saved?'saved':''}" data-action="save" data-id="${p.id}" aria-label="Save">${icon(p.saved?'saveF':'save',22)}</button></div>
@@ -86,7 +90,7 @@ export function postCard(p){
       ${rows.length?`<button class="recipe-btn" data-action="recipe" data-id="${p.id}">☕ ${recipeBtnLabel(r)} ▾</button>
       <div class="recipe-panel" id="rp-${p.id}">${recipePanel(r)}
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ Brew this recipe</button></div></div>`:''}
-      ${p.comments.length?`<div class="cmt-preview">${p.comments.length>1?`<span class="more" data-action="open-post" data-id="${p.id}">View all ${p.comments.length} comments</span>`:''}<div class="one"><b>${(USERS[top.u]||{name:'Guest'}).name.split(' ')[0]}</b> ${mentionify(top.t)}</div></div>`:''}
+      ${top?`<div class="cmt-preview">${cn>1?`<span class="more" data-action="open-post" data-id="${p.id}">View all ${cn} comments</span>`:''}<div class="one"><b>${(USERS[top.u]||{name:'Guest'}).name.split(' ')[0]}</b> ${mentionify(top.t)}</div></div>`:''}
     </div></div>`;
 }
 
@@ -131,5 +135,5 @@ export function commentRow(c,pid,idx){
   return `<div class="cmt">${avatar(c.u)}
     <div class="cbody"><div class="t"><b data-action="open-user" data-id="${c.u||''}">${u.name}</b> ${mentionify(c.t)}</div>
       <div class="meta"><span>${c.ago||'now'}</span><span data-action="cmt-reply" data-handle="${u.handle||''}">Reply</span></div></div>
-    <button class="clike ${c.likedByMe?'on':''}" data-action="cmt-like" data-pid="${pid}" data-idx="${idx}" aria-label="Like comment">${icon(c.likedByMe?'heartF':'heart',15)}<span>${c.likes||''}</span></button></div>`;
+    <button class="clike ${c.likedByMe?'on':''}" data-action="cmt-like" data-pid="${pid}" data-idx="${idx}" data-cid="${c.id||''}" aria-label="Like comment">${icon(c.likedByMe?'heartF':'heart',15)}<span>${c.likes||''}</span></button></div>`;
 }
