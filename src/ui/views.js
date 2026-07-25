@@ -10,6 +10,7 @@ import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, LEADERBOARD } from '../data/seed.js';
 import { state, ui, myPosts, allPosts, myBeans, myRoasters, activityBars, feedPosts } from '../store/store.js';
+import { imageUrl } from '../data/media.js';
 import { art, cupSVG } from '../domain/art.js';
 import { computeBadges } from '../domain/scoring.js';
 import { postCard, searchHTML, avatar, lbRow, cafeCard, gcell } from './components.js';
@@ -96,7 +97,7 @@ export function renderProfile(){
         <div><b>${new Set(mine.filter(p=>p.pattern).map(p=>p.pattern)).size}</b><span>art styles</span></div></div>
       <div class="actbars">${ACT.map((c,i)=>{const d=new Date(Date.now()-(ACT.length-1-i)*864e5).toLocaleDateString('en',{weekday:'short',day:'numeric',month:'short'});return `<div class="ab${i===ACT.length-1?' today':''}" data-d="${d}" data-c="${c}"><i style="height:${c===0?8:c===1?52:100}%"></i></div>`;}).join('')}<div class="bartip" id="bartip" hidden></div></div>
       <div class="acthint"><span>3 weeks ago</span><span>today</span></div>
-      <div class="recent">${recent.map(p=>`<div class="rp" data-action="open-post" data-id="${p.id}"><div class="rpimg">${art(p.img,p.pattern||'none',p.quality==null?0.9:p.quality,seedOf(p.id),p.drink)}</div><div class="rpd">${agoLabel(p.ago)}</div><div class="rpt">${esc(p.drink||'Coffee')}</div></div>`).join('')}</div></div>`;
+      <div class="recent">${recent.map(p=>`<div class="rp" data-action="open-post" data-id="${p.id}"><div class="rpimg">${art(imageUrl(p.img,'thumb'),p.pattern||'none',p.quality==null?0.9:p.quality,seedOf(p.id),p.drink)}</div><div class="rpd">${agoLabel(p.ago)}</div><div class="rpt">${esc(p.drink||'Coffee')}</div></div>`).join('')}</div></div>`;
   const startedHTML = `<div class="journey"><h3>Your journey starts here</h3><p class="sub" style="margin-bottom:12px">Log your first coffee to start a streak, earn badges and climb the weekly leaderboard.</p>
       <div style="padding:0 12px 14px"><button class="btn block" data-action="open-create">${icon('bolt',18)} Log your first coffee</button></div></div>`;
   const passportHTML = beans.length?`<div class="section-h" style="margin-bottom:8px"><h2>Beans passport</h2></div>

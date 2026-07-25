@@ -17,6 +17,11 @@
 export const SUPABASE_URL = 'https://diabtvahplwoipvrprvb.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_Dl-0fert2JgI005EaRauNw_ytYbmeVL';
 
+/* R2 custom domain, bound to the "coffee" bucket with Cloudflare
+   Image Transformations enabled on the zone (roadmap step 1.6). Public
+   and read-only — safe to commit, same as the URL/key above. */
+export const MEDIA_BASE = 'https://media.crema-app.com';
+
 /* Every backend call is guarded by this. When false the app runs
    exactly as it did before Phase 1 — seeded world, localStorage, no
    account. Demo mode never goes away. */

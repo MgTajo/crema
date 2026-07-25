@@ -17,6 +17,7 @@ import { USERS, CAFES, post } from '../data/seed.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser } from '../data/supabase.js';
 import { ensureProfile, pushProfile } from '../data/profiles.js';
 import { createPost, deletePost, newPostId } from '../data/posts.js';
+import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
 import * as chal from '../data/challenges.js';
 import { markAllRead } from '../data/notifications.js';
@@ -262,9 +263,30 @@ function handleUpload(file){
   if(!file.type||!file.type.startsWith('image/')){toast('That file isn\'t an image'); return;}
   const reader=new FileReader();
   reader.onload=ev=>{const img=new Image();
-    img.onload=()=>{const max=1080; let w=img.width,h=img.height; const s=Math.min(1,max/Math.max(w,h)); w=Math.round(w*s); h=Math.round(h*s);
+    img.onload=()=>{
+      const max=1080; let w=img.width,h=img.height; const s=Math.min(1,max/Math.max(w,h)); w=Math.round(w*s); h=Math.round(h*s);
       const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
-      syncCreate(); ui.create.img=cv.toDataURL('image/jpeg',0.82); renderOverlay(); toast('Photo added 📸');};
+      syncCreate();
+      /* Show the local render immediately — no wait on a network round
+         trip to see your own photo. Signed out (or if the upload
+         fails), this stays the final value: base64 in the demo blob,
+         exactly as before step 1.6. */
+      ui.create.img=cv.toDataURL('image/jpeg',0.82); renderOverlay(); toast('Photo added 📸');
+      const u=currentUser(); if(!u) return;
+      const target=ui.create;
+      ui.create.uploading=true; renderOverlay();
+      cv.toBlob(blob=>{
+        if(!blob){ if(ui.create===target){ui.create.uploading=false; renderOverlay();} return; }
+        uploadImage(blob,'image/jpeg').then(key=>{
+          if(ui.create!==target) return;   // sheet was closed/reset meanwhile
+          ui.create.img=key; ui.create.uploading=false; renderOverlay();
+        }).catch(err=>{
+          console.warn('upload failed',err);
+          if(ui.create===target){ ui.create.uploading=false; renderOverlay(); }
+          toast('Upload failed — photo will stay local for now');
+        });
+      },'image/jpeg',0.82);
+    };
     img.onerror=()=>toast('Could not read that image'); img.src=ev.target.result;};
   reader.onerror=()=>toast('Could not read that file');
   reader.readAsDataURL(file);
@@ -480,7 +502,7 @@ async function deleteMyPost(id){
   const i=state.posts.indexOf(p); if(i>=0) state.posts.splice(i,1);
   ui.ovStack=[]; save(); render(); toast('Pour deleted');
   const u=currentUser(); if(!u) return;
-  deletePost(id).catch(err=>{
+  deletePost(id).then(()=>{ deleteImage(p.img); }).catch(err=>{
     console.warn('delete failed',err);
     if(i>=0) state.posts.splice(i,0,p);
     save(); render(); toast('Couldn\'t delete that — it\'s still there');

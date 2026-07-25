@@ -8,6 +8,7 @@
 import { $, esc, fmt, cap, initials, seedOf } from '../core/util.js';
 import { BACKEND } from '../config.js';
 import { S } from '../data/assets.js';
+import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ROASTER_LIST, BEANS, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, LEADERBOARD } from '../data/seed.js';
 import { state, ui, session, findPost, allPosts, myPosts, freshCreate, entryCache } from '../store/store.js';
@@ -54,7 +55,7 @@ function overlayPost(id){
       <button class="act" data-action="share-post" data-id="${p.id}" aria-label="Share">${icon('send',20)}</button>
       <button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}">${icon(p.likedByMe?'heartF':'heart',22)} <span class="cnt">${fmt(p.likes)}</span></button></div>
     <div class="ov-body">
-      <div class="media" data-action="none">${art(p.img,p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
+      <div class="media" data-action="none">${art(imageUrl(p.img,'hero'),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">
         <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
           <div class="who"><b>${u.name} <span class="lvlchip">Lv${u.level}</span></b><span>${u.handle}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}</span></div></div>
@@ -400,8 +401,8 @@ function overlayCreate(){
     <div class="ov-bar" style="border:0"><b>New coffee</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 16px">
       <div class="create-prev">
-        ${c.img?`<img class="photo" src="${c.img}" alt="your coffee photo">`:cupSVG(isArt&&c.pattern?c.pattern:'none',.85,999)}
-        ${c.img?'':`<span class="up-hint">${icon('cam',15)} Add a photo</span>`}
+        ${c.img?`<img class="photo" src="${imageUrl(c.img,'feed')}" alt="your coffee photo">`:cupSVG(isArt&&c.pattern?c.pattern:'none',.85,999)}
+        ${c.img?(c.uploading?`<span class="up-hint">Uploading…</span>`:''):`<span class="up-hint">${icon('cam',15)} Add a photo</span>`}
       </div>
       <div class="photo-actions">
         <label class="btn ghost sm"><input type="file" id="c-photo-cam" accept="image/*" capture="environment" hidden>${icon('cam',16)} ${c.img?'Retake':'Take photo'}</label>

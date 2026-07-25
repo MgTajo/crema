@@ -9,6 +9,7 @@ import { esc, fmt, seedOf, initials } from '../core/util.js';
 import { MACHINES, MACHINE_BRANDS, BEANS, ADD_BEAN, flag } from '../data/catalog.js';
 import { USERS, handleToUid, CAFES } from '../data/seed.js';
 import { state, allPosts, findPost } from '../store/store.js';
+import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { icon } from './icons.js';
 
@@ -70,7 +71,7 @@ export function postCard(p){
       ${p.user==='me'?'':`<button class="followmini ${following?'on':''}" data-action="follow" data-id="${p.user}">${following?'Following':'Follow'}</button>`}
       <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
     <div class="media" data-action="open-post" data-id="${p.id}">
-      ${art(p.img,p.pattern,p.quality,seedOf(p.id),p.drink)}
+      ${art(imageUrl(p.img,'feed'),p.pattern,p.quality,seedOf(p.id),p.drink)}
       <div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
     <div class="p-act">
       <button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}" aria-label="Like">${icon(p.likedByMe?'heartF':'heart',22)} <span class="cnt">${fmt(p.likes)}</span></button>
@@ -126,7 +127,7 @@ export function cafeCard(c){
 
 export function gcell(pat,q,id,img){
   const p=findPost(id);
-  return `<div class="gcell" data-action="open-post" data-id="${id}">${art(img,pat,q,seedOf(id),p?p.drink:'coffee')}</div>`;
+  return `<div class="gcell" data-action="open-post" data-id="${id}">${art(imageUrl(img,'thumb'),pat,q,seedOf(id),p?p.drink:'coffee')}</div>`;
 }
 
 export function sbar(l,v){return `<div class="sbar"><div class="l"><span>${l}</span><b>${v}</b></div><div class="track"><i style="width:${v*10}%"></i></div></div>`;}

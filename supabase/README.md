@@ -57,10 +57,61 @@ editable by their author, profiles can't be edited or spoofed across users, save
 notifications don't leak, notifications can't be forged, and reference tables reject client
 writes. Exits non-zero on any failure.
 
-## What is NOT set up yet
+## 4. Deploy the media functions (step 1.6)
 
-- **Media** still travels as base64 data URLs. R2 upload + CDN delivery is roadmap step 1.6 —
-  the only remaining Phase 1 step, and the only one needing infrastructure beyond Supabase.
+Two Edge Functions mint presigned R2 URLs so the browser can upload/delete without ever
+holding an R2 credential. Deploy both:
+
+```bash
+supabase login
+supabase link --project-ref diabtvahplwoipvrprvb
+supabase functions deploy upload-url
+supabase functions deploy delete-image
+```
+
+Then set the R2 secret — **run this yourself**, with your own Access Key ID and Secret from
+the R2 API token (Account API token, Object Read & Write, scoped to `coffee`):
+
+```bash
+supabase secrets set \
+  R2_ACCOUNT_ID=175e2adca35811269da6096ec2763304 \
+  R2_ACCESS_KEY_ID=<your access key id> \
+  R2_SECRET_ACCESS_KEY=<your secret access key> \
+  R2_BUCKET=coffee
+```
+
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` are injected automatically — don't set those.
+
+**Never paste the Access Key ID or Secret into chat.** They bypass RLS entirely; unlike the
+publishable key, there is nothing protecting data if this one leaks.
+
+### Verify the deploy
+
+```bash
+supabase functions logs upload-url
+```
+
+Then in the app, sign in and post a coffee with a photo. If the upload fails, the post still
+goes out with the local photo (unchanged from before 1.6) and a toast says so — check the
+function logs for the actual error.
+
+### R2 bucket CORS
+
+Needed so the browser's direct `PUT` to R2 doesn't die at preflight. **R2 → `coffee` →
+Settings → CORS Policy:**
+
+```json
+[{"AllowedOrigins":["http://localhost:4599","https://<your-github-pages-url>"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["content-type"],"MaxAgeSeconds":3600}]
+```
+
+### What's still open in 1.6
+
+- **Account deletion doesn't purge R2 yet.** There's no delete-account flow in the app at
+  all currently — that's a bigger addition (needs a third Edge Function running with the
+  service-role key to actually remove the auth user). `data/media.js` has `deleteImage()`
+  ready to call once that flow exists; post deletion already calls it.
+- The `403` Cloudflare Images returns for a transform request on a **nonexistent** key hasn't
+  been checked against a **real** uploaded object yet — do that after the first live upload.
 
 ## A trap worth knowing about
 
