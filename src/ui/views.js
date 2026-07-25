@@ -119,8 +119,8 @@ export function renderProfile(){
       <div class="recent">${recent.map(p=>`<div class="rp" data-action="open-post" data-id="${p.id}"><div class="rpimg">${art(imageUrl(p.img,'thumb'),p.pattern||'none',p.quality==null?0.9:p.quality,seedOf(p.id),p.drink)}</div><div class="rpd">${agoLabel(p.ago)}</div><div class="rpt">${esc(p.drink||'Coffee')}</div></div>`).join('')}</div></div>`;
   const startedHTML = `<div class="journey"><h3>Your journey starts here</h3><p class="sub" style="margin-bottom:12px">Every pour earns points, builds your streak and moves you up a level.</p>
       <div style="padding:0 12px 14px"><button class="btn block" data-action="open-create">${icon('bolt',18)} Log your first coffee</button></div></div>`;
-  const passportHTML = beans.length?`<div class="section-h" style="margin-bottom:8px"><h2>Beans passport</h2></div>
-    <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="coffee beans"><b>${beans.length} bean${beans.length===1?'':'s'}</b></div><span>${roasters.length} roaster${roasters.length===1?'':'s'} · tap for details</span></div>
+  const passportHTML = beans.length?`<div class="section-h" style="margin-bottom:8px"><h2>Bean passport</h2><a data-action="open-passport">See all</a></div>
+    <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="coffee beans"><b>${beans.length} bean${beans.length===1?'':'s'}</b></div><span data-action="open-passport" style="cursor:pointer">${roasters.length} roaster${roasters.length===1?'':'s'} · tap for details</span></div>
       <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return cat?`<div class="bean" data-action="open-bean" data-id="${esc(cat.n)}"><span class="fl">${flag[cat.c]||'🫘'}</span>${cat.n}</div>`:`<div class="bean" data-action="toast" data-msg="Your own bean — details coming soon">🫘 ${esc(n)}</div>`;}).join('')}</div></div>`:'';
   return `<div class="pad">
     <div class="prof-top"><div class="prof-av" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px">${initials(u.name)}</div>

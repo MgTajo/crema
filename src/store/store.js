@@ -16,7 +16,7 @@ import { agoDays } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
 import { beanCatalog } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, handleToUid } from '../data/world.js';
-import { fetchFeed } from '../data/posts.js';
+import { fetchFeed, fetchMine } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
          fetchCafeFollowCounts } from '../data/social.js';
 import { fetchMyJoins, fetchTopPosts, fetchJoinCounts } from '../data/challenges.js';
@@ -71,6 +71,12 @@ export const social={ blocks:[], loaded:false, listsLoaded:false, followers:[], 
 /* People to follow — the newest profiles that aren't you, filled by
    hydrateSocial(). Empty until the backend answers. */
 export const discover={ list:[], loaded:false };
+
+/* Your own pours — all of them, not the handful that happen to be on the
+   current feed page. Your profile grid, streak, badges, stats and beans
+   passport are built from this; before it existed they were built from
+   the feed, so they emptied out as your posts aged off page one. */
+export const mine={ list:[], loaded:false };
 export const followeeIds = () => Object.keys(state.follows||{}).filter(k=>state.follows[k]);
 
 /* Entries per challenge, loaded on demand when a challenge opens. */
@@ -100,6 +106,11 @@ export async function hydrateSocial(){
     TOP_POSTS.length=0; TOP_POSTS.push(...board);
     cachePosts(board);
   }catch(e){ console.warn('top pours failed',e); }
+
+  try{
+    mine.list=await fetchMine(uid,{ limit:200, myUid:uid });
+    mine.loaded=true; cachePosts(mine.list);
+  }catch(e){ console.warn('your pours failed',e); }
 
   try{ social.counts=await fetchProfileCounts(uid); }
   catch(e){ console.warn('profile counts failed',e); }
@@ -173,6 +184,7 @@ export async function useSession(next){
   social.blocks=[]; social.loaded=false; social.listsLoaded=false; social.followers=[]; social.following=[];
   social.counts={followers:0,following:0,pours:0};
   discover.list=[]; discover.loaded=false;
+  mine.list=[]; mine.loaded=false;
   if(next){ await hydrateSocial(); await loadFeed(); }
 }
 
@@ -207,13 +219,43 @@ export function applyMe(){
 export function freshCreate(){return{drink:state.me.favDrink||'Cappuccino',pattern:'rosetta',caption:'',img:null,source:'home',cafe:'',
   bean:'',beanCustom:'',roaster:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
-/* ---------- derived selectors (read-only views over state) ---------- */
-export const allPosts=()=>[...state.posts,...(state.myGallery||[])];
-export const myPosts=()=>allPosts().filter(p=>p.user==='me');
+/* ---------- derived selectors (read-only views over state) ----------
+   The feed's copy of a post wins over the profile's: it is the one
+   carrying likedByMe/saved for this viewer. Everything is deduped by id,
+   so a post appearing in both places is still one post. */
+function merge(...lists){
+  const seen=new Set(), out=[];
+  lists.forEach(l=>(l||[]).forEach(p=>{ if(p&&p.id&&!seen.has(p.id)){ seen.add(p.id); out.push(p); } }));
+  return out;
+}
+export const allPosts=()=>merge(state.posts, mine.list, state.myGallery);
+export function myPosts(){
+  return merge(state.posts.filter(p=>p.user==='me'), mine.list, (state.myGallery||[]))
+    .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'') || dayIndex(a)-dayIndex(b));
+}
 /* the user's own beans passport — grows from the beans they log, not the global catalog */
 export function myBeans(){const seen=new Set(),out=[];myPosts().forEach(p=>{const b=p.recipe&&p.recipe.bean;if(b&&!seen.has(b)){seen.add(b);out.push(b);}});state.customBeans.forEach(b=>{if(b&&!seen.has(b)){seen.add(b);out.push(b);}});return out;}
 export function myCountries(){return [...new Set(myBeans().map(n=>{const c=beanCatalog(n);return c&&c.c;}).filter(Boolean))];}
 export function myRoasters(){const set=new Set();myBeans().forEach(n=>{const c=beanCatalog(n);if(c)set.add(c.roaster);});return [...set];}
+
+/* Every bean you have logged, most-poured first, with what the catalog
+   knows about it. Beans you added yourself have no catalog entry and
+   say so rather than being dropped. */
+export function beanPassport(){
+  const map=new Map();
+  myPosts().forEach(p=>{
+    const n=p.recipe&&p.recipe.bean; if(!n) return;
+    const e=map.get(n)||{ name:n, pours:0, last:null, roaster:(p.recipe&&p.recipe.roaster)||'' };
+    e.pours++;
+    if(p.createdAt&&(!e.last||p.createdAt>e.last)) e.last=p.createdAt;
+    map.set(n,e);
+  });
+  (state.customBeans||[]).forEach(n=>{ if(n&&!map.has(n)) map.set(n,{ name:n, pours:0, last:null, roaster:'' }); });
+  return [...map.values()].map(e=>{
+    const cat=beanCatalog(e.name);
+    return { ...e, cat, roaster:(cat&&cat.roaster)||e.roaster };
+  }).sort((a,b)=>b.pours-a.pours || a.name.localeCompare(b.name));
+}
 /* The server applied the Following filter and the block list, so the
    page it returned *is* the feed. */
 export const feedPosts=()=>state.posts;

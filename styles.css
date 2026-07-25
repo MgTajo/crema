@@ -246,6 +246,10 @@
   .lb-thumb{width:46px; height:46px; border-radius:12px; overflow:hidden; flex:none; background:var(--surface2)}
   .lb-thumb img,.lb-thumb svg{width:100%; height:100%; object-fit:cover; display:block}
 
+  /* bean passport rows */
+  .bean-fl{width:34px; height:34px; border-radius:10px; background:var(--surface2); border:1px solid var(--line);
+           display:grid; place-items:center; font-size:17px; flex:none}
+
   /* level progress on the profile */
   .lvlbar{margin:14px 0 2px}
   .lvlbar .top{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:6px}

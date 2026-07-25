@@ -21,7 +21,7 @@ import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
 import * as chal from '../data/challenges.js';
 import { markAllRead } from '../data/notifications.js';
-import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts,
+import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          loadFeed, loadMoreFeed, social as storeSocial, entryCache } from '../store/store.js';
 import { commentRow, postLink, searchHTML } from './components.js';
 import { icon } from './icons.js';
@@ -59,6 +59,7 @@ document.addEventListener('click',e=>{
     case 'open-board': pushOv({type:'board'}); break;
     case 'open-flist': openFlist(id); break;
     case 'open-scoring': pushOv({type:'scoring'}); break;
+    case 'open-passport': pushOv({type:'passport'}); break;
     case 'open-settings': pushOv({type:'settings'}); break;
     case 'open-create': ui.create=freshCreate(); pushOv({type:'create'}); break;
     case 'close-ov': popOv(); break;
@@ -621,11 +622,13 @@ async function deleteMyPost(id){
   popOv();
   const p=findPost(id); if(!p) return;
   const i=state.posts.indexOf(p); if(i>=0) state.posts.splice(i,1);
+  const j=mine.list.indexOf(p); if(j>=0) mine.list.splice(j,1);
   ui.ovStack=[]; save(); render(); toast('Pour deleted');
   const u=currentUser(); if(!u) return;
   deletePost(id).then(()=>{ deleteImage(p.img); refreshScore(); }).catch(err=>{
     console.warn('delete failed',err);
     if(i>=0) state.posts.splice(i,0,p);
+    if(j>=0) mine.list.splice(j,0,p);
     save(); render(); toast('Couldn\'t delete that — it\'s still there');
   });
 }
@@ -687,7 +690,7 @@ function submitPost(){
     quality:null, cafe:cafe?cafe.name:undefined, img:c.img, ago:'now',
     createdAt:new Date().toISOString(), caption, recipe:hasRecipe?recipe:null,
     likes:0, likedByMe:false, saved:false, comments:[], commentN:0 };
-  state.posts.unshift(np); save();
+  state.posts.unshift(np); mine.list.unshift(np); save();
   ui.ovStack=[]; ui.route='home'; ui.filter='foryou'; render();
   setTimeout(()=>toast(c.img?'Posted! Streak kept 🔥':'Posted ☕ (add a photo next time)'),120);
 
@@ -695,6 +698,7 @@ function submitPost(){
   if(u) createPost(np,u.id).then(()=>refreshScore()).catch(err=>{
     console.warn('post failed',err);
     const i=state.posts.indexOf(np); if(i>=0) state.posts.splice(i,1);
+    const j=mine.list.indexOf(np); if(j>=0) mine.list.splice(j,1);
     save(); render(); toast('Couldn\'t post that — check your connection and try again');
   });
 }

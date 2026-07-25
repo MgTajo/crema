@@ -10,7 +10,8 @@ import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ROASTER_LIST, BEANS, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, userOf } from '../data/world.js';
-import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache } from '../store/store.js';
+import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache,
+         beanPassport, myRoasters } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanSelectHTML, lbRow, gcell, commentCount, joinedLabel } from './components.js';
@@ -39,6 +40,7 @@ export function renderOverlay(){
     T==='board'?overlayBoard():
     T==='flist'?overlayFlist(top.id):
     T==='scoring'?overlayScoring():
+    T==='passport'?overlayPassport():
     T==='settings'?overlaySettings():
     T==='picker'?overlayPicker(top.id):
     T==='onboard'?overlayOnboard():
@@ -306,6 +308,38 @@ function overlayScoring(){
       <p style="font-size:12px;color:var(--muted);margin-top:14px">Each level costs about half again as much as the one before, and the names follow the classic latte-art progression: hearts → tulips → rosettas → swans.</p>
     </div></div></div>`;
 }
+/* The bean passport — every coffee you have logged, in one place.
+   Built from all of your pours, not the feed page. */
+function overlayPassport(){
+  const beans=beanPassport(), roasters=myRoasters();
+  const origins=[...new Set(beans.map(b=>b.cat&&b.cat.c).filter(Boolean))];
+  const row=b=>{
+    const known=!!b.cat;
+    const sub=[b.roaster, b.cat&&b.cat.origin, b.cat&&b.cat.roast].filter(Boolean).join(' · ');
+    return `<div class="lb-row ${known?'click':''}"${known?` data-action="open-bean" data-id="${esc(b.name)}"`:''}>
+      <div class="bean-fl">${(b.cat&&flag[b.cat.c])||'🫘'}</div>
+      <div class="who" style="flex:1;min-width:0"><b>${esc(b.name)}</b>
+        <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sub?esc(sub):'Your own coffee'}</span></div>
+      <div class="lb-pts">${b.pours?`${b.pours} <small>pour${b.pours===1?'':'s'}</small>`:'<small>not logged yet</small>'}</div>
+    </div>`;
+  };
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Bean passport">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Bean passport</b></div>
+    <div class="ov-body">
+      <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t">
+        <span class="fl">🛂</span><div><b>${beans.length} bean${beans.length===1?'':'s'} tried</b>
+        <span>${roasters.length} roaster${roasters.length===1?'':'s'}${origins.length?` · ${origins.length} origin${origins.length===1?'':'s'}`:''}</span></div></div></div>
+      <div style="padding:16px">
+        ${origins.length?`<div class="chips" style="margin:0 0 14px">${origins.map(c=>`<span class="chip">${flag[c]||'🫘'} ${esc(c)}</span>`).join('')}</div>`:''}
+        ${beans.length
+          ? `<div class="lb">${beans.map(row).join('')}</div>
+             <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">Every coffee you have logged, most-poured first.</div>`
+          : `<div class="empty"><div class="big">🫘</div>No beans yet.<br>Add the coffee you used when you log a pour and it lands here.<br><br>
+             <button class="btn sm" data-action="open-create">Log a coffee</button></div>`}
+        <div style="height:8px"></div>
+      </div></div></div>`;
+}
+
 function overlaySettings(){
   const m=state.me, th=state.theme||'auto';
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="Settings">

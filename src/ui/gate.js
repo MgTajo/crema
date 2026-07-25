@@ -44,8 +44,7 @@ export function renderGate(){
   const oauth=`
     <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:11.5px">
       <i style="flex:1;height:1px;background:var(--line)"></i>or<i style="flex:1;height:1px;background:var(--line)"></i></div>
-    <button class="btn ghost block" data-action="auth-oauth" data-p="google">Continue with Google</button>
-    <button class="btn ghost block" style="margin-top:8px" data-action="auth-oauth" data-p="apple">Continue with Apple</button>`;
+    <button class="btn ghost block" data-action="auth-oauth" data-p="google">Continue with Google</button>`;
 
   const body = forgot
     ? `${emailField}

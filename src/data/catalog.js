@@ -118,5 +118,20 @@ export function rebuildRoasterList(){
 }
 rebuildRoasterList();
 
-/* look up a catalog bean by (possibly partial) name */
-export function beanCatalog(name){return BEANS.find(x=>x.n===name||name.indexOf(x.n)===0||x.n.indexOf(name)===0)||null;}
+/* Look up a catalog bean by (possibly partial) name.
+
+   Exact match first, and only then a prefix match — longest candidate
+   wins. Order matters here: Tim Wendelboe sells a coffee named simply
+   "Espresso", and a plain `find` over prefixes let it claim every
+   "Espresso Anniversario" and "Espresso Blend" in the catalogue, putting
+   the wrong roaster on other people's beans. */
+export function beanCatalog(name){
+  if(!name) return null;
+  const lc=(''+name).trim().toLowerCase();
+  if(!lc) return null;
+  const exact=BEANS.find(x=>x.n.toLowerCase()===lc);
+  if(exact) return exact;
+  return BEANS
+    .filter(x=>{ const a=x.n.toLowerCase(); return lc.indexOf(a)===0 || a.indexOf(lc)===0; })
+    .sort((a,b)=>b.n.length-a.n.length)[0] || null;
+}
