@@ -8,12 +8,12 @@
 import { $, esc, fmt, cap, initials, seedOf, agoDays, agoLabel } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, LEADERBOARD } from '../data/world.js';
+import { USERS, CAFES, CHALLENGES, TOP_POSTS } from '../data/world.js';
 import { state, ui, session, feed, discover, social, streak,
          myPosts, allPosts, myBeans, myRoasters, activityBars, feedPosts } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art, cupSVG } from '../domain/art.js';
-import { computeBadges } from '../domain/scoring.js';
+import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
 import { postCard, searchHTML, avatar, lbRow, cafeCard, gcell, joinedLabel } from './components.js';
 import { icon, pin, logoMark } from './icons.js';
 import { renderOverlay } from './overlays.js';
@@ -48,10 +48,10 @@ export function renderHome(){
 
 export function renderExplore(){
   const sugg=discover.list.filter(u=>u&&!state.follows[u.id]).slice(0,8);
-  const lbPrev=LEADERBOARD.slice(0,5);
+  const lbPrev=TOP_POSTS.slice(0,5);
   const board=lbPrev.length
     ? `<div class="lb">${lbPrev.map((r,i)=>lbRow(r,i)).join('')}</div>`
-    : `<div class="empty" style="padding:22px">🏆<br>No points on the board this week yet.<br>Post a pour and you're on it.</div>`;
+    : `<div class="empty" style="padding:22px">🏆<br>No liked pours yet.<br>Post one — the most-liked coffees land here.</div>`;
   const people=discover.loaded&&!sugg.length
     ? `<div class="empty" style="padding:20px">👋<br>No one else to follow yet — you're early.</div>`
     : sugg.length
@@ -68,7 +68,7 @@ export function renderExplore(){
       <div class="ch-top" data-action="open-challenge" data-id="${c.id}"><span class="ends">Ends in ${c.ends}</span>${cupSVG(c.pattern,.9,c.id.charCodeAt(0))}</div>
       <div class="ch-b"><h3>${c.title}</h3><p>${joinedLabel(c)} · ${c.tag}</p>
         <button class="btn ${j?'ghost':''} sm block" data-action="join" data-id="${c.id}">${j?'✓ Joined':'Join challenge'}</button></div></div>`;}).join('')}</div>`:''}
-    <div class="section-h"><h2>Weekly leaderboard</h2>${lbPrev.length?'<a data-action="open-board">Full list</a>':''}</div>
+    <div class="section-h"><h2>Most-loved pours</h2>${lbPrev.length?'<a data-action="open-board">Full list</a>':''}</div>
     ${board}
     <div class="section-h"><h2>Trending patterns</h2></div>
     <div class="chips" style="margin-bottom:8px">${['rosetta','swan','tulip','heart','wave','phoenix'].map(t=>`<span class="chip tag" data-action="open-tag" data-id="${t}">#${t}</span>`).join('')}</div>
@@ -98,6 +98,9 @@ export function renderProfile(){
   const pourCount=Math.max(mine.length, social.counts.pours|0);
   const followingN=social.loaded ? (social.counts.following|0) : Object.values(state.follows).filter(Boolean).length;
   const days=streak();
+  /* Level and points come from the profile row, where triggers keep them
+     in step with the posts, likes, entries and votes behind them. */
+  const points=state.me.points|0, lvl=levelOf(points), next=nextLevel(points);
   const hasPours=pourCount>0, beans=myBeans(), roasters=myRoasters(), ACT=activityBars();
   const recent=mine.slice().sort((a,b)=>agoDays(a.ago)-agoDays(b.ago)).slice(0,8);
   const grid = ui.profTab==='pours'
@@ -114,7 +117,7 @@ export function renderProfile(){
       <div class="actbars">${ACT.map((c,i)=>{const d=new Date(Date.now()-(ACT.length-1-i)*864e5).toLocaleDateString('en',{weekday:'short',day:'numeric',month:'short'});return `<div class="ab${i===ACT.length-1?' today':''}" data-d="${d}" data-c="${c}"><i style="height:${c===0?8:c===1?52:100}%"></i></div>`;}).join('')}<div class="bartip" id="bartip" hidden></div></div>
       <div class="acthint"><span>3 weeks ago</span><span>today</span></div>
       <div class="recent">${recent.map(p=>`<div class="rp" data-action="open-post" data-id="${p.id}"><div class="rpimg">${art(imageUrl(p.img,'thumb'),p.pattern||'none',p.quality==null?0.9:p.quality,seedOf(p.id),p.drink)}</div><div class="rpd">${agoLabel(p.ago)}</div><div class="rpt">${esc(p.drink||'Coffee')}</div></div>`).join('')}</div></div>`;
-  const startedHTML = `<div class="journey"><h3>Your journey starts here</h3><p class="sub" style="margin-bottom:12px">Log your first coffee to start a streak, earn badges and climb the weekly leaderboard.</p>
+  const startedHTML = `<div class="journey"><h3>Your journey starts here</h3><p class="sub" style="margin-bottom:12px">Every pour earns points, builds your streak and moves you up a level.</p>
       <div style="padding:0 12px 14px"><button class="btn block" data-action="open-create">${icon('bolt',18)} Log your first coffee</button></div></div>`;
   const passportHTML = beans.length?`<div class="section-h" style="margin-bottom:8px"><h2>Beans passport</h2></div>
     <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="coffee beans"><b>${beans.length} bean${beans.length===1?'':'s'}</b></div><span>${roasters.length} roaster${roasters.length===1?'':'s'} · tap for details</span></div>
@@ -122,8 +125,11 @@ export function renderProfile(){
   return `<div class="pad">
     <div class="prof-top"><div class="prof-av" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px">${initials(u.name)}</div>
       <div class="prof-id"><b>${esc(u.name)}</b><div class="h">${u.handle}${u.city?` · 📍 ${esc(u.city)}`:''}</div>
-        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} Level ${u.level} · ${u.levelName}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:linear-gradient(135deg,#f5d78a,#e0b25a);color:#5a3d17;border-color:#e6c98a">✦ PREMIUM</span>`:''}</div></div>
+        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} Level ${lvl[0]} · ${lvl[1]}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:linear-gradient(135deg,#f5d78a,#e0b25a);color:#5a3d17;border-color:#e6c98a">✦ PREMIUM</span>`:''}</div></div>
     <div class="bio">${bioHTML}</div>
+    <div class="lvlbar" data-action="open-scoring" style="cursor:pointer">
+      <div class="top"><b>${fmt(points)} points</b><span>${next?`${fmt(next[2]-points)} to ${next[1]}`:'Top level reached'}</span></div>
+      <div class="track"><i style="width:${Math.round(levelProgress(points)*100)}%"></i></div></div>
     <div class="stats">
       <div><b>${pourCount}</b><span>Pours</span></div>
       <div class="click" data-action="open-flist" data-id="followers"><b>${fmt(u.followerN)}</b><span>Followers</span></div>
@@ -149,7 +155,8 @@ export function renderStats(){
     ['Most-used style',topStyle?cap(topStyle):'—',topStyle?Math.round(styleCount[topStyle]/pats.length*100)+'% of art pours':''],
     ['Current streak',`${streak()} day${streak()===1?'':'s'}`,''],
     ['Beans tried',''+beans.length,roasters.length?`${roasters.length} roaster${roasters.length===1?'':'s'}`:''],
-    ['Total pours',''+mine.length,'']
+    ['Total pours',''+mine.length,''],
+    ['Points',fmt(state.me.points|0),`Level ${levelOf(state.me.points|0)[0]}`]
   ];
   return `<div class="lb" style="margin-top:2px">${rows.map(r=>`<div class="lb-row"><div style="flex:1"><b style="font-size:14px">${r[0]}</b></div><div style="text-align:right"><b style="font-family:var(--serif);font-size:16px">${esc(r[1])}</b>${r[2]?`<div style="font-size:11px;color:var(--green);font-weight:700">${esc(r[2])}</div>`:''}</div></div>`).join('')}</div>`;
 }

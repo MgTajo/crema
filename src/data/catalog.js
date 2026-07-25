@@ -59,8 +59,14 @@ export const MACHINE_BRANDS=Object.keys(MACHINES);
 export function combineMachine(brand,model){ if(!brand) return ''; if(brand==='Other') return (model||'').trim(); return model?brand+' '+model:''; }
 
 export const ADD_BEAN='＋ Add your own coffee…';
-export const LEVELS=[[1,'First Sips'],[2,'Steam Dreams'],[3,'Heart Starter'],[4,'Heart Artist'],[5,'Tulip Tinkerer'],
-  [6,'Rosetta Artist'],[7,'Rosetta Pro'],[8,'Swan Apprentice'],[9,'Swan Master'],[10,'Latte Legend']];
+/* [level, name, points needed to reach it]. Each step costs roughly 1.5x
+   the one before, so Level 2 is ten pours away and Level 10 is a real
+   milestone. This table mirrors level_for_points() in
+   supabase/step-1.9.sql — the database is the authority, this copy draws
+   the progress bar. Keep them in step. */
+export const LEVELS=[[1,'First Sips',0],[2,'Steam Dreams',100],[3,'Heart Starter',250],[4,'Heart Artist',500],
+  [5,'Tulip Tinkerer',900],[6,'Rosetta Artist',1500],[7,'Rosetta Pro',2400],[8,'Swan Apprentice',3800],
+  [9,'Swan Master',6000],[10,'Latte Legend',9500]];
 
 /* ---------- origin flags ---------- */
 export const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Kenya:'🇰🇪',Guatemala:'🇬🇹',Indonesia:'🇮🇩',Peru:'🇵🇪',Rwanda:'🇷🇼','Costa Rica':'🇨🇷',Germany:'🇩🇪',Italy:'🇮🇹','United Kingdom':'🇬🇧',Norway:'🇳🇴',Denmark:'🇩🇰',USA:'🇺🇸'};

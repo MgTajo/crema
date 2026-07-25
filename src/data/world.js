@@ -50,5 +50,6 @@ export const userOf = uid => USERS[uid] || {
 export const CAFES=[];
 export const CHALLENGES=[];
 
-/* ---------- weekly leaderboard, filled by data/challenges.js ---------- */
-export const LEADERBOARD=[];
+/* ---------- the board: pours ranked by likes, filled by
+   data/challenges.js fetchTopPosts(). Holds posts, not people. ---------- */
+export const TOP_POSTS=[];

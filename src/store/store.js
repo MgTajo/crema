@@ -15,11 +15,11 @@
 import { agoDays } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
 import { beanCatalog } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, LEADERBOARD, handleToUid } from '../data/world.js';
+import { USERS, CAFES, CHALLENGES, TOP_POSTS, handleToUid } from '../data/world.js';
 import { fetchFeed } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
          fetchCafeFollowCounts } from '../data/social.js';
-import { fetchMyJoins, fetchLeaderboard, fetchJoinCounts } from '../data/challenges.js';
+import { fetchMyJoins, fetchTopPosts, fetchJoinCounts } from '../data/challenges.js';
 import { fetchProfileCounts, fetchSuggestedProfiles } from '../data/profiles.js';
 import { fetchNotifications } from '../data/notifications.js';
 import { makePersistence } from './persistence.js';
@@ -93,12 +93,13 @@ export async function hydrateSocial(){
   try{ state.notifications=await fetchNotifications(uid); }
   catch(e){ console.warn('notifications failed',e); }
 
-  /* The board is whatever the scheduled job last wrote. Empty is a real
-     answer ("no points logged this week yet"), and the UI shows it. */
+  /* Top pours by likes. Empty is a real answer — nobody has been liked
+     yet — and the UI says so rather than inventing a board. */
   try{
-    const board=await fetchLeaderboard(uid);
-    LEADERBOARD.length=0; LEADERBOARD.push(...board);
-  }catch(e){ console.warn('leaderboard failed',e); }
+    const board=await fetchTopPosts(uid);
+    TOP_POSTS.length=0; TOP_POSTS.push(...board);
+    cachePosts(board);
+  }catch(e){ console.warn('top pours failed',e); }
 
   try{ social.counts=await fetchProfileCounts(uid); }
   catch(e){ console.warn('profile counts failed',e); }
@@ -175,13 +176,27 @@ export async function useSession(next){
   if(next){ await hydrateSocial(); await loadFeed(); }
 }
 
-export function findPost(id){return state.posts.find(p=>p.id===id)||(state.myGallery||[]).find(p=>p.id===id);}
+/* Posts we have fetched but that aren't on the current feed page — the
+   board, a challenge entry, someone's profile grid. Without this, tapping
+   one of those opened an empty sheet: findPost() only knew about the feed.
+   Keyed by id, so re-fetching the same post replaces rather than doubles. */
+const postCache=new Map();
+export function cachePosts(list){ (list||[]).forEach(p=>{ if(p&&p.id) postCache.set(p.id,p); }); }
+export function findPost(id){
+  return state.posts.find(p=>p.id===id)
+      || (state.myGallery||[]).find(p=>p.id===id)
+      || postCache.get(id)
+      || null;
+}
 export function applyMe(){
   state.me.name=(state.me.name||'').trim();
   USERS.me.name=state.me.name||'You';
   USERS.me.city=(state.me.city||'').trim();
   USERS.me.bio=state.me.bio||'';
-  /* counts come from the server (profile_counts), never from guesswork */
+  /* level, points and counts all come from the server — nothing here
+     is guessed or incremented locally */
+  USERS.me.level=state.me.level||1;
+  USERS.me.points=state.me.points|0;
   USERS.me.followerN=social.counts.followers|0;
   USERS.me.pourN=Math.max(social.counts.pours|0,myPosts().length);
   let h=(state.me.handle||'').replace(/\s+/g,'').replace(/^@+/,'');

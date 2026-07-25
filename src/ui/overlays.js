@@ -9,10 +9,10 @@ import { $, esc, fmt, cap, initials, seedOf } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ROASTER_LIST, BEANS, flag } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, LEADERBOARD, userOf } from '../data/world.js';
+import { USERS, CAFES, CHALLENGES, TOP_POSTS, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
-import { scoreFromQ } from '../domain/scoring.js';
+import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanSelectHTML, lbRow, gcell, commentCount, joinedLabel } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
@@ -48,7 +48,7 @@ export function renderOverlay(){
 
 function overlayPost(id){
   const p=findPost(id); if(!p) return '';
-  const u=userOf(p.user), r=p.recipe, sc=p.art?scoreFromQ(p.quality):null, rows=recipeRows(r);
+  const u=userOf(p.user), r=p.recipe, rows=recipeRows(r);
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Post">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Post</b>
       <button class="act" data-action="share-post" data-id="${p.id}" aria-label="Share">${icon('send',20)}</button>
@@ -256,11 +256,11 @@ function overlayChallenges(){
 }
 function overlayBoard(){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Leaderboard">
-    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Weekly leaderboard</b></div>
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Most-loved pours</b></div>
     <div class="ov-body"><div style="padding:14px 16px 20px">
-      ${LEADERBOARD.length?`<div class="lb">${LEADERBOARD.map((r,i)=>lbRow(r,i)).join('')}</div>`
-        :`<div class="empty"><div class="big">🏆</div>Nobody has scored this week yet.</div>`}
-      <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">Points come from pours, art scores and challenge results.</div></div></div></div>`;
+      ${TOP_POSTS.length?`<div class="lb">${TOP_POSTS.map((r,i)=>lbRow(r,i)).join('')}</div>`
+        :`<div class="empty"><div class="big">🏆</div>No liked pours yet.<br>Be the first to earn one.</div>`}
+      <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">Every pour ever posted, ranked by the likes it earned.</div></div></div></div>`;
 }
 /* Real rows from `follows`, loaded when the sheet opens. `social.loaded`
    distinguishes "nobody follows you" from "we haven't asked yet". */
@@ -283,16 +283,27 @@ function overlayFlist(kind){
     </div></div></div>`;
 }
 function overlayScoring(){
-  const me=USERS.me;
+  const pts=state.me.points|0, cur=levelOf(pts), next=nextLevel(pts), pct=Math.round(levelProgress(pts)*100);
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Levels">
-    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Levels</b></div>
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Levels & points</b></div>
     <div class="ov-body"><div style="padding:14px 16px 20px">
       <p style="font-size:13.5px;color:var(--ink2);line-height:1.55;margin:0 0 14px">Your level grows as you post and practise — a friendly badge of how far your craft has come, not a grade.</p>
-      <div class="rlabel">Levels</div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        ${LEVELS.map(l=>`<div class="lvlrow ${l[0]===me.level?'now':''}"><div class="ln">${l[0]}</div><b>${l[1]}</b>${l[0]===me.level?'<span>you are here</span>':''}</div>`).join('')}
+      <div class="lvlbar" style="margin-top:0">
+        <div class="top"><b>Level ${cur[0]} · ${cur[1]}</b><span>${fmt(pts)} pts</span></div>
+        <div class="track"><i style="width:${pct}%"></i></div>
+        <div style="font-size:11.5px;color:var(--muted);font-weight:600;margin-top:6px">${next
+          ? `${fmt(next[2]-pts)} points to Level ${next[0]} · ${next[1]}`
+          : 'Top of the ladder — nothing left to climb.'}</div>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-top:14px">Levels follow the classic latte-art progression: hearts → tulips → rosettas → swans.</p>
+      <div class="rlabel" style="margin-top:18px">How points are earned</div>
+      <div class="lb" style="margin-bottom:4px">${POINT_RULES.map(r=>`<div class="lb-row">
+        <div style="flex:1"><b style="font-size:14px">${r[0]}</b></div><div class="lb-pts">${r[1]}</div></div>`).join('')}</div>
+      <div class="rlabel" style="margin-top:18px">The ladder</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${LEVELS.map(l=>`<div class="lvlrow ${l[0]===cur[0]?'now':''}"><div class="ln">${l[0]}</div><b>${l[1]}</b>
+          <span style="margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:700">${l[0]===cur[0]?'you are here':(l[2]?fmt(l[2])+' pts':'start')}</span></div>`).join('')}
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:14px">Each level costs about half again as much as the one before, and the names follow the classic latte-art progression: hearts → tulips → rosettas → swans.</p>
     </div></div></div>`;
 }
 function overlaySettings(){

@@ -42,7 +42,11 @@ export function rowToMe(row){
     machineModel: row.machine_model || '',
     favDrink: row.fav_drink || 'Cappuccino',
     favMilk: row.fav_milk || 'Whole milk',
-    premium: !!row.premium
+    premium: !!row.premium,
+    /* Both are maintained by triggers (step-1.9.sql) and are read-only
+       here — meToRow never writes them back. */
+    points: row.points|0,
+    level: row.level || 1
   };
 }
 
@@ -63,8 +67,9 @@ export function rowToUser(row){
   };
   /* Same reasoning for the optional columns: a query that didn't select
      `city` must not blank out a city we already know. */
-  if(row.city!=null) u.city = row.city || '';
-  if(row.bio!=null)  u.bio  = row.bio  || '';
+  if(row.city!=null)   u.city   = row.city || '';
+  if(row.bio!=null)    u.bio    = row.bio  || '';
+  if(row.points!=null) u.points = row.points|0;
   return u;
 }
 
@@ -105,6 +110,15 @@ export async function pushProfile(uid, me){
   const row = meToRow(me, uid, clean(me.handle) || 'barista');
   delete row.id;
   return rest(`profiles?id=eq.${uid}`,{ method:'PATCH', body:row });
+}
+
+/* Points and level after something that moves them (a new pour, a
+   deleted one). The triggers have already run server-side; this reads
+   the result rather than guessing at it locally. */
+export async function fetchScore(uid){
+  const rows = await rest(`profiles?id=eq.${uid}&select=points,level`);
+  const r = (rows && rows[0]) || {};
+  return { points: r.points|0, level: r.level || 1 };
 }
 
 /* ---------- reads about other people ---------- */

@@ -388,7 +388,7 @@ public beta — you could launch it as a PWA and get users before any native wor
 | Media | base64 in browser | ✅ R2 + CDN transforms, verified end-to-end |
 | Social | simulated | ✅ real, cross-user — follows, likes, saves, comments, reports, blocks |
 | Signed-out | the whole app | ⛔ removed 2026-07-25 — sign-in gate, no demo mode (see principle 1) |
-| Leaderboard | computed on read | ✅ `pg_cron`, daily at 03:00 UTC |
+| Leaderboard | computed on read | ✅ live `top_posts` view — pours ranked by likes (replaced the nightly user board, step 1.9) |
 
 **Open items carried into Phase 2 planning:** Sign in with Apple (needs Developer Program
 enrollment first), account-deletion flow (and its R2/cache purge), Cloudflare cache purge on
@@ -551,8 +551,9 @@ ones here will be moderation tooling, account deletion, and IAP compliance.
 
 - Analytics (PostHog / Amplitude) — you'll want funnel data before optimizing anything.
 - Crash reporting (Sentry).
-- Real art scoring — `scoreFromQ()` currently derives scores from a stored `quality` value;
-  an actual CV model is the interesting long-term product bet.
+- Real art scoring — `scoreFromQ()` is gone (it derived a score from a `quality` the client
+  always sent as 0.85, so every pour scored the same). Pours are ranked by the likes they earn
+  until a CV model exists to judge them, which stays the interesting long-term product bet.
 - Café partnerships — the 10%-off promo is mocked; making it real is a business motion, not a
   technical one.
 

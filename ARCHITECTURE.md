@@ -81,12 +81,16 @@ degrades to the bundled arrays if the network fails:
 | Posts | `data/posts.js` | ✅ paginated feed, optimistic create |
 | Profiles | `data/profiles.js` | ✅ created from local `state.me` on first sign-in |
 | Follows, likes, saves, comments, blocks, reports | `data/social.js` | ✅ rows, with counts from aggregates/views |
-| Challenges, entries, votes, leaderboard | `data/challenges.js` | ✅ rows; the board is refreshed by a scheduled job |
+| Challenges, entries, votes, the board | `data/challenges.js` | ✅ rows; the board is the live `top_posts` view, ranked by likes |
 | Notifications | `data/notifications.js` | ✅ rows, written by triggers — the client cannot forge one |
 | Photos | `data/media.js` | ✅ R2 via presigned URLs, delivered through the CDN |
 
+| Points & levels | `domain/scoring.js` + triggers | ✅ recomputed from the rows on every post, like, entry and vote |
+
 Nothing user-visible is bundled or invented any more: `world.js` starts empty, counts are
-counted in Postgres, and an empty section says it is empty.
+counted in Postgres, and an empty section says it is empty. The last fabricated number — a
+hardcoded art `quality` of 0.85 that fed both a 0–10 "art score" and the old leaderboard — is
+gone; a pour is scored by the likes it earns until something exists that can actually judge it.
 
 The backend is reached only through `data/supabase.js` — a ~150-line client (GoTrue auth with
 PKCE + refresh, and PostgREST queries) rather than a vendored SDK, so the app stays buildless

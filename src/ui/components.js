@@ -117,10 +117,18 @@ export function searchHTML(q){
   return h;
 }
 
-export function lbRow(r,i){if(!r) return ''; const u=userOf(r.u);return `<div class="lb-row click ${r.u==='me'?'me':''}" data-action="open-user" data-id="${r.u}">
-  <div class="lb-rank ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>${avatar(r.u)}
-  <div class="who" style="flex:1"><b>${esc(u.name)}${r.u==='me'?' (you)':''}</b><span>${u.levelName}</span></div>
-  <div class="lb-pts">${fmt(r.pts)} <small>pts</small></div></div>`;}
+/* A board row is a pour, ranked by the likes it earned — tapping it
+   opens the post, not the person. */
+export function lbRow(p,i){
+  if(!p) return '';
+  const u=userOf(p.user);
+  const line=(p.caption||'').trim()||p.drink||'Coffee';
+  return `<div class="lb-row click ${p.user==='me'?'me':''}" data-action="open-post" data-id="${p.id}">
+  <div class="lb-rank ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+  <div class="lb-thumb">${art(imageUrl(p.img,'thumb'),p.pattern,p.quality,seedOf(p.id),p.drink)}</div>
+  <div class="who" style="flex:1;min-width:0"><b>${esc(u.name)}${p.user==='me'?' (you)':''}</b>
+    <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(line)}</span></div>
+  <div class="lb-pts">${icon('heartF',13)} ${fmt(p.likes)}</div></div>`;}
 
 export function cafeCard(c){
   return `<div class="cafe-card" data-action="open-cafe" data-id="${c.id}">${cafeThumb(c)}

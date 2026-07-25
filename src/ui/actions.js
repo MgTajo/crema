@@ -15,13 +15,13 @@ import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, combineMachine, beanCatalog } fro
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
-import { ensureProfile, pushProfile, fetchUserCard, searchProfiles } from '../data/profiles.js';
+import { ensureProfile, pushProfile, fetchUserCard, searchProfiles, fetchScore } from '../data/profiles.js';
 import { createPost, deletePost, newPostId, fetchMine } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
 import * as chal from '../data/challenges.js';
 import { markAllRead } from '../data/notifications.js';
-import { state, ui, save, applyMe, findPost, freshCreate, useSession,
+import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts,
          loadFeed, loadMoreFeed, social as storeSocial, entryCache } from '../store/store.js';
 import { commentRow, postLink, searchHTML } from './components.js';
 import { icon } from './icons.js';
@@ -296,6 +296,17 @@ onAuthChange(async s=>{
 
 export { syncProfile };
 
+/* Points and level are trigger-maintained, so after a pour lands (or
+   goes) we read them back rather than doing the arithmetic twice. */
+async function refreshScore(){
+  const u=currentUser(); if(!u) return;
+  try{
+    const { points, level } = await fetchScore(u.id);
+    state.me.points=points; state.me.level=level; save(); applyMe();
+    if(ui.route==='profile'&&!ui.ovStack.length) renderView();
+  }catch(e){ console.warn('score refresh failed',e); }
+}
+
 async function saveProfile(){
   syncSettings();
   if(!(state.me.name||'').trim()){ toast('Add your name first'); return; }
@@ -316,9 +327,11 @@ async function openUser(uid){
   pushOv({type:'user',id:uid});
   if(!currentUser()) return;
   try{
+    const me=currentUser();
     await fetchUserCard(uid);
-    const list=await fetchMine(uid,{limit:60});
+    const list=await fetchMine(uid,{limit:60, myUid:me?me.id:null});
     ui.userPosts={ id:uid, list };
+    cachePosts(list);   // so tapping one of them opens the post, not a blank sheet
     const top=ui.ovStack[ui.ovStack.length-1];
     if(top&&top.type==='user'&&top.id===uid) renderOverlay();
   }catch(e){ console.warn('profile load failed',e); }
@@ -523,7 +536,7 @@ async function openChallenge(id){
     const entries=await chal.fetchEntries(id,u.id);
     const voted=new Set(await chal.fetchMyVotes(entries.map(e=>e.id)));
     entries.forEach(e=>{ e.votedByMe=voted.has(e.id); });
-    entryCache[id]=entries;
+    entryCache[id]=entries; cachePosts(entries.map(e=>e.p));
     const mine=entries.find(e=>e.mine);
     if(mine) state.challengeSubs[id]=mine.p.id;
     const top=ui.ovStack[ui.ovStack.length-1];
@@ -554,7 +567,7 @@ async function openChallengeRefresh(id){
     const entries=await chal.fetchEntries(id,u.id);
     const voted=new Set(await chal.fetchMyVotes(entries.map(e=>e.id)));
     entries.forEach(e=>{ e.votedByMe=voted.has(e.id); });
-    entryCache[id]=entries;
+    entryCache[id]=entries; cachePosts(entries.map(e=>e.p));
     const top=ui.ovStack[ui.ovStack.length-1];
     if(top&&top.type==='challenge'&&top.id===id) renderOverlay();
   }catch(e){ console.warn('entry refresh failed',e); }
@@ -610,7 +623,7 @@ async function deleteMyPost(id){
   const i=state.posts.indexOf(p); if(i>=0) state.posts.splice(i,1);
   ui.ovStack=[]; save(); render(); toast('Pour deleted');
   const u=currentUser(); if(!u) return;
-  deletePost(id).then(()=>{ deleteImage(p.img); }).catch(err=>{
+  deletePost(id).then(()=>{ deleteImage(p.img); refreshScore(); }).catch(err=>{
     console.warn('delete failed',err);
     if(i>=0) state.posts.splice(i,0,p);
     save(); render(); toast('Couldn\'t delete that — it\'s still there');
@@ -669,7 +682,9 @@ function submitPost(){
      generated cup art is seeded from it, and so is the share link. */
   const u=currentUser();
   const np={ id:newPostId(), user:'me', drink, art:isArt, pattern:isArt?(c.pattern||null):null,
-    quality:isArt?.85:null, cafe:cafe?cafe.name:undefined, img:c.img, ago:'now',
+    /* No art score: nothing here can judge a pour, so nothing claims to.
+       quality stays null and the generated cup art uses its own default. */
+    quality:null, cafe:cafe?cafe.name:undefined, img:c.img, ago:'now',
     createdAt:new Date().toISOString(), caption, recipe:hasRecipe?recipe:null,
     likes:0, likedByMe:false, saved:false, comments:[], commentN:0 };
   state.posts.unshift(np); save();
@@ -677,7 +692,7 @@ function submitPost(){
   setTimeout(()=>toast(c.img?'Posted! Streak kept 🔥':'Posted ☕ (add a photo next time)'),120);
 
   /* Optimistic: the post is already on screen. Reconcile on failure. */
-  if(u) createPost(np,u.id).catch(err=>{
+  if(u) createPost(np,u.id).then(()=>refreshScore()).catch(err=>{
     console.warn('post failed',err);
     const i=state.posts.indexOf(np); if(i>=0) state.posts.splice(i,1);
     save(); render(); toast('Couldn\'t post that — check your connection and try again');

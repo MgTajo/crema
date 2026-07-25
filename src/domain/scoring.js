@@ -1,16 +1,48 @@
 "use strict";
 /* ============================================================
-   domain/scoring — art scoring & badge rules.
-   The craft logic that judges a pour and awards badges. scoreFromQ
-   is pure; computeBadges reads the user's pours through store
-   selectors. Portable to the target app (only the store import
-   would point at the native store).
+   domain/scoring — progression & badge rules.
+
+   Points and levels are computed in Postgres (supabase/step-1.9.sql)
+   and ride along on the profile row. Everything here presents that
+   number: which level a score sits in, and how far the next one is.
+   LEVELS is the shared curve.
+
+   What used to live here: scoreFromQ(), which turned a post's `quality`
+   into a 0–10 "art score". The client wrote a hardcoded quality of 0.85
+   on every art pour, so that score was the same number for everyone —
+   and it was never rendered. Judging a pour needs something that can
+   actually see it (roadmap, "what comes after"), so nothing pretends to.
    ============================================================ */
-import { clamp } from '../core/util.js';
+import { LEVELS } from '../data/catalog.js';
 import { state, myPosts, myBeans, myRoasters, streak } from '../store/store.js';
 
-export function scoreFromQ(q){const b=3.6+q*6; return{total:b.toFixed(1),
-  symmetry:clamp(b+(q>.7?.3:-.4),0,10).toFixed(1),contrast:clamp(b-.2,0,10).toFixed(1),definition:clamp(b+(q>.8?.2:-.2),0,10).toFixed(1)};}
+/* The level a score sits in, as [level, name, threshold]. */
+export function levelOf(points){
+  const p=points|0;
+  let cur=LEVELS[0];
+  LEVELS.forEach(l=>{ if(p>=l[2]) cur=l; });
+  return cur;
+}
+/* The next level up, or null at the top of the ladder. */
+export const nextLevel = points => LEVELS.find(l=>l[2]>(points|0)) || null;
+
+/* How far through the current level a score is, 0–1, for the bar. */
+export function levelProgress(points){
+  const p=points|0, cur=levelOf(p), next=nextLevel(p);
+  if(!next) return 1;
+  const span=next[2]-cur[2];
+  return span>0 ? Math.min(1,Math.max(0,(p-cur[2])/span)) : 0;
+}
+export const levelName = n => (LEVELS.find(l=>l[0]===n)||LEVELS[0])[1];
+
+/* What things are worth, mirrored from user_points() in step-1.9.sql.
+   Shown on the levels screen so the rules are visible, not folklore. */
+export const POINT_RULES=[
+  ['Log a coffee','+10'],
+  ['Someone likes your pour','+2'],
+  ['Enter a challenge','+25'],
+  ['A vote on your entry','+1']
+];
 
 export function computeBadges(){
   const mine=myPosts(), n=mine.length, pats=p=>mine.filter(x=>x.pattern===p).length;
@@ -26,5 +58,5 @@ export function computeBadges(){
     {i:'🌍',n:'Roaster hopper',d:'Try beans from 5 roasters',e:roasters>=5},
     {i:'🧊',n:'Cold brew curious',d:'Post a cold brew',e:mine.some(p=>p.drink==='Cold brew')},
     {i:'🎯',n:'Challenger',d:'Join a challenge',e:Object.values(state.challenges).some(Boolean)},
-    {i:'💯',n:'Century club',d:'Log 100 pours',e:false,p:n+'/100'}];
+    {i:'💯',n:'Century club',d:'Log 100 pours',e:n>=100,p:n+'/100'}];
 }

@@ -96,9 +96,11 @@ export async function fetchFeed({ before=null, limit=FEED_PAGE, myUid=null, auth
   return (rows||[]).map(r=>postOf(r,myUid));
 }
 
-export async function fetchMine(uid, { limit=100 }={}){
+/* One person's pours. `myUid` is who is *looking* — pass the viewer, not
+   the author, or everyone else's posts come back marked as your own. */
+export async function fetchMine(uid, { limit=100, myUid=uid }={}){
   const rows = await rest(`posts?select=${SELECT}&user_id=eq.${uid}&order=created_at.desc&limit=${limit}`);
-  return (rows||[]).map(r=>postOf(r,uid));
+  return (rows||[]).map(r=>postOf(r,myUid));
 }
 
 export async function fetchPost(id, myUid=null){

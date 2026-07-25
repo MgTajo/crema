@@ -88,17 +88,29 @@ export async function fetchMyVotes(entryIds){
 export const voteEntry   = (uid,entryId) => rest('entry_votes',{ method:'POST', body:{ user_id:uid, entry_id:entryId } });
 export const unvoteEntry = (uid,entryId) => rest(`entry_votes?user_id=eq.${uid}&entry_id=eq.${entryId}`,{ method:'DELETE' });
 
-/* ---------- leaderboard ---------- */
-/* Read from leaderboard_weekly, which pg_cron refreshes. An empty table
-   means nobody has scored this week yet — the UI says exactly that
-   rather than inventing a board. Your own row comes back as 'me' so the
-   views can highlight it. */
-export async function fetchLeaderboard(myUid=null){
-  const rows = await rest(
-    'leaderboard_weekly?select=user_id,points,rank,profiles!leaderboard_weekly_user_id_fkey(id,handle,name,city,avatar_color,level)'
-    + '&order=rank.asc&limit=50');
-  return (rows||[]).map(r=>{
-    if(r.profiles) registerUser(rowToUser(r.profiles));
-    return { u:r.user_id===myUid?'me':r.user_id, pts:r.points|0, rank:r.rank };
+/* ---------- the board: pours ranked by likes ---------- */
+/* Live, not a scheduled snapshot: a like moves the board on the next
+   load. The `top_posts` view (step-1.9.sql) carries the author's columns
+   inline, so this is one round trip with no embed to disambiguate.
+
+   Swap in a time window whenever the board wants to reset weekly — add
+   `&created_at=gte.<monday>` and nothing else changes. */
+export async function fetchTopPosts(myUid=null, { limit=50 }={}){
+  const rows = await rest(`top_posts?select=*&order=like_count.desc,created_at.desc&limit=${limit}`);
+  return (rows||[]).filter(r=>(r.like_count|0)>0).map(r=>{
+    registerUser(rowToUser({ id:r.user_id, handle:r.handle, name:r.name, city:r.city,
+                             avatar_color:r.avatar_color, level:r.level }));
+    return {
+      id: r.id,
+      user: r.user_id===myUid ? 'me' : r.user_id,
+      drink: r.drink, art: !!r.art, pattern: r.pattern||null,
+      quality: r.quality==null ? null : Number(r.quality),
+      img: r.image_key || null, caption: r.caption || '',
+      cafe: r.cafe_id ? (CAFES.find(c=>c.id===r.cafe_id)||{}).name : undefined,
+      recipe: r.recipe || null,
+      createdAt: r.created_at, ago: agoFrom(r.created_at),
+      likes: r.like_count|0, commentN: r.comment_count|0,
+      likedByMe:false, saved:false, comments:[]
+    };
   });
 }

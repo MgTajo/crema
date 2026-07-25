@@ -11,15 +11,22 @@ Supabase dashboard → **SQL Editor** → paste and run:
 1. [`schema.sql`](schema.sql) — tables, indexes, RLS policies, count views.
 2. [`seed.sql`](seed.sql) — cafés, beans and challenges, generated from `src/data/`.
 3. [`step-1.7.sql`](step-1.7.sql) — reports, blocks, comment rate limit.
-4. [`step-1.8.sql`](step-1.8.sql) — challenge entries/votes, leaderboard job, notification triggers.
+4. [`step-1.8.sql`](step-1.8.sql) — challenge entries/votes, notification triggers.
+5. [`step-1.9.sql`](step-1.9.sql) — points, levels, and the board of pours.
 
-All four are idempotent, so re-running them is safe. Run them in order —
+All five are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
 
-`step-1.8.sql` ends with a commented-out `pg_cron` block. Enable pg_cron under
-**Database → Extensions** first, then run those two lines to schedule the
-leaderboard refresh. Without it everything still works; the board just only
-updates when `refresh_leaderboard_weekly()` is called.
+**`step-1.9.sql` is required by the current app.** It adds `profiles.points`,
+makes `profiles.level` a function of that score (triggers recompute both from
+the rows, so they cannot drift), and creates the `top_posts` view the board
+reads. It also retires the old weekly user leaderboard: it unschedules the
+`crema-leaderboard` cron job and drops `leaderboard_weekly` and
+`refresh_leaderboard_weekly()`, which ranked people using a `quality * 20`
+term the client always sent as the same constant.
+
+Until it runs, the app still works — the board is empty and everyone shows
+0 points at Level 1 — but nothing progresses.
 
 > Because **automatic RLS** is enabled on this project, every new table starts with RLS on and
 > denies everything until a policy exists. `schema.sql` creates each table's policies right
