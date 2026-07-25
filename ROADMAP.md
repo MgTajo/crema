@@ -14,18 +14,17 @@ Related: [ARCHITECTURE.md](ARCHITECTURE.md) explains the layer boundaries this p
 
 ## Guiding principles
 
-**1. Demo mode never goes away.**
-The single most important rule. Signed-out users keep today's exact experience — seeded world,
-`localStorage`, no account. Signing in swaps the persistence adapter for the remote one. If the
-backend is down, half-built, or you're mid-migration, the app still runs. This is also a good
-product decision: try before signup.
+**1. ~~Demo mode never goes away.~~ Retired 2026-07-25 — Crema now requires an account.**
+This was the guiding rule through Phase 1, and it did its job: every step could ship because
+the signed-out app always worked. Once the backend carried everything, it started costing more
+than it earned — two code paths, invented counts, a seeded world that no longer matched what a
+real account saw. So the seeded world is gone: `src/data/world.js` ships empty arrays,
+`ui/gate.js` is the app until someone signs in, and every number on screen is counted in
+Postgres. Sessions persist in `localStorage` and are only dropped when the auth server rejects
+the refresh token, so "sign in again" is rare rather than daily.
 
-```js
-// store/persistence.js — the whole migration in one function
-export function makePersistence(session){
-  return session ? new RemotePersistence(session) : new LocalStoragePersistence(KEY);
-}
-```
+The principle that replaced it: **nothing on screen is invented.** An empty table renders an
+empty state that says so.
 
 **2. Migrate one domain at a time, behind the store.**
 Reference data (catalog, cafés) → posts → media → social graph → challenges → notifications.
@@ -220,7 +219,7 @@ Add sign-in without taking anything away.
 3. ✅ `ensureProfile()` creates the `profiles` row from local `state.me` on first sign-in.
 4. ✅ `makePersistence(session)` wired; `useSession()` reloads on auth change.
 
-✅ **Working product:** app works signed out (exactly as today) **and** signed in (same
+✅ **Working product (as of step 1.5):** app worked signed out **and** signed in (same
 experience, now with a real account). Two modes, both functional.
 *Done, beyond the "stub that throws" this step allowed for — `RemotePersistence` never
 existed; posts went straight to granular per-domain modules (`data/posts.js`, `data/social.js`
@@ -265,7 +264,7 @@ The big one. Signed-in users' posts live server-side and are visible to everyone
 
 2. ✅ Optimistic: mutate → repaint → network call → revert on failure, throughout.
 3. ✅ Keyset pagination on `created_at`, infinite scroll wired to `#view`'s scroll event.
-4. ✅ Signed-out keeps the bundled seed feed — unchanged and re-verified after every later step.
+4. ~~Signed-out keeps the bundled seed feed.~~ Superseded 2026-07-25: there is no signed-out feed.
 
 ✅ **Working product:** two accounts on two devices see each other's posts. It's a social
 network now.
@@ -388,7 +387,7 @@ public beta — you could launch it as a PWA and get users before any native wor
 | Data | one `localStorage` blob | ✅ Postgres + RLS (17/17 policy tests passing) |
 | Media | base64 in browser | ✅ R2 + CDN transforms, verified end-to-end |
 | Social | simulated | ✅ real, cross-user — follows, likes, saves, comments, reports, blocks |
-| Signed-out | the whole app | ✅ preserved as demo mode, re-verified after every step |
+| Signed-out | the whole app | ⛔ removed 2026-07-25 — sign-in gate, no demo mode (see principle 1) |
 | Leaderboard | computed on read | ✅ `pg_cron`, daily at 03:00 UTC |
 
 **Open items carried into Phase 2 planning:** Sign in with Apple (needs Developer Program
@@ -569,5 +568,5 @@ ones here will be moderation tooling, account deletion, and IAP compliance.
 | **Biggest real gap** | account deletion — doesn't exist in-app at all, blocks 2.7 store review |
 | **Was the riskiest step** | 1.5 (posts) — went cleanly; the actual surprises were three R2/Cloudflare deploy-config bugs in 1.6, not the data migration itself |
 | **Most-underestimated, confirmed** | 1.2 RLS — worth every minute; `rls-test.mjs` has caught nothing wrong so far across 17 assertions, twice |
-| **Never break** | signed-out demo mode — re-verified after every step this session, still intact |
+| **Never break** | session persistence — a transient refresh failure must never sign anyone out (only a 4xx does) |
 | **Never trust the client** | premium entitlement, ownership checks (enforce in RLS) — holds; also true for the R2 upload path now (JWT-derived key prefix, never client-supplied) |

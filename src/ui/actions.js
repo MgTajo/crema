@@ -11,17 +11,17 @@
    view-model methods; the store calls it makes stay the same.
    ============================================================ */
 import { $, $$, fmt } from '../core/util.js';
-import { BACKEND } from '../config.js';
 import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, combineMachine, beanCatalog } from '../data/catalog.js';
-import { USERS, CAFES, post } from '../data/seed.js';
-import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser } from '../data/supabase.js';
-import { ensureProfile, pushProfile } from '../data/profiles.js';
-import { createPost, deletePost, newPostId } from '../data/posts.js';
+import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
+import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
+         sendPasswordReset, updatePassword } from '../data/supabase.js';
+import { ensureProfile, pushProfile, fetchUserCard, searchProfiles } from '../data/profiles.js';
+import { createPost, deletePost, newPostId, fetchMine } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
 import * as chal from '../data/challenges.js';
 import { markAllRead } from '../data/notifications.js';
-import { state, ui, save, load, applyMe, findPost, freshCreate, clearSaved, useSession,
+import { state, ui, save, applyMe, findPost, freshCreate, useSession,
          loadFeed, loadMoreFeed, social as storeSocial, entryCache } from '../store/store.js';
 import { commentRow, postLink, searchHTML } from './components.js';
 import { icon } from './icons.js';
@@ -42,7 +42,7 @@ document.addEventListener('click',e=>{
     case 'open-post': openPost(id); break;
     case 'open-cafe': pushOv({type:'cafe',id}); break;
     case 'open-bean':{ if(BEANS.find(b=>b.n===id)) pushOv({type:'bean',id}); else toast('No details for that bean yet'); break;}
-    case 'open-user':{ if(!id)break; if(id==='me'){ui.ovStack=[]; ui.route='profile'; render();} else pushOv({type:'user',id}); break;}
+    case 'open-user':{ if(!id)break; if(id==='me'){ui.ovStack=[]; ui.route='profile'; render();} else openUser(id); break;}
     case 'open-notifs':{ const had=state.notifications.some(n=>!n.read); state.notifications.forEach(n=>n.read=true); if(had){save(); renderAppbar();} pushOv({type:'notifs'});
       const u=currentUser(); if(u&&had) markAllRead(u.id).catch(err=>console.warn('mark read failed',err));
       break;}
@@ -57,7 +57,7 @@ document.addEventListener('click',e=>{
     case 'vote-entry': toggleVote(t.dataset.ch,id); break;
     case 'open-challenges': pushOv({type:'challenges'}); break;
     case 'open-board': pushOv({type:'board'}); break;
-    case 'open-flist': pushOv({type:'flist',id}); break;
+    case 'open-flist': openFlist(id); break;
     case 'open-scoring': pushOv({type:'scoring'}); break;
     case 'open-settings': pushOv({type:'settings'}); break;
     case 'open-create': ui.create=freshCreate(); pushOv({type:'create'}); break;
@@ -106,26 +106,24 @@ document.addEventListener('click',e=>{
     case 'submit-post': submitPost(); break;
 
     case 'set-theme': state.theme=t.dataset.t; save(); applyTheme(); renderOverlay(); break;
-    case 'save-profile':{ syncSettings();
-      state.me.name=(state.me.name||'').trim(); state.me.city=(state.me.city||'').trim(); state.me.handle=(state.me.handle||'').trim();
-      save(); applyMe(); popOv(); toast('Profile updated ✓');
-      const u=currentUser(); if(u) pushProfile(u.id,state.me).catch(err=>console.warn('profile sync failed',err));
+    case 'save-profile': saveProfile(); break;
+    case 'toggle-premium':{ state.me.premium=!state.me.premium; save(); renderOverlay();
+      toast(state.me.premium?'Premium unlocked ✦':'Premium turned off');
+      const u=currentUser(); if(u) pushProfile(u.id,state.me).catch(err=>console.warn('premium sync failed',err));
       break;}
-    case 'toggle-premium': state.me.premium=!state.me.premium; save(); renderOverlay(); toast(state.me.premium?'Premium unlocked ✦':'Premium turned off'); break;
 
-    case 'ob-next': syncOb(); ui.obStep=Math.min(3,(ui.obStep||1)+1); renderOverlay(); break;
-    case 'ob-back': syncOb(); ui.obStep=Math.max(1,(ui.obStep||1)-1); renderOverlay(); break;
-    case 'ob-follow': state.follows[id]=!state.follows[id]; save(); renderOverlay(); break;
-    case 'ob-skip': case 'ob-finish': syncOb(); state.onboarded=true; save(); applyMe(); ui.ovStack=[]; render();
-      toast(a==='ob-finish'?'Welcome to Crema ☕':'You can finish setup in Settings'); break;
+    case 'ob-next':{ syncOb();
+      if(!(state.me.name||'').trim()){ ui.obError='Tell us your name first.'; renderOverlay(); break; }
+      ui.obError=''; ui.obStep=Math.min(2,(ui.obStep||1)+1); renderOverlay(); break;}
+    case 'ob-back': syncOb(); ui.obError=''; ui.obStep=Math.max(1,(ui.obStep||1)-1); renderOverlay(); break;
+    case 'ob-finish': finishOnboarding(); break;
 
-    case 'open-auth': ui.auth={mode:'in',error:'',notice:'',busy:false,email:''}; pushOv({type:'auth'}); break;
-    case 'auth-mode': syncAuth(); ui.auth.mode=ui.auth.mode==='up'?'in':'up'; ui.auth.error=''; ui.auth.notice=''; renderOverlay(); break;
+    case 'auth-mode':{ syncAuth(); ui.auth.mode=t.dataset.m||'in'; ui.auth.error=''; ui.auth.notice=''; renderView(); break;}
     case 'auth-submit': doAuth(); break;
     case 'auth-oauth': doOAuth(t.dataset.p); break;
     case 'sign-out': doSignOut(); break;
-
-    case 'reset': if(confirm('Reset the demo to its starting state?')) resetDemo(); break;
+    case 'open-password': ui.pw={error:'',busy:false}; pushOv({type:'password'}); break;
+    case 'pw-save': savePassword(); break;
     case 'toast': toast(t.dataset.msg||'Coming soon'); break;
     default: break;
   }
@@ -133,12 +131,27 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{ if(e.key!=='Enter') return;
   const t=e.target.closest('[data-enter]'); if(!t) return; e.preventDefault();
   if(t.dataset.enter==='add-cmt') addComment(t.dataset.id);
-  else if(t.dataset.enter==='auth-submit') doAuth(); });
+  else if(t.dataset.enter==='auth-submit') doAuth();
+  else if(t.dataset.enter==='pw-save') savePassword(); });
 document.addEventListener('input',e=>{
   if(e.target.id==='search-input'){ ui.searchQ=e.target.value;
-    const res=$('#explore-results'), normal=$('#explore-normal');
-    if(res&&normal){ res.innerHTML=ui.searchQ?searchHTML(ui.searchQ):''; normal.style.display=ui.searchQ?'none':''; } }
+    paintSearch();
+    /* People live in Postgres, so searching them is a query. Debounced,
+       because this fires on every keystroke. */
+    clearTimeout(searchT);
+    const q=ui.searchQ.trim(); if(q.length<2) return;
+    searchT=setTimeout(async()=>{
+      const u=currentUser(); if(!u) return;
+      try{ await searchProfiles(u.id,q); if(ui.searchQ.trim()===q) paintSearch(); }
+      catch(err){ console.warn('people search failed',err); }
+    },300);
+  }
 });
+let searchT;
+function paintSearch(){
+  const res=$('#explore-results'), normal=$('#explore-normal');
+  if(res&&normal){ res.innerHTML=ui.searchQ?searchHTML(ui.searchQ):''; normal.style.display=ui.searchQ?'none':''; }
+}
 document.addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='c-photo-cam'||id==='c-photo-lib'){ if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]); return; }
@@ -172,52 +185,101 @@ function syncAuth(){ if(!ui.auth) ui.auth={mode:'in',error:'',notice:'',busy:fal
 
 function authError(e){
   const m=(e&&e.message)||'';
-  if(/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Couldn\'t reach the server. You can keep using Crema without an account.';
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Couldn\'t reach Crema. Check your connection and try again.';
   if(/Invalid login credentials/i.test(m)) return 'That email and password don\'t match.';
-  if(/already registered/i.test(m)) return 'That email already has an account — sign in instead.';
+  if(/already registered|already been registered/i.test(m)) return 'That email already has an account — sign in instead.';
+  if(/Password should be at least/i.test(m)) return 'Pick a longer password — at least 8 characters.';
+  if(/Email not confirmed/i.test(m)) return 'Confirm your email address first — check your inbox.';
+  if(/rate limit|too many/i.test(m)) return 'Too many attempts just now. Wait a minute and try again.';
   return m || 'Something went wrong. Try again.';
 }
 
 async function doAuth(){
   syncAuth();
   const a=ui.auth, email=(a.email||'').trim(), pw=($('#au-pw')||{}).value||'';
-  if(!email||!pw){ a.error='Enter your email and a password.'; renderOverlay(); return; }
-  a.busy=true; a.error=''; a.notice=''; renderOverlay();
+  if(!email){ a.error='Enter your email address.'; renderView(); return; }
+
+  if(a.mode==='forgot'){
+    a.busy=true; a.error=''; a.notice=''; renderView();
+    try{
+      await sendPasswordReset(email);
+      a.busy=false; a.mode='in';
+      a.notice='Reset link sent. Open it on this device and you can set a new password.';
+    }catch(e){ a.busy=false; a.error=authError(e); }
+    renderView(); return;
+  }
+
+  if(!pw){ a.error='Enter your password.'; renderView(); return; }
+  if(a.mode==='up'&&pw.length<8){ a.error='Pick a password of at least 8 characters.'; renderView(); return; }
+  a.busy=true; a.error=''; a.notice=''; renderView();
   try{
     if(a.mode==='up'){
       const { confirmationRequired } = await signUp(email,pw);
       if(confirmationRequired){
         a.busy=false; a.mode='in';
-        a.notice='Account created. Check your inbox to confirm the address, then sign in.';
-        renderOverlay(); return;
+        a.notice='Account created. Confirm your email address, then sign in.';
+        renderView(); return;
       }
     } else {
       await signInWithPassword(email,pw);
     }
-    /* success → onAuthChange below drives the reload and repaint */
-  }catch(e){ a.busy=false; a.error=authError(e); renderOverlay(); }
+    /* success → onAuthChange below drives the load and repaint */
+  }catch(e){ a.busy=false; a.error=authError(e); renderView(); }
 }
 
 async function doOAuth(provider){
-  syncAuth(); ui.auth.busy=true; ui.auth.error=''; renderOverlay();
+  syncAuth(); ui.auth.busy=true; ui.auth.error=''; renderView();
   try{ await signInWithOAuth(provider); }        // navigates away on success
-  catch(e){ ui.auth.busy=false; ui.auth.error=authError(e); renderOverlay(); }
+  catch(e){ ui.auth.busy=false; ui.auth.error=authError(e); renderView(); }
 }
 
 async function doSignOut(){
+  if(!confirm('Sign out of Crema on this device?')) return;
   await signOut();
-  toast('Signed out — demo mode ☕');
 }
 
-/* Pull the profile row down (creating it from local state on first
-   sign-in) and merge it into state.me. Failure is non-fatal: the user
-   stays signed in and keeps working locally. */
+async function savePassword(){
+  const p=ui.pw||(ui.pw={error:'',busy:false});
+  const a=($('#pw-new')||{}).value||'', b=($('#pw-again')||{}).value||'';
+  if(a.length<8){ p.error='At least 8 characters, please.'; renderOverlay(); return; }
+  if(a!==b){ p.error='Those two don\'t match.'; renderOverlay(); return; }
+  p.busy=true; p.error=''; renderOverlay();
+  try{ await updatePassword(a); popOv(); toast('Password changed 🔑'); }
+  catch(e){ p.busy=false; p.error=authError(e); renderOverlay(); }
+}
+
+/* Pull the profile row down (creating it on first sign-in) and merge it
+   into state.me. A brand-new row means a brand-new account, which is
+   what triggers onboarding. */
 async function syncProfile(){
   const u=currentUser(); if(!u) return;
   try{
-    const me=await ensureProfile(u.id,u.email,state.me);
-    Object.assign(state.me,me); save(); applyMe();
-  }catch(e){ console.warn('profile sync failed',e); toast('Signed in — profile sync will retry'); }
+    const { me, created }=await ensureProfile(u.id,u.email,state.me);
+    Object.assign(state.me,me);
+    /* An account whose profile has just been created has never been
+       through onboarding, whatever this browser happens to remember. */
+    if(created) state.onboarded=false;
+    else if(state.me.name) state.onboarded=true;
+    save(); applyMe();
+  }catch(e){ console.warn('profile sync failed',e); toast('Couldn\'t load your profile — retrying next time'); }
+}
+
+/* Write the onboarding answers to the profile row. This is the first
+   thing a new account does, so a failure here has to be visible. */
+async function finishOnboarding(){
+  syncOb();
+  if(!(state.me.name||'').trim()){ ui.obStep=1; ui.obError='Tell us your name first.'; renderOverlay(); return; }
+  const u=currentUser();
+  if(u){
+    try{ await pushProfile(u.id,state.me); }
+    catch(e){
+      if(e.status===409){ ui.obStep=1; ui.obError='That username is taken — try another.'; renderOverlay(); return; }
+      console.warn('profile save failed',e);
+      toast('Saved on this device — we\'ll sync your profile shortly');
+    }
+  }
+  state.onboarded=true; ui.obError=''; save(); applyMe();
+  ui.ovStack=[]; render(); toast('Welcome to Crema ☕');
 }
 
 /* The single place the app reacts to signing in or out. */
@@ -225,16 +287,52 @@ onAuthChange(async s=>{
   await useSession(s);
   if(s) await syncProfile();
   applyMe(); applyTheme();
-  ui.ovStack=[]; ui.route=ui.route||'home'; render();
-  if(s) toast('Signed in ☕');
+  ui.ovStack=[]; ui.route='home'; ui.auth=null; render();
+  if(s){
+    if(!state.onboarded){ ui.obStep=1; pushOv({type:'onboard'}); }
+    else toast('Signed in ☕');
+  }
 });
 
 export { syncProfile };
 
-async function resetDemo(){
-  await clearSaved(); await load(); applyMe(); applyTheme();
-  ui.ovStack=[]; ui.profTab='pours'; ui.filter='foryou'; ui.searchQ=''; ui.route='home'; render();
-  ui.obStep=1; pushOv({type:'onboard'}); toast('Demo reset ☕');
+async function saveProfile(){
+  syncSettings();
+  if(!(state.me.name||'').trim()){ toast('Add your name first'); return; }
+  state.me.name=(state.me.name||'').trim(); state.me.city=(state.me.city||'').trim(); state.me.handle=(state.me.handle||'').trim();
+  save(); applyMe(); renderView();
+  const u=currentUser(); if(!u){ popOv(); toast('Profile updated ✓'); return; }
+  try{ await pushProfile(u.id,state.me); popOv(); toast('Profile updated ✓'); }
+  catch(e){
+    if(e.status===409){ toast('That username is taken — try another'); return; }
+    console.warn('profile sync failed',e); popOv(); toast('Saved here — we\'ll sync it shortly');
+  }
+}
+
+/* ---------- people ---------- */
+/* Open someone's sheet, then fill it in with their real profile counts
+   and their pours. Nothing is guessed while the request is in flight. */
+async function openUser(uid){
+  pushOv({type:'user',id:uid});
+  if(!currentUser()) return;
+  try{
+    await fetchUserCard(uid);
+    const list=await fetchMine(uid,{limit:60});
+    ui.userPosts={ id:uid, list };
+    const top=ui.ovStack[ui.ovStack.length-1];
+    if(top&&top.type==='user'&&top.id===uid) renderOverlay();
+  }catch(e){ console.warn('profile load failed',e); }
+}
+
+async function openFlist(kind){
+  pushOv({type:'flist',id:kind});
+  const u=currentUser(); if(!u) return;
+  try{
+    const [followers,following]=await Promise.all([ social.fetchFollowers(u.id), social.fetchFollowing(u.id) ]);
+    storeSocial.followers=followers; storeSocial.following=following; storeSocial.listsLoaded=true;
+    const top=ui.ovStack[ui.ovStack.length-1];
+    if(top&&top.type==='flist') renderOverlay();
+  }catch(e){ console.warn('follow lists failed',e); }
 }
 
 function syncCreate(){ if(!ui.create) ui.create=freshCreate();
@@ -268,9 +366,8 @@ function handleUpload(file){
       const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
       syncCreate();
       /* Show the local render immediately — no wait on a network round
-         trip to see your own photo. Signed out (or if the upload
-         fails), this stays the final value: base64 in the demo blob,
-         exactly as before step 1.6. */
+         trip to see your own photo. If the upload fails this stays the
+         final value: the post still goes out, with the photo inline. */
       ui.create.img=cv.toDataURL('image/jpeg',0.82); renderOverlay(); toast('Photo added 📸');
       const u=currentUser(); if(!u) return;
       const target=ui.create;
@@ -334,8 +431,13 @@ function paintFollow(id,on){
 }
 function toggleFollow(id){
   const on=state.follows[id]=!state.follows[id]; save();
+  storeSocial.counts.following=Math.max(0,(storeSocial.counts.following|0)+(on?1:-1));
+  if(storeSocial.listsLoaded){
+    if(on){ const u=USERS[id]; if(u&&!storeSocial.following.some(x=>x.id===id)) storeSocial.following.push(u); }
+    else storeSocial.following=storeSocial.following.filter(x=>x.id!==id);
+  }
   paintFollow(id,on);
-  const who=(USERS[id]&&USERS[id].name||'').split(' ')[0];
+  const who=(userOf(id).name||'').split(' ')[0];
   toast(on?('Following '+(who||'them')+' ☕'):'Unfollowed');
   const u=currentUser(); if(!u) return;
   (on?social.follow(u.id,id):social.unfollow(u.id,id)).catch(err=>{
@@ -391,6 +493,11 @@ function toggleCafeFollow(id){
 }
 
 /* ---------- challenges (step 1.8) ---------- */
+function bumpParticipants(id,delta){
+  const c=CHALLENGES.find(x=>x.id===id);
+  if(c) c.participants=Math.max(0,(c.participants|0)+delta);
+}
+
 function refreshChallengeViews(){
   renderView();
   const top=ui.ovStack[ui.ovStack.length-1];
@@ -399,12 +506,13 @@ function refreshChallengeViews(){
 
 function toggleJoin(id){
   const on=state.challenges[id]=!state.challenges[id]; save();
+  bumpParticipants(id,on?1:-1);
   refreshChallengeViews();
   toast(on?'Joined challenge! 🎯':'Left challenge');
   const u=currentUser(); if(!u) return;
   (on?chal.joinChallenge(u.id,id):chal.leaveChallenge(u.id,id)).catch(err=>{
     if(err.status===409) return; console.warn('join failed',err);
-    state.challenges[id]=!on; save(); refreshChallengeViews(); toast('Couldn\'t update that challenge');
+    state.challenges[id]=!on; bumpParticipants(id,on?-1:1); save(); refreshChallengeViews(); toast('Couldn\'t update that challenge');
   });
 }
 
@@ -480,7 +588,7 @@ async function sendReport(postId,reason){
 async function blockUser(uid){
   const u=currentUser();
   if(!u){ toast('Sign in to block someone'); return; }
-  const who=(USERS[uid]&&USERS[uid].name||'this person').split(' ')[0];
+  const who=(userOf(uid).name||'this person').split(' ')[0];
   if(!confirm(`Block ${who}? You won't see their pours, and they won't be told.`)) return;
   popOv();
   try{
@@ -557,13 +665,14 @@ function submitPost(){
     if(T(c.temp)) recipe.temp=T(c.temp);
   }
   const hasRecipe=Object.keys(recipe).length>0;
-  const np=post({user:'me',drink,art:isArt,pattern:isArt?(c.pattern||null):null,quality:isArt?.85:null,
-    cafe:cafe?cafe.name:undefined,img:c.img,ago:'now',caption,recipe:hasRecipe?recipe:null,likes:0,comments:[]});
-  /* Signed in: mint the id client-side so it never changes under us —
-     the generated cup art is seeded from it, and so is the share link. */
+  /* The id is minted client-side so it never changes under us — the
+     generated cup art is seeded from it, and so is the share link. */
   const u=currentUser();
-  if(u){ np.id=newPostId(); np.createdAt=new Date().toISOString(); }
-  state.posts.unshift(np); if(state.streak<8) state.streak++; save();
+  const np={ id:newPostId(), user:'me', drink, art:isArt, pattern:isArt?(c.pattern||null):null,
+    quality:isArt?.85:null, cafe:cafe?cafe.name:undefined, img:c.img, ago:'now',
+    createdAt:new Date().toISOString(), caption, recipe:hasRecipe?recipe:null,
+    likes:0, likedByMe:false, saved:false, comments:[], commentN:0 };
+  state.posts.unshift(np); save();
   ui.ovStack=[]; ui.route='home'; ui.filter='foryou'; render();
   setTimeout(()=>toast(c.img?'Posted! Streak kept 🔥':'Posted ☕ (add a photo next time)'),120);
 
@@ -571,7 +680,6 @@ function submitPost(){
   if(u) createPost(np,u.id).catch(err=>{
     console.warn('post failed',err);
     const i=state.posts.indexOf(np); if(i>=0) state.posts.splice(i,1);
-    if(state.streak>0) state.streak--;
     save(); render(); toast('Couldn\'t post that — check your connection and try again');
   });
 }

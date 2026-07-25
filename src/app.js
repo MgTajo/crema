@@ -1,10 +1,17 @@
 "use strict";
 /* ============================================================
    app — composition root & boot sequence.
-   Wires the layers together and starts the app: load persisted
-   state, apply identity + theme, paint, then resume onboarding or a
-   deep link. Importing ./ui/actions.js registers the global event
-   handlers as a side effect.
+
+   Wires the layers together and starts the app:
+
+     1. restore the session (localStorage → refreshed if stale)
+     2. no session → paint the sign-in gate and stop. Crema needs an
+        account; there is no signed-out mode.
+     3. session → reference data, then this user's world, then paint
+     4. brand-new account → onboarding; returning visitor → deep link
+
+   Importing ./ui/actions.js registers the global event handlers as a
+   side effect.
    ============================================================ */
 import { initAuth } from './data/supabase.js';
 import { loadReferenceData } from './data/remote.js';
@@ -14,35 +21,39 @@ import { render } from './ui/views.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile } from './ui/actions.js';
 
-/* ---------- boot ---------- */
-/* Restore the session first: it decides which persistence adapter the
-   store loads from. Signed out, this resolves to null immediately and
-   the app boots exactly as it always has. */
+/* top-level await: the session decides what the first paint even is. */
 const auth = await initAuth();
 
-/* top-level await: state must be loaded before the first paint, and the
-   persistence adapter may be a network one. */
+/* Cafés, beans and challenges are read-only reference data, and every
+   post carries a cafe_id that needs them to resolve to a name — so they
+   load *before* the feed rather than behind it. Cached for 15 minutes,
+   so this is usually instant, and it works offline. */
+if(auth.session) await loadReferenceData();
+
 await useSession(auth.session);
 applyMe(); applyTheme(); tick(); render();
 setInterval(tick,10000);
 if(auth.error) toast(auth.error);
-if(auth.session) syncProfile().then(render);
 
-/* Reference data refreshes behind the first paint: the bundled arrays are
-   already on screen, so this only ever swaps in newer content. */
-loadReferenceData().then(src=>{ if(src==='network'||src==='stale-cache') render(); });
+if(auth.session){
+  /* The profile row is the truth about who this is, and whether the
+     account is new enough to still need onboarding. */
+  await syncProfile();
+  applyMe(); render();
 
-if(!state.onboarded){ pushOv({type:'onboard'}); }
-else {
-  /* ids are seed-style ('p101') locally and uuids once posts are remote */
-  const m=location.hash.match(/#p\/([\w-]+)/);
-  if(m){
-    if(findPost(m[1])) pushOv({type:'post',id:m[1]});
-    else if(auth.session) fetchPost(m[1],auth.session.user.id)
-      .then(p=>{ if(p){ state.posts.unshift(p); pushOv({type:'post',id:p.id}); } })
-      .catch(()=>{});
+  if(!state.onboarded){ pushOv({type:'onboard'}); }
+  else if(auth.recovery){ pushOv({type:'password'}); toast('Signed in — pick a new password'); }
+  else {
+    const m=location.hash.match(/#p\/([\w-]+)/);
+    if(m){
+      if(findPost(m[1])) pushOv({type:'post',id:m[1]});
+      else fetchPost(m[1],auth.session.user.id)
+        .then(p=>{ if(p){ state.posts.unshift(p); pushOv({type:'post',id:p.id}); } })
+        .catch(()=>{});
+    }
   }
 }
+
 if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname))){
   let _reloading=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_reloading)return; _reloading=true; location.reload(); });

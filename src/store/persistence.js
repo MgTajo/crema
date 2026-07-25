@@ -27,16 +27,15 @@ export class LocalStoragePersistence {
 /* ------------------------------------------------------------------
    The migration seam.
 
-   Signed out → the demo world, in this browser, under the shared key.
-   Signed in  → the same adapter under a key scoped to the user id, so
-                two accounts on one browser never see each other's data.
+   The key is scoped to the signed-in user's id, so two accounts on one
+   browser never see each other's data.
 
    Note what this deliberately does NOT do: it does not ship the whole
-   state blob to the server. Domains move to Postgres one at a time and
-   each has its own module under data/ (posts.js today; follows, likes
-   and comments in step 1.7). Whatever has not migrated yet keeps living
-   in this blob, per user. That is what lets every step end in a working
-   product instead of a half-migrated one.
+   state blob to the server. Posts, follows, likes, comments, challenge
+   entries and notifications are all rows in Postgres, each with its own
+   module under data/. What lives in this blob is the small remainder —
+   theme, the create-sheet defaults, custom beans — plus a cache of the
+   last-seen feed so the PWA opens with something on screen.
    ------------------------------------------------------------------ */
 export function makePersistence(session, key){
   return new LocalStoragePersistence(session ? `${key}:${session.user.id}` : key);

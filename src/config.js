@@ -11,7 +11,9 @@
    The service_role key must NEVER appear in this file or any other
    file the browser can fetch. It bypasses RLS entirely.
 
-   Set SUPABASE_URL to '' to force the app into pure demo mode.
+   Both values are required: Crema has no offline/demo mode. With
+   either one blank the app can only show the sign-in screen and say
+   it isn't configured.
    ============================================================ */
 
 export const SUPABASE_URL = 'https://diabtvahplwoipvrprvb.supabase.co';
@@ -22,9 +24,8 @@ export const SUPABASE_KEY = 'sb_publishable_Dl-0fert2JgI005EaRauNw_ytYbmeVL';
    and read-only — safe to commit, same as the URL/key above. */
 export const MEDIA_BASE = 'https://media.crema-app.com';
 
-/* Every backend call is guarded by this. When false the app runs
-   exactly as it did before Phase 1 — seeded world, localStorage, no
-   account. Demo mode never goes away. */
+/* Sanity check on the two values above. False means the app is
+   misconfigured, not that it has a fallback to fall back to. */
 export const BACKEND = !!(SUPABASE_URL && SUPABASE_KEY);
 
 /* How long cached reference data (cafés, beans, challenges) stays fresh

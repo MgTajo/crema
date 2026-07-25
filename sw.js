@@ -1,15 +1,15 @@
 /* Crema service worker
    - network-first for HTML (so page updates always show when online)
    - cache-first for static assets (images/icons) */
-const C = 'crema-v7';
+const C = 'crema-v8';
 const ASSETS = ['./manifest.webmanifest','./styles.css',
   './src/app.js','./src/config.js','./src/core/util.js',
-  './src/data/assets.js','./src/data/catalog.js','./src/data/seed.js',
+  './src/data/assets.js','./src/data/catalog.js','./src/data/world.js',
   './src/data/supabase.js','./src/data/profiles.js','./src/data/remote.js','./src/data/posts.js',
   './src/data/social.js','./src/data/challenges.js','./src/data/notifications.js','./src/data/media.js',
   './src/domain/art.js','./src/domain/scoring.js',
   './src/store/persistence.js','./src/store/store.js',
-  './src/ui/icons.js','./src/ui/components.js','./src/ui/views.js','./src/ui/overlays.js','./src/ui/actions.js',
+  './src/ui/icons.js','./src/ui/components.js','./src/ui/views.js','./src/ui/overlays.js','./src/ui/actions.js','./src/ui/gate.js',
   './assets/l1.jpg','./assets/l2.jpg','./assets/l3.jpg','./assets/l4.jpg','./assets/l5.jpg',
   './assets/l6.jpg','./assets/l7.jpg','./assets/l8.jpg','./assets/l9.jpg',
   './assets/beans.jpg','./assets/esp.jpg','./assets/cold.jpg',

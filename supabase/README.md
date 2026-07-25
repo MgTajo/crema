@@ -1,8 +1,8 @@
 # Supabase setup
 
-Everything in this folder is run by hand, once, in the order below. The app works without
-any of it — signed out it stays in demo mode — so nothing here is urgent, and nothing here
-can break the running app.
+Everything in this folder is run by hand, once, in the order below. The app **requires** it:
+there is no demo mode, so an account, a feed and the café/bean/challenge directory all come
+from these tables.
 
 ## 1. Run the schema
 
@@ -25,7 +25,8 @@ updates when `refresh_leaderboard_weekly()` is called.
 > denies everything until a policy exists. `schema.sql` creates each table's policies right
 > after the table, so this only matters if you add tables by hand later.
 
-After running, `src/data/remote.js` starts serving cafés/beans/challenges from Postgres —
+After running, `src/data/remote.js` serves cafés/beans/challenges from Postgres (the app
+bundles no copy of its own) —
 edit a café row in the dashboard and it changes in the app within 15 minutes (the cache TTL
 in `src/config.js`), or immediately on a hard reload.
 

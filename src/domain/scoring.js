@@ -7,7 +7,7 @@
    would point at the native store).
    ============================================================ */
 import { clamp } from '../core/util.js';
-import { state, myPosts, myBeans, myRoasters } from '../store/store.js';
+import { state, myPosts, myBeans, myRoasters, streak } from '../store/store.js';
 
 export function scoreFromQ(q){const b=3.6+q*6; return{total:b.toFixed(1),
   symmetry:clamp(b+(q>.7?.3:-.4),0,10).toFixed(1),contrast:clamp(b-.2,0,10).toFixed(1),definition:clamp(b+(q>.8?.2:-.2),0,10).toFixed(1)};}
@@ -18,7 +18,7 @@ export function computeBadges(){
   const roasters=myRoasters().length;
   return [
     {i:'☕',n:'First pour',d:'Post your first coffee',e:n>0},
-    {i:'🔥',n:'Week streak',d:'7 days of coffee in a row',e:state.streak>=7},
+    {i:'🔥',n:'Week streak',d:'7 days of coffee in a row',e:streak()>=7},
     {i:'🌿',n:'Rosetta groove',d:'Post 5 rosettas',e:pats('rosetta')>=5,p:Math.min(pats('rosetta'),5)+'/5'},
     {i:'🌷',n:'Tulip time',d:'Post your first tulip',e:pats('tulip')>=1},
     {i:'🦢',n:'Swan whisperer',d:'Post a swan',e:pats('swan')>=1,p:pats('swan')+'/1'},

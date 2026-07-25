@@ -6,15 +6,14 @@
    one pushes a descriptor, closing pops it.
    ============================================================ */
 import { $, esc, fmt, cap, initials, seedOf } from '../core/util.js';
-import { BACKEND } from '../config.js';
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ROASTER_LIST, BEANS, flag } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, LEADERBOARD } from '../data/seed.js';
-import { state, ui, session, findPost, allPosts, myPosts, freshCreate, entryCache } from '../store/store.js';
+import { USERS, CAFES, CHALLENGES, LEADERBOARD, userOf } from '../data/world.js';
+import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
 import { scoreFromQ } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanSelectHTML, lbRow, gcell, commentCount } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanSelectHTML, lbRow, gcell, commentCount, joinedLabel } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -43,13 +42,13 @@ export function renderOverlay(){
     T==='settings'?overlaySettings():
     T==='picker'?overlayPicker(top.id):
     T==='onboard'?overlayOnboard():
-    T==='auth'?overlayAuth():
+    T==='password'?overlayPassword():
     T==='create'?overlayCreate():'';
 }
 
 function overlayPost(id){
   const p=findPost(id); if(!p) return '';
-  const u=USERS[p.user], r=p.recipe, sc=p.art?scoreFromQ(p.quality):null, rows=recipeRows(r);
+  const u=userOf(p.user), r=p.recipe, sc=p.art?scoreFromQ(p.quality):null, rows=recipeRows(r);
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Post">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Post</b>
       <button class="act" data-action="share-post" data-id="${p.id}" aria-label="Share">${icon('send',20)}</button>
@@ -58,10 +57,10 @@ function overlayPost(id){
       <div class="media" data-action="none">${art(imageUrl(p.img,'hero'),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">
         <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-          <div class="who"><b>${u.name} <span class="lvlchip">Lv${u.level}</span></b><span>${u.handle}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}</span></div></div>
+          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${esc(p.cafe)}`:''} · ${p.ago}</span></div></div>
         ${p.user==='me'?'':`<button class="followmini ${state.follows[p.user]?'on':''}" data-action="follow" data-id="${p.user}">${state.follows[p.user]?'Following':'Follow'}</button>`}
         <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
-      <div class="p-body"><div class="cap"><b>${u.name}</b> ${mentionify(p.caption)}</div>
+      <div class="p-body"><div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
         <div class="chips"><span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>${p.art?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
       ${rows.length?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0">${recipePanel(r)}
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ Brew this recipe</button></div></div></div>`:''}
@@ -110,9 +109,16 @@ function overlayBean(name){
       </div></div></div>`;
 }
 
+/* Their pours, loaded when the sheet opens (ui/actions openUser). Falls
+   back to whatever of theirs is already in the feed. */
+function theirPosts(uid){
+  const loaded=ui.userPosts&&ui.userPosts.id===uid?ui.userPosts.list:null;
+  return loaded||state.posts.filter(p=>p.user===uid);
+}
 function overlayUser(uid){
-  const u=USERS[uid]; if(!u||uid==='me') return '';
-  const theirs=state.posts.filter(p=>p.user===uid);
+  if(!uid||uid==='me') return '';
+  const u=userOf(uid);                       // renders while the profile loads
+  const theirs=theirPosts(uid);
   const f=state.follows[uid];
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${u.name}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${u.name}</b></div>
@@ -122,9 +128,9 @@ function overlayUser(uid){
         <div style="display:flex;align-items:flex-end;gap:12px;margin-top:-28px">
           <div class="avatar" style="width:74px;height:74px;font-size:26px;background:${u.color};border:3px solid var(--cream)">${initials(u.name)}</div>
           <button class="btn ${f?'ghost':''} sm" style="margin-left:auto" data-action="follow" data-id="${uid}">${f?'Following':'Follow'}</button></div>
-        <div style="margin-top:10px"><b style="font-family:var(--serif);font-size:22px">${u.name}</b> <span class="lvlchip">Lv${u.level}</span>
-          <div style="color:var(--muted);font-size:13px;margin:2px 0 8px">${u.handle} · 📍 ${u.city}</div>
-          <p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:0 0 12px">${u.bio||''}</p></div>
+        <div style="margin-top:10px"><b style="font-family:var(--serif);font-size:22px">${esc(u.name)}</b> <span class="lvlchip">Lv${u.level}</span>
+          <div style="color:var(--muted);font-size:13px;margin:2px 0 8px">${esc(u.handle)}${u.city?` · 📍 ${esc(u.city)}`:''}</div>
+          ${u.bio?`<p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:0 0 12px">${esc(u.bio)}</p>`:''}</div>
         <div class="stats"><div><b>${fmt(u.pourN)}</b><span>Pours</span></div><div><b>${fmt(u.followerN)}</b><span>Followers</span></div><div><b>${u.levelName}</b><span>Level ${u.level}</span></div></div>
         <div class="section-h"><h2>Recent pours</h2></div>
         ${theirs.length?`<div class="grid">${theirs.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty">No pours yet.</div>`}
@@ -135,7 +141,7 @@ function overlayNotifs(){
   const rows=state.notifications.map((n,i)=>{
     const av=n.u?avatar(n.u):`<div class="avatar" style="background:var(--crema)">${n.type==='challenge'?'🏆':'☕'}</div>`;
     return `<div class="nrow ${n.read?'':'unread'}" data-action="notif-go" data-idx="${i}">${av}
-      <div class="nb"><div class="nt">${n.u?`<b>${USERS[n.u].name}</b> `:''}${esc(n.text)}</div><span>${n.time} ago</span></div></div>`;}).join('');
+      <div class="nb"><div class="nt">${n.u?`<b>${esc(userOf(n.u).name)}</b> `:''}${esc(n.text)}</div><span>${n.time} ago</span></div></div>`;}).join('');
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Notifications">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Notifications</b></div>
     <div class="ov-body">${rows||`<div class="empty"><div class="big">🔔</div>All caught up.</div>`}</div></div>`;
@@ -143,7 +149,7 @@ function overlayNotifs(){
 
 function overlayMenu(id){
   const p=findPost(id); if(!p) return '';
-  const mine=p.user==='me', who=USERS[p.user];
+  const mine=p.user==='me', who=userOf(p.user);
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="Post options">
     <div class="grab"></div>
     <div class="ov-body" style="padding:4px 18px 18px">
@@ -191,17 +197,10 @@ function overlayTag(pat){
     </div></div></div>`;
 }
 
-/* Signed in, entries are rows from challenge_entries with real vote
-   counts. Signed out, the demo keeps its deterministic stand-in so the
-   screen still looks alive. */
-function challengeEntries(ch){
-  const remote=entryCache[ch.id];
-  if(remote) return remote;
-  const list=allPosts().filter(p=>p.art&&p.pattern===ch.pattern);
-  const sub=state.challengeSubs[ch.id];
-  if(sub&&!list.some(p=>p.id===sub)){const sp=findPost(sub); if(sp)list.unshift(sp);}
-  return list.map(p=>({p,votes:120+(seedOf(p.id)*7)%480,mine:p.id===sub})).sort((a,b)=>b.votes-a.votes);
-}
+/* Entries are rows from challenge_entries with real vote counts, loaded
+   when the challenge opens. Nothing stands in for them: until the load
+   returns, `entryCache` has no key and the screen says it's loading. */
+const challengeEntries = ch => entryCache[ch.id] || null;
 function overlayChallenge(id){
   const ch=CHALLENGES.find(c=>c.id===id); if(!ch) return '';
   const joined=state.challenges[id], sub=state.challengeSubs[id];
@@ -211,16 +210,17 @@ function overlayChallenge(id){
     <div class="ov-body"><div style="padding:0 16px 20px">
       <div class="ch-top" style="height:150px;border-radius:16px;margin-top:14px">${cupSVG(ch.pattern,.92,ch.id.charCodeAt(0))}<span class="ends">Ends in ${ch.ends}</span></div>
       <div style="margin:14px 2px 4px"><b style="font-family:var(--serif);font-size:22px">${ch.title}</b>
-        <div class="chips" style="margin:8px 0"><span class="chip tag" data-action="open-tag" data-id="${ch.pattern}">${ch.tag}</span><span class="chip">${fmt(ch.participants+(joined?1:0))} joined</span>${joined?'<span class="chip" style="color:var(--green)">✓ You\'re in</span>':''}</div>
+        <div class="chips" style="margin:8px 0"><span class="chip tag" data-action="open-tag" data-id="${ch.pattern}">${ch.tag}</span><span class="chip">${joinedLabel(ch)}</span>${joined?'<span class="chip" style="color:var(--green)">✓ You\'re in</span>':''}</div>
         <p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:4px 0 14px">${ch.blurb}</p>
         <div style="display:flex;gap:10px;margin-bottom:6px">
           <button class="btn ${joined?'ghost':''} block" data-action="join" data-id="${ch.id}">${joined?'Leave challenge':'Join challenge'}</button>
           ${joined&&!sub?`<button class="btn block" data-action="submit-entry" data-id="${ch.id}">Submit a pour</button>`:''}</div>
         ${sub?`<div style="font-size:12.5px;font-weight:700;color:var(--green);margin:6px 2px">✓ Your entry is in — good luck!</div>`:''}</div>
       <div class="section-h"><h2>Top entries</h2></div>
-      ${entries.length?`<div class="lb" style="margin-bottom:14px">${entries.slice(0,3).map((e,i)=>`<div class="lb-row click" data-action="open-post" data-id="${e.p.id}">
+      ${!entries?`<div class="empty" style="padding:22px">Loading entries…</div>`:
+        entries.length?`<div class="lb" style="margin-bottom:14px">${entries.slice(0,3).map((e,i)=>`<div class="lb-row click" data-action="open-post" data-id="${e.p.id}">
           <div class="lb-rank top">${i===0?'🥇':i===1?'🥈':'🥉'}</div>${avatar(e.p.user)}
-          <div class="who" style="flex:1"><b>${USERS[e.p.user].name}${e.mine?' (you)':''}</b><span>${cap(ch.pattern)}</span></div>
+          <div class="who" style="flex:1"><b>${esc(userOf(e.p.user).name)}${e.mine?' (you)':''}</b><span>${cap(ch.pattern)}</span></div>
           <div class="lb-pts">▲ ${e.votes}</div></div>`).join('')}</div>
         <div class="section-h" style="margin-top:4px"><h2>All entries</h2></div>
         <div class="grid">${entries.map(e=>`<div class="entrywrap">${e.mine?'<span class="entrytag">YOURS</span>':''}${gcell(e.p.pattern,e.p.quality,e.p.id,e.p.img)}
@@ -257,22 +257,29 @@ function overlayChallenges(){
 function overlayBoard(){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Leaderboard">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Weekly leaderboard</b></div>
-    <div class="ov-body"><div style="padding:14px 16px 20px"><div class="lb">${LEADERBOARD.map((r,i)=>lbRow(r,i)).join('')}</div>
+    <div class="ov-body"><div style="padding:14px 16px 20px">
+      ${LEADERBOARD.length?`<div class="lb">${LEADERBOARD.map((r,i)=>lbRow(r,i)).join('')}</div>`
+        :`<div class="empty"><div class="big">🏆</div>Nobody has scored this week yet.</div>`}
       <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">Points come from pours, art scores and challenge results.</div></div></div></div>`;
 }
+/* Real rows from `follows`, loaded when the sheet opens. `social.loaded`
+   distinguishes "nobody follows you" from "we haven't asked yet". */
 function overlayFlist(kind){
-  const users=Object.values(USERS).filter(u=>u.id!=='me');
-  const list=kind==='following'?users.filter(u=>state.follows[u.id]):(USERS.me.followerN===0?[]:users);
-  const title=kind==='following'?'Following':'Followers';
-  const emptyMsg=kind==='following'?'Not following anyone yet.<br>Find people on Explore.':'No followers yet.<br>Share your pours to get discovered.';
+  const following=kind==='following';
+  const list=(following?social.following:social.followers).filter(Boolean);
+  const title=following?'Following':'Followers';
+  const empty=!social.listsLoaded
+    ? `<div class="empty">Loading…</div>`
+    : `<div class="empty"><div class="big">👥</div>${following
+        ?'Not following anyone yet.<br>Find people on Explore.'
+        :'No followers yet.<br>Share your pours to get discovered.'}</div>`;
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${title}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${title}</b></div>
     <div class="ov-body"><div style="padding:14px 16px 20px">
       ${list.length?`<div class="lb">${list.map(u=>`<div class="lb-row click" data-action="open-user" data-id="${u.id}">${avatar(u.id)}
-        <div class="who" style="flex:1"><b>${u.name}</b><span>${u.levelName} · ${u.city}</span></div>
-        <button class="btn ${state.follows[u.id]?'ghost':''} sm" data-action="follow" data-id="${u.id}">${state.follows[u.id]?'Following':'Follow'}</button></div>`).join('')}</div>`:
-        `<div class="empty"><div class="big">👥</div>${emptyMsg}</div>`}
-      ${kind==='followers'&&list.length&&USERS.me.followerN>list.length?`<div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">…and ${fmt(USERS.me.followerN-list.length)} more.</div>`:''}
+        <div class="who" style="flex:1"><b>${esc(u.name)}</b><span>${esc(u.handle)}${u.city?' · '+esc(u.city):''}</span></div>
+        <button class="btn ${state.follows[u.id]?'ghost':''} sm" data-action="follow" data-id="${u.id}">${state.follows[u.id]?'Following':'Follow'}</button></div>`).join('')}</div>`
+        :empty}
     </div></div></div>`;
 }
 function overlayScoring(){
@@ -294,8 +301,8 @@ function overlaySettings(){
     <div class="grab"></div>
     <div class="ov-bar" style="border:0"><b>Settings</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 18px">
-      ${BACKEND?`<div class="rlabel">Account</div>${accountBlock()}`:''}
-      <div class="rlabel"${BACKEND?' style="margin-top:18px"':''}>Profile</div>
+      <div class="rlabel">Account</div>${accountBlock()}
+      <div class="rlabel" style="margin-top:18px">Profile</div>
       <div class="rowfields">
         <div class="field"><label>Name</label><input id="sp-name" value="${esc(m.name)}" placeholder="Your name"></div>
         <div class="field"><label>Username</label><input id="sp-handle" value="${esc(USERS.me.handle)}"></div></div>
@@ -308,84 +315,70 @@ function overlaySettings(){
       <div class="rlabel" style="margin-top:18px">Crema Premium</div>
       ${m.premium
         ? `<div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">✦</div><div style="flex:1">Premium active<div style="font-size:11.5px;color:var(--muted);font-weight:500">Add your own coffees · early features</div></div><span class="lvlchip" style="background:linear-gradient(135deg,#f5d78a,#e0b25a);color:#5a3d17;border-color:#e6c98a">ACTIVE</span></div>
-           <button class="btn ghost block" data-action="toggle-premium">Turn off Premium (demo)</button>`
+           <button class="btn ghost block" data-action="toggle-premium">Turn Premium off</button>`
         : `<div style="background:linear-gradient(135deg,var(--st1),var(--st2));border:1px solid var(--st3);border-radius:var(--r-sm);padding:14px;margin-bottom:2px">
              <b style="font-family:var(--serif);font-size:16px;color:var(--st4)">✦ Crema Premium</b>
-             <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 12px">Add your own coffees &amp; roasters, and get early access to new features.</div>
-             <button class="btn block" data-action="toggle-premium">Try Premium (demo)</button></div>`}
+             <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 12px">Add your own coffees &amp; roasters, and get early access to new features. Free while Crema is young — billing comes later.</div>
+             <button class="btn block" data-action="toggle-premium">Turn Premium on</button></div>`}
       <div class="rlabel" style="margin-top:18px">Appearance</div>
       <div class="seg">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(x=>`<button class="${th===x[0]?'on':''}" data-action="set-theme" data-t="${x[0]}">${x[1]}</button>`).join('')}</div>
       <div class="rlabel" style="margin-top:18px">About</div>
       <div class="mrow" data-action="open-scoring"><div class="mi">⭐</div>How levels work</div>
-      <div class="mrow" data-action="reset"><div class="mi">🔄</div>Reset the demo</div>
-      <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">${session?'Signed in · your pours sync to your account':'Crema demo · no account, your data stays in this browser'}</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">Signed in · your pours live in your account</div>
     </div></div>`;
 }
 
-/* Account block in Settings — the only entry point to auth. Additive by
-   design: signed out, the app behaves exactly as it always has. */
+/* Account block in Settings. Sign-in itself happens on the gate, before
+   the app exists, so all that's left here is who you are and how to
+   leave or change your password. */
 function accountBlock(){
-  if(session) return `
-    <div class="mrow" style="cursor:default"><div class="mi">☕</div>
-      <div style="flex:1">Signed in<div style="font-size:11.5px;color:var(--muted);font-weight:500">${esc(session.user.email||session.user.id)}</div></div>
-      <span class="lvlchip" style="color:var(--green);border-color:var(--pm2);background:var(--pm1)">SYNCED</span></div>
-    <button class="btn ghost block" data-action="sign-out">Sign out</button>`;
+  const email=(session&&session.user&&session.user.email)||'';
   return `
-    <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px;margin-bottom:2px">
-      <b style="font-family:var(--serif);font-size:16px">Keep your pours</b>
-      <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 12px">An account syncs your coffee log across devices and lets other people see your pours. Everything you've logged here comes with you.</div>
-      <button class="btn block" data-action="open-auth">Sign in / Create account</button></div>`;
+    <div class="mrow" style="cursor:default"><div class="mi">☕</div>
+      <div style="flex:1">Signed in<div style="font-size:11.5px;color:var(--muted);font-weight:500">${esc(email||(session&&session.user&&session.user.id)||'')}</div></div>
+      <span class="lvlchip" style="color:var(--green);border-color:var(--pm2);background:var(--pm1)">SYNCED</span></div>
+    <div class="mrow" data-action="open-password"><div class="mi">🔑</div>Change password</div>
+    <button class="btn ghost block" style="margin-top:10px" data-action="sign-out">Sign out</button>`;
 }
 
-function overlayAuth(){
-  const a=ui.auth||(ui.auth={mode:'in',error:'',notice:'',busy:false,email:''});
-  const up=a.mode==='up';
-  const banner=(text,color,bg,border)=>`<div style="background:${bg};border:1px solid ${border};color:${color};border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin-bottom:12px">${esc(text)}</div>`;
-  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${up?'Create account':'Sign in'}">
+/* Set a new password — reached from Settings, and where a
+   password-reset link lands the user. */
+function overlayPassword(){
+  const p=ui.pw||(ui.pw={error:'',busy:false});
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="Change password">
     <div class="grab"></div>
-    <div class="ov-bar" style="border:0"><b>${up?'Create account':'Sign in'}</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
+    <div class="ov-bar" style="border:0"><b>Change password</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 18px">
-      ${a.notice?banner(a.notice,'var(--green)','var(--pm1)','var(--pm2)'):''}
-      ${a.error?banner(a.error,'var(--terra)','rgba(168,84,74,.10)','rgba(168,84,74,.28)'):''}
-      <div class="field"><label>Email</label><input id="au-email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" value="${esc(a.email||'')}"></div>
-      <div class="field"><label>Password</label><input id="au-pw" type="password" autocomplete="${up?'new-password':'current-password'}" placeholder="${up?'At least 6 characters':'Your password'}" data-enter="auth-submit"></div>
-      <button class="btn block"${a.busy?' disabled':''} data-action="auth-submit">${a.busy?'Just a moment…':(up?'Create account':'Sign in')}</button>
-      <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:11.5px">
-        <i style="flex:1;height:1px;background:var(--line)"></i>or<i style="flex:1;height:1px;background:var(--line)"></i></div>
-      <button class="btn ghost block" data-action="auth-oauth" data-p="google">Continue with Google</button>
-      <button class="btn ghost block" style="margin-top:8px" data-action="auth-oauth" data-p="apple">Continue with Apple</button>
-      <div style="text-align:center;margin-top:16px;font-size:13px">
-        <span style="color:var(--muted)">${up?'Already have an account? ':'New to Crema? '}</span>
-        <b style="color:var(--crema-deep);cursor:pointer" data-action="auth-mode">${up?'Sign in':'Create one'}</b></div>
-      <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center;line-height:1.5">You can keep using Crema without an account — everything stays in this browser.</div>
+      ${p.error?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;margin-bottom:12px">${esc(p.error)}</div>`:''}
+      <div class="field"><label>New password</label><input id="pw-new" type="password" autocomplete="new-password" placeholder="At least 8 characters" data-enter="pw-save"></div>
+      <div class="field"><label>Repeat it</label><input id="pw-again" type="password" autocomplete="new-password" placeholder="Once more" data-enter="pw-save"></div>
+      <button class="btn block"${p.busy?' disabled':''} data-action="pw-save">${p.busy?'Saving…':'Save password'}</button>
       <div style="height:6px"></div>
     </div></div>`;
 }
+/* Runs once, right after the account is created: it is how the profile
+   row gets a real name, username and city. Step 3 used to be "follow
+   these five people" — with no invented accounts there is nobody to
+   suggest, so the last step is the one that actually needs the user. */
 function overlayOnboard(){
-  const s=ui.obStep||1;
-  const dots=`<div class="obdots">${[1,2,3].map(i=>`<i class="${i===s?'on':''}"></i>`).join('')}</div>`;
+  const s=Math.min(2,ui.obStep||1);
+  const err=ui.obError;
+  const dots=`<div class="obdots">${[1,2].map(i=>`<i class="${i===s?'on':''}"></i>`).join('')}</div>`;
   let body='';
   if(s===1) body=`
     <div class="obhero">${logoMark(56)}<h1>Welcome to Crema</h1><p>Every pour is progress. Log your coffees, grow your craft, and meet people who care about the same 30 seconds of the morning that you do.</p></div>
-    <div class="field"><label>Your name</label><input id="ob-name" value="${esc(state.me.name)}" placeholder="e.g. Alex Rivera" autocomplete="off"></div>
+    ${err?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;margin-bottom:12px">${esc(err)}</div>`:''}
+    <div class="field"><label>Your name</label><input id="ob-name" value="${esc(state.me.name)}" placeholder="e.g. Alex Rivera" autocomplete="name"></div>
     <div class="rowfields">
-      <div class="field"><label>Username</label><input id="ob-handle" value="${esc(state.me.handle||'')}" placeholder="@yourname" autocomplete="off"></div>
+      <div class="field"><label>Username</label><input id="ob-handle" value="${esc(state.me.handle||'')}" placeholder="yourname" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div class="field"><label>City</label><input id="ob-city" value="${esc(state.me.city)}" placeholder="Your city"></div></div>
-    <button class="btn block" data-action="ob-next">Continue</button>
-    <button class="btn ghost block" style="margin-top:8px" data-action="ob-skip">Skip the tour</button>`;
+    <button class="btn block" data-action="ob-next">Continue</button>`;
   if(s===2) body=`
     <h2 class="obh2">Your setup</h2><p class="obsub">We'll prefill new posts with this — change it anytime in Settings.</p>
     ${machinePicker('ob',state.me.machineBrand,state.me.machineModel)}
     <div class="rowfields"><div class="field sel"><label>Go-to drink</label><select id="ob-drink">${DRINKS.map(d=>`<option${d===state.me.favDrink?' selected':''}>${d}</option>`).join('')}</select></div>
     <div class="field sel"><label>Go-to milk</label><select id="ob-milk">${MILK_LIST.map(x=>`<option${x===state.me.favMilk?' selected':''}>${x}</option>`).join('')}</select></div></div>
-    <div style="display:flex;gap:10px;margin-top:6px"><button class="btn ghost" data-action="ob-back">Back</button><button class="btn" style="flex:1" data-action="ob-next">Continue</button></div>`;
-  if(s===3){
-    const sugg=Object.values(USERS).filter(u=>u.id!=='me').sort((a,b)=>b.followerN-a.followerN).slice(0,5);
-    body=`<h2 class="obh2">Follow a few artists</h2><p class="obsub">Your feed is better with friends in it.</p>
-    ${sugg.map(u=>`<div class="lb-row" style="border:1px solid var(--line);border-radius:14px;margin-bottom:8px">${avatar(u.id)}
-      <div class="who" style="flex:1"><b>${u.name}</b><span>${u.levelName} · ${u.city}</span></div>
-      <button class="btn ${state.follows[u.id]?'ghost':''} sm" data-action="ob-follow" data-id="${u.id}">${state.follows[u.id]?'✓':'Follow'}</button></div>`).join('')}
-    <div style="display:flex;gap:10px;margin-top:10px"><button class="btn ghost" data-action="ob-back">Back</button><button class="btn" style="flex:1" data-action="ob-finish">Start brewing ☕</button></div>`;}
+    <div style="display:flex;gap:10px;margin-top:6px"><button class="btn ghost" data-action="ob-back">Back</button><button class="btn" style="flex:1" data-action="ob-finish">Start brewing ☕</button></div>`;
   return `<div class="ov-back"></div><div class="sheet" role="dialog" aria-label="Welcome"><div class="ov-body" style="padding:26px 22px">${dots}${body}</div></div>`;
 }
 

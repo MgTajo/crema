@@ -8,10 +8,11 @@ silently, with no error to hint at it.
 
 This serves the same tree with `no-store` on everything.
 
-    python3 devserver.py [port]     # default 4599
+    python3 devserver.py [port]     # default $PORT, else 4599
 
 Production is unaffected: sw.js owns caching there.
 """
+import os
 import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -25,7 +26,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 4599
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", 4599))
     print(f"Crema dev server → http://localhost:{port}  (no-store)")
     try:
         ThreadingHTTPServer(("127.0.0.1", port), NoCacheHandler).serve_forever()

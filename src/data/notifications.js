@@ -11,7 +11,7 @@
    ============================================================ */
 import { agoFrom } from '../core/util.js';
 import { rest } from './supabase.js';
-import { registerUser } from './seed.js';
+import { registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
 
 const SELECT = 'id,type,body,post_id,cafe_id,challenge_id,read,created_at,'

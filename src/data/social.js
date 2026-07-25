@@ -13,7 +13,7 @@
    ============================================================ */
 import { agoFrom } from '../core/util.js';
 import { rest } from './supabase.js';
-import { registerUser } from './seed.js';
+import { registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
 
 /* PostgREST needs a quoted, comma-joined list for in.(…) */
@@ -41,6 +41,20 @@ export async function fetchMyFollows(uid){
 export const follow   = (uid,target) => rest('follows',{ method:'POST', body:{ follower_id:uid, followee_id:target } });
 export const unfollow = (uid,target) => rest(`follows?follower_id=eq.${uid}&followee_id=eq.${target}`,{ method:'DELETE' });
 
+/* The two follower lists, as profiles. Both sides of `follows` reach
+   profiles, so each embed has to name its foreign key. */
+const F_CARD = 'id,handle,name,city,bio,avatar_color,level';
+async function followList(q, key){
+  const rows = await rest(q);
+  return (rows||[]).map(r=>r[key]).filter(Boolean).map(p=>registerUser(rowToUser(p)));
+}
+export const fetchFollowers = uid =>
+  followList(`follows?select=profiles!follows_follower_id_fkey(${F_CARD})&followee_id=eq.${uid}&limit=200`,
+             'profiles');
+export const fetchFollowing = uid =>
+  followList(`follows?select=profiles!follows_followee_id_fkey(${F_CARD})&follower_id=eq.${uid}&limit=200`,
+             'profiles');
+
 /* ---------- likes ---------- */
 export async function fetchMyLikes(uid, postIds){
   if(!postIds.length) return [];
@@ -63,6 +77,13 @@ export const unsavePost = (uid,postId) => rest(`saves?user_id=eq.${uid}&post_id=
 export async function fetchMyCafeFollows(uid){
   const rows = await rest(`cafe_follows?select=cafe_id&user_id=eq.${uid}`);
   return (rows||[]).map(r=>r.cafe_id);
+}
+/* cafe_id → follower count, for every café at once. Counted from the
+   rows rather than read off a column, so the number is always the truth. */
+export async function fetchCafeFollowCounts(){
+  const rows = await rest('cafe_follows?select=cafe_id&limit=5000');
+  const out={}; (rows||[]).forEach(r=>{ out[r.cafe_id]=(out[r.cafe_id]||0)+1; });
+  return out;
 }
 export const followCafe   = (uid,cafeId) => rest('cafe_follows',{ method:'POST', body:{ user_id:uid, cafe_id:cafeId } });
 export const unfollowCafe = (uid,cafeId) => rest(`cafe_follows?user_id=eq.${uid}&cafe_id=eq.${cafeId}`,{ method:'DELETE' });

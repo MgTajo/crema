@@ -1,6 +1,14 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "crema", "runtimeExecutable": "python3", "runtimeArgs": ["devserver.py", "4599"], "port": 4599 }
+    {
+      "name": "crema",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "devserver.py"
+      ],
+      "port": 4599,
+      "autoPort": true
+    }
   ]
 }

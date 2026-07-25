@@ -7,7 +7,7 @@
    ============================================================ */
 import { esc, fmt, seedOf, initials } from '../core/util.js';
 import { MACHINES, MACHINE_BRANDS, BEANS, ADD_BEAN, flag } from '../data/catalog.js';
-import { USERS, handleToUid, CAFES } from '../data/seed.js';
+import { USERS, handleToUid, CAFES, userOf } from '../data/world.js';
 import { state, allPosts, findPost } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
@@ -38,6 +38,10 @@ export function beanSelectHTML(cur){
 }
 export const postLink=id=>location.href.split('#')[0]+'#p/'+id;
 
+/* Challenge participation, straight from challenge_joins. Zero is a real
+   number here, and reads better as an invitation than as "0 joined". */
+export const joinedLabel = c => (c.participants|0) ? `${fmt(c.participants)} joined` : 'Be the first to join';
+
 /* ----- recipe helpers (no fabricated defaults) ----- */
 export function recipeRows(r){
   if(!r) return [];
@@ -62,12 +66,12 @@ export const recipeBtnLabel=r=>(r.dose&&r.yield)?`Recipe · ${r.dose} in → ${r
 export const commentCount = p => (p.commentN!=null ? p.commentN : p.comments.length);
 
 export function postCard(p){
-  const u=USERS[p.user], following=p.user==='me'||state.follows[p.user], r=p.recipe, top=p.comments[0];
+  const u=userOf(p.user), following=p.user==='me'||state.follows[p.user], r=p.recipe, top=p.comments[0];
   const rows=recipeRows(r), cn=commentCount(p);
   return `<div class="card" data-post="${p.id}">
     <div class="p-head">
       <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-        <div class="who"><b>${u.name} <span class="lvlchip">Lv${u.level}</span></b><span>${u.handle}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}</span></div></div>
+        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}</span></div></div>
       ${p.user==='me'?'':`<button class="followmini ${following?'on':''}" data-action="follow" data-id="${p.user}">${following?'Following':'Follow'}</button>`}
       <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
     <div class="media" data-action="open-post" data-id="${p.id}">
@@ -80,7 +84,7 @@ export function postCard(p){
       <div class="grow"></div>
       <button class="act save ${p.saved?'saved':''}" data-action="save" data-id="${p.id}" aria-label="Save">${icon(p.saved?'saveF':'save',22)}</button></div>
     <div class="p-body">
-      <div class="cap"><b>${u.name}</b> ${mentionify(p.caption)}</div>
+      <div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
       <div class="chips">
         <span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>
         ${p.art?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}
@@ -91,7 +95,7 @@ export function postCard(p){
       ${rows.length?`<button class="recipe-btn" data-action="recipe" data-id="${p.id}">☕ ${recipeBtnLabel(r)} ▾</button>
       <div class="recipe-panel" id="rp-${p.id}">${recipePanel(r)}
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ Brew this recipe</button></div></div>`:''}
-      ${top?`<div class="cmt-preview">${cn>1?`<span class="more" data-action="open-post" data-id="${p.id}">View all ${cn} comments</span>`:''}<div class="one"><b>${(USERS[top.u]||{name:'Guest'}).name.split(' ')[0]}</b> ${mentionify(top.t)}</div></div>`:''}
+      ${top?`<div class="cmt-preview">${cn>1?`<span class="more" data-action="open-post" data-id="${p.id}">View all ${cn} comments</span>`:''}<div class="one"><b>${esc(userOf(top.u).name.split(' ')[0])}</b> ${mentionify(top.t)}</div></div>`:''}
     </div></div>`;
 }
 
@@ -105,7 +109,7 @@ export function searchHTML(q){
   const posts=allPosts().filter(p=>((p.caption||'')+' '+(p.drink||'')+' '+(p.pattern||'')+' '+((p.recipe&&p.recipe.bean)||'')).toLowerCase().includes(ql));
   let h=`<div class="section-h" style="margin-top:10px"><h2>Results for “${esc(q)}”</h2><a data-action="clear-search">Clear</a></div>`;
   if(users.length) h+=`<div class="lb" style="margin-bottom:14px">${users.map(u=>`<div class="lb-row click" data-action="open-user" data-id="${u.id}">${avatar(u.id)}
-    <div class="who" style="flex:1"><b>${u.name}</b><span>${u.handle} · ${u.city}</span></div><span class="lvlchip">Lv${u.level}</span></div>`).join('')}</div>`;
+    <div class="who" style="flex:1"><b>${esc(u.name)}</b><span>${esc(u.handle)}${u.city?' · '+esc(u.city):''}</span></div><span class="lvlchip">Lv${u.level}</span></div>`).join('')}</div>`;
   if(beans.length||cbeans.length) h+=`<div class="chips" style="margin-bottom:14px">${beans.map(b=>`<span class="chip tag" data-action="open-bean" data-id="${esc(b.n)}">${flag[b.c]||'🫘'} ${b.n}</span>`).join('')}${cbeans.map(n=>`<span class="chip">🫘 ${esc(n)} <small style="color:var(--muted)">yours</small></span>`).join('')}</div>`;
   if(cafes.length) h+=cafes.map(cafeCard).join('');
   if(posts.length) h+=`<div class="grid" style="margin-bottom:14px">${posts.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`;
@@ -113,9 +117,9 @@ export function searchHTML(q){
   return h;
 }
 
-export function lbRow(r,i){const u=USERS[r.u];return `<div class="lb-row click ${r.u==='me'?'me':''}" data-action="open-user" data-id="${r.u}">
+export function lbRow(r,i){if(!r) return ''; const u=userOf(r.u);return `<div class="lb-row click ${r.u==='me'?'me':''}" data-action="open-user" data-id="${r.u}">
   <div class="lb-rank ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>${avatar(r.u)}
-  <div class="who" style="flex:1"><b>${u.name}${r.u==='me'?' (you)':''}</b><span>${u.levelName}</span></div>
+  <div class="who" style="flex:1"><b>${esc(u.name)}${r.u==='me'?' (you)':''}</b><span>${u.levelName}</span></div>
   <div class="lb-pts">${fmt(r.pts)} <small>pts</small></div></div>`;}
 
 export function cafeCard(c){
@@ -132,7 +136,7 @@ export function gcell(pat,q,id,img){
 
 export function sbar(l,v){return `<div class="sbar"><div class="l"><span>${l}</span><b>${v}</b></div><div class="track"><i style="width:${v*10}%"></i></div></div>`;}
 export function commentRow(c,pid,idx){
-  const u=USERS[c.u]||{name:'Guest',color:'#999',handle:''};
+  const u=c.u==='me'?USERS.me:userOf(c.u);
   return `<div class="cmt">${avatar(c.u)}
     <div class="cbody"><div class="t"><b data-action="open-user" data-id="${c.u||''}">${u.name}</b> ${mentionify(c.t)}</div>
       <div class="meta"><span>${c.ago||'now'}</span><span data-action="cmt-reply" data-handle="${u.handle||''}">Reply</span></div></div>

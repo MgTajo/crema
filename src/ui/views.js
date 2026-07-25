@@ -8,20 +8,23 @@
 import { $, esc, fmt, cap, initials, seedOf, agoDays, agoLabel } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, LEADERBOARD } from '../data/seed.js';
-import { state, ui, myPosts, allPosts, myBeans, myRoasters, activityBars, feedPosts } from '../store/store.js';
+import { USERS, CAFES, CHALLENGES, LEADERBOARD } from '../data/world.js';
+import { state, ui, session, feed, discover, social, streak,
+         myPosts, allPosts, myBeans, myRoasters, activityBars, feedPosts } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art, cupSVG } from '../domain/art.js';
 import { computeBadges } from '../domain/scoring.js';
-import { postCard, searchHTML, avatar, lbRow, cafeCard, gcell } from './components.js';
+import { postCard, searchHTML, avatar, lbRow, cafeCard, gcell, joinedLabel } from './components.js';
 import { icon, pin, logoMark } from './icons.js';
 import { renderOverlay } from './overlays.js';
+import { renderGate } from './gate.js';
 
 export function renderAppbar(){
   const bar=$('#appbar');
+  if(!session){ bar.innerHTML=`<div class="title">${logoMark()} Crema</div>`; return; }
   const unread=state.notifications.some(n=>!n.read);
   const bell=`<button class="iconbtn" data-action="open-notifs" aria-label="Notifications">${icon('bell',20)}${unread?'<span class="ndot"></span>':''}</button>`;
-  if(ui.route==='home'){ const streakChip=state.streak>0?`<div class="streak" title="Day streak">${icon('bolt',15)} ${state.streak}</div>`:''; bar.innerHTML=`<div class="title">${logoMark()} Crema</div><div class="actions">${streakChip}${bell}</div>`; }
+  if(ui.route==='home'){ const s=streak(); const streakChip=s>0?`<div class="streak" title="Day streak">${icon('bolt',15)} ${s}</div>`:''; bar.innerHTML=`<div class="title">${logoMark()} Crema</div><div class="actions">${streakChip}${bell}</div>`; }
   else if(ui.route==='explore') bar.innerHTML=`<div class="title">Explore</div><div class="actions">${bell}</div>`;
   else if(ui.route==='cafes') bar.innerHTML=`<div class="title">Cafés</div><div class="actions">${USERS.me.city?`<div class="streak" style="background:var(--pm1);border-color:var(--pm2);color:var(--green)">📍 ${esc(USERS.me.city)}</div>`:''}${bell}</div>`;
   else if(ui.route==='profile') bar.innerHTML=`<div class="title">Profile</div><div class="actions"><button class="iconbtn" data-action="open-settings" aria-label="Settings">${icon('gear',20)}</button></div>`;
@@ -29,33 +32,44 @@ export function renderAppbar(){
 
 export function renderHome(){
   const list=feedPosts();
+  const empty = feed.loading&&!feed.loaded
+    ? `<div class="empty"><div class="big">☕</div>Loading your feed…</div>`
+    : ui.filter==='following'
+      ? `<div class="empty"><div class="big">👥</div>No pours from people you follow yet.<br>Find baristas on Explore.</div>`
+      : `<div class="empty"><div class="big">☕</div>No pours yet.<br>Tap ＋ to log the first one.</div>`;
   return `<div class="pad">
     <div class="seg">
       <button class="${ui.filter==='foryou'?'on':''}" data-action="filter" data-f="foryou">For you</button>
       <button class="${ui.filter==='following'?'on':''}" data-action="filter" data-f="following">Following</button>
     </div>
-    ${list.length?list.map(postCard).join(''):`<div class="empty"><div class="big">☕</div>Nothing here yet.<br>Follow more artists to fill your feed.</div>`}
+    ${list.length?list.map(postCard).join(''):empty}
   </div>`;
 }
 
 export function renderExplore(){
-  const sugg=Object.values(USERS).filter(u=>u.id!=='me'&&!state.follows[u.id]).sort((a,b)=>b.followerN-a.followerN).slice(0,6);
+  const sugg=discover.list.filter(u=>u&&!state.follows[u.id]).slice(0,8);
   const lbPrev=LEADERBOARD.slice(0,5);
-  const meIn=lbPrev.some(r=>r.u==='me');
+  const board=lbPrev.length
+    ? `<div class="lb">${lbPrev.map((r,i)=>lbRow(r,i)).join('')}</div>`
+    : `<div class="empty" style="padding:22px">🏆<br>No points on the board this week yet.<br>Post a pour and you're on it.</div>`;
+  const people=discover.loaded&&!sugg.length
+    ? `<div class="empty" style="padding:20px">👋<br>No one else to follow yet — you're early.</div>`
+    : sugg.length
+      ? `<div class="hscroll">${sugg.map(u=>`<div class="ucard"><div data-action="open-user" data-id="${u.id}" style="cursor:pointer">${avatar(u.id,'big')}<b>${esc(u.name)}</b><span>${u.city?esc(u.city):u.levelName}</span></div>
+        <button class="btn sm block" data-action="follow" data-id="${u.id}">Follow</button></div>`).join('')}</div>`
+      : '';
   return `<div class="pad">
     <div class="search"><span style="color:var(--muted)">${icon('search',20)}</span><input id="search-input" placeholder="Search people, beans, cafés, pours…" value="${esc(ui.searchQ)}" autocomplete="off" aria-label="Search"></div>
     <div id="explore-results">${ui.searchQ?searchHTML(ui.searchQ):''}</div>
     <div id="explore-normal" style="${ui.searchQ?'display:none':''}">
-    ${sugg.length?`<div class="section-h"><h2>People to follow</h2></div>
-    <div class="hscroll">${sugg.map(u=>`<div class="ucard"><div data-action="open-user" data-id="${u.id}" style="cursor:pointer">${avatar(u.id,'big')}<b>${u.name}</b><span>${u.levelName} · ${u.city}</span></div>
-      <button class="btn sm block" data-action="follow" data-id="${u.id}">Follow</button></div>`).join('')}</div>`:''}
-    <div class="section-h"><h2>Challenges</h2><a data-action="open-challenges">See all</a></div>
+    ${people?`<div class="section-h"><h2>People to follow</h2></div>${people}`:''}
+    ${CHALLENGES.length?`<div class="section-h"><h2>Challenges</h2><a data-action="open-challenges">See all</a></div>
     <div class="hscroll">${CHALLENGES.map(c=>{const j=state.challenges[c.id];return `<div class="ch-card">
       <div class="ch-top" data-action="open-challenge" data-id="${c.id}"><span class="ends">Ends in ${c.ends}</span>${cupSVG(c.pattern,.9,c.id.charCodeAt(0))}</div>
-      <div class="ch-b"><h3>${c.title}</h3><p>${fmt(c.participants)} joined · ${c.tag}</p>
-        <button class="btn ${j?'ghost':''} sm block" data-action="join" data-id="${c.id}">${j?'✓ Joined':'Join challenge'}</button></div></div>`;}).join('')}</div>
-    <div class="section-h"><h2>Weekly leaderboard</h2><a data-action="open-board">Full list</a></div>
-    <div class="lb">${lbPrev.map((r,i)=>lbRow(r,i)).join('')}${meIn?'':lbRow(LEADERBOARD.find(r=>r.u==='me'),LEADERBOARD.findIndex(r=>r.u==='me'))}</div>
+      <div class="ch-b"><h3>${c.title}</h3><p>${joinedLabel(c)} · ${c.tag}</p>
+        <button class="btn ${j?'ghost':''} sm block" data-action="join" data-id="${c.id}">${j?'✓ Joined':'Join challenge'}</button></div></div>`;}).join('')}</div>`:''}
+    <div class="section-h"><h2>Weekly leaderboard</h2>${lbPrev.length?'<a data-action="open-board">Full list</a>':''}</div>
+    ${board}
     <div class="section-h"><h2>Trending patterns</h2></div>
     <div class="chips" style="margin-bottom:8px">${['rosetta','swan','tulip','heart','wave','phoenix'].map(t=>`<span class="chip tag" data-action="open-tag" data-id="${t}">#${t}</span>`).join('')}</div>
     </div>
@@ -74,14 +88,16 @@ export function renderCafes(){
       ${CAFES.map(c=>`<div class="pin" style="left:${c.x};top:${c.y}" data-action="open-cafe" data-id="${c.id}">${pin(c.color)}</div>`).join('')}</div>
     <div class="filters">${[['open','Open now'],['promo','Deals'],['top','Top rated']].map(x=>`<button class="fchip ${f[x[0]]?'on':''}" data-action="cafe-filter" data-f="${x[0]}">${x[1]}</button>`).join('')}</div>
     <div class="section-h" style="margin-top:4px"><h2>Near you</h2></div>
-    ${list.length?list.map(cafeCard).join(''):`<div class="empty"><div class="big">🗺️</div>No cafés match those filters.</div>`}
+    ${list.length?list.map(cafeCard).join(''):`<div class="empty"><div class="big">🗺️</div>${CAFES.length?'No cafés match those filters.':'No cafés yet — they arrive from the Crema directory.'}</div>`}
   </div>`;
 }
 
 /* ----- profile ----- */
 export function renderProfile(){
   const u=USERS.me, mine=myPosts(), savedPosts=allPosts().filter(p=>p.saved);
-  const pourCount=mine.length, followingN=Object.values(state.follows).filter(Boolean).length;
+  const pourCount=Math.max(mine.length, social.counts.pours|0);
+  const followingN=social.loaded ? (social.counts.following|0) : Object.values(state.follows).filter(Boolean).length;
+  const days=streak();
   const hasPours=pourCount>0, beans=myBeans(), roasters=myRoasters(), ACT=activityBars();
   const recent=mine.slice().sort((a,b)=>agoDays(a.ago)-agoDays(b.ago)).slice(0,8);
   const grid = ui.profTab==='pours'
@@ -93,7 +109,7 @@ export function renderProfile(){
   const journeyHTML = `<div class="journey"><h3>Recent activity</h3><p class="sub">Your last few weeks of coffee.</p>
       <div class="jstats">
         <div><b>${ACT.reduce((a,b)=>a+b,0)}</b><span>last 3 weeks</span></div>
-        <div><b>${state.streak}&nbsp;🔥</b><span>day streak</span></div>
+        <div><b>${days}&nbsp;🔥</b><span>day streak</span></div>
         <div><b>${new Set(mine.filter(p=>p.pattern).map(p=>p.pattern)).size}</b><span>art styles</span></div></div>
       <div class="actbars">${ACT.map((c,i)=>{const d=new Date(Date.now()-(ACT.length-1-i)*864e5).toLocaleDateString('en',{weekday:'short',day:'numeric',month:'short'});return `<div class="ab${i===ACT.length-1?' today':''}" data-d="${d}" data-c="${c}"><i style="height:${c===0?8:c===1?52:100}%"></i></div>`;}).join('')}<div class="bartip" id="bartip" hidden></div></div>
       <div class="acthint"><span>3 weeks ago</span><span>today</span></div>
@@ -112,7 +128,7 @@ export function renderProfile(){
       <div><b>${pourCount}</b><span>Pours</span></div>
       <div class="click" data-action="open-flist" data-id="followers"><b>${fmt(u.followerN)}</b><span>Followers</span></div>
       <div class="click" data-action="open-flist" data-id="following"><b>${followingN}</b><span>Following</span></div>
-      <div><b>${state.streak} 🔥</b><span>Day streak</span></div></div>
+      <div><b>${days} 🔥</b><span>Day streak</span></div></div>
     ${hasPours?journeyHTML:startedHTML}
     ${passportHTML}
     <div class="seg" style="margin-top:18px">
@@ -131,7 +147,7 @@ export function renderStats(){
   const rows=[
     ['Favourite drink',state.me.favDrink||'—',''],
     ['Most-used style',topStyle?cap(topStyle):'—',topStyle?Math.round(styleCount[topStyle]/pats.length*100)+'% of art pours':''],
-    ['Current streak',`${state.streak||0} day${state.streak===1?'':'s'}`,''],
+    ['Current streak',`${streak()} day${streak()===1?'':'s'}`,''],
     ['Beans tried',''+beans.length,roasters.length?`${roasters.length} roaster${roasters.length===1?'':'s'}`:''],
     ['Total pours',''+mine.length,'']
   ];
@@ -146,12 +162,18 @@ export function renderBadges(){
 
 /* ----- tabbar & master render ----- */
 export function renderTabbar(){
+  const bar=$('#tabbar');
+  /* No tab bar on the sign-in screen: there is nowhere else to go. */
+  if(!session){ bar.innerHTML=''; bar.hidden=true; return; }
+  bar.hidden=false;
   const t=(r,ic,icF,label)=>`<button class="tab ${ui.route===r?'on':''}" data-action="nav" data-r="${r}"><span class="ic">${icon(ui.route===r&&icF?icF:ic,25)}</span><span>${label}</span></button>`;
-  $('#tabbar').innerHTML=t('home','home','homeF','Home')+t('explore','compass','compass','Explore')+`<button class="tab plus" data-action="open-create" aria-label="New coffee"><span class="fab">${icon('plus',26)}</span></button>`+t('cafes','cup','cup','Cafés')+t('profile','user','userF','You');
+  bar.innerHTML=t('home','home','homeF','Home')+t('explore','compass','compass','Explore')+`<button class="tab plus" data-action="open-create" aria-label="New coffee"><span class="fab">${icon('plus',26)}</span></button>`+t('cafes','cup','cup','Cafés')+t('profile','user','userF','You');
 }
 export function renderView(){
-  const v=$('#view'), reset=v.dataset.route!==ui.route; v.dataset.route=ui.route;
-  v.innerHTML = ui.route==='home'?renderHome() : ui.route==='explore'?renderExplore() : ui.route==='cafes'?renderCafes() : renderProfile();
+  const v=$('#view'), route=session?ui.route:'gate';
+  const reset=v.dataset.route!==route; v.dataset.route=route;
+  v.innerHTML = !session?renderGate()
+    : ui.route==='home'?renderHome() : ui.route==='explore'?renderExplore() : ui.route==='cafes'?renderCafes() : renderProfile();
   if(reset) v.scrollTop=0;
 }
 export function render(){renderAppbar();renderTabbar();renderView();renderOverlay();}

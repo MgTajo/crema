@@ -11,7 +11,7 @@
    ============================================================ */
 import { agoFrom } from '../core/util.js';
 import { rest } from './supabase.js';
-import { CAFES, registerUser } from './seed.js';
+import { CAFES, registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
 
 const countOf = agg => (Array.isArray(agg) && agg.length ? (agg[0].count|0) : 0);
@@ -30,6 +30,13 @@ const ENTRY_SELECT = [
 export async function fetchMyJoins(uid){
   const rows = await rest(`challenge_joins?select=challenge_id&user_id=eq.${uid}`);
   return (rows||[]).map(r=>r.challenge_id);
+}
+/* challenge_id → participant count. The `participants` column in the
+   challenges table is editorial; this is the real number. */
+export async function fetchJoinCounts(){
+  const rows = await rest('challenge_joins?select=challenge_id&limit=5000');
+  const out={}; (rows||[]).forEach(r=>{ out[r.challenge_id]=(out[r.challenge_id]||0)+1; });
+  return out;
 }
 export const joinChallenge  = (uid,id) => rest('challenge_joins',{ method:'POST', body:{ user_id:uid, challenge_id:id } });
 export const leaveChallenge = (uid,id) => rest(`challenge_joins?user_id=eq.${uid}&challenge_id=eq.${id}`,{ method:'DELETE' });
@@ -82,15 +89,16 @@ export const voteEntry   = (uid,entryId) => rest('entry_votes',{ method:'POST', 
 export const unvoteEntry = (uid,entryId) => rest(`entry_votes?user_id=eq.${uid}&entry_id=eq.${entryId}`,{ method:'DELETE' });
 
 /* ---------- leaderboard ---------- */
-/* Read from leaderboard_weekly, which pg_cron refreshes. If the job has
-   never run the table is empty — the caller falls back to the bundled
-   board rather than showing nothing. */
-export async function fetchLeaderboard(){
+/* Read from leaderboard_weekly, which pg_cron refreshes. An empty table
+   means nobody has scored this week yet — the UI says exactly that
+   rather than inventing a board. Your own row comes back as 'me' so the
+   views can highlight it. */
+export async function fetchLeaderboard(myUid=null){
   const rows = await rest(
     'leaderboard_weekly?select=user_id,points,rank,profiles!leaderboard_weekly_user_id_fkey(id,handle,name,city,avatar_color,level)'
     + '&order=rank.asc&limit=50');
   return (rows||[]).map(r=>{
     if(r.profiles) registerUser(rowToUser(r.profiles));
-    return { u:r.user_id, pts:r.points|0, rank:r.rank };
+    return { u:r.user_id===myUid?'me':r.user_id, pts:r.points|0, rank:r.rank };
   });
 }

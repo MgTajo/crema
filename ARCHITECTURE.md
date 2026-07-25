@@ -15,8 +15,9 @@ small, contained changes rather than a rewrite.
                         │                               │
                         └───────────────┬───────────────┘
                                      data/                                   content
-              assets.js · catalog.js · seed.js          (bundled / fallback)
-              supabase.js · profiles.js · posts.js · remote.js   (backend)
+              assets.js · catalog.js · world.js        (bundled catalog + live world)
+              supabase.js · profiles · posts · social · challenges ·
+              notifications · media · remote.js                  (backend)
                                         │
                                 config.js · core/util.js                     pure helpers
 ```
@@ -30,11 +31,11 @@ A module only imports from layers **below** it. Nothing in `data/`, `domain/`, `
 | Layer | Files | Responsibility | Becomes, in the target app |
 | --- | --- | --- | --- |
 | **core** | `core/util.js` | Pure format/time/dom helpers | Shared utilities (the DOM helpers are the only web-only part) |
-| **data** | `data/assets.js`, `data/catalog.js`, `data/seed.js` | The catalog (drinks, machines, beans, levels) and the seeded world (users, posts, cafés, challenges) — now the **offline/fallback** copy | Bundled fallback dataset |
-| **data (backend)** | `data/supabase.js`, `data/profiles.js`, `data/posts.js`, `data/remote.js` | The only modules that touch the network: auth + PostgREST, and the row⇄app mapping per domain | The same, pointed at production |
+| **data** | `data/assets.js`, `data/catalog.js`, `data/world.js` | The bundled catalog (drinks, machines, milks, levels) and `world.js` — the people / café / challenge / leaderboard maps, which ship **empty** and are filled from the backend | The same, plus a real image CDN |
+| **data (backend)** | `data/supabase.js`, `profiles`, `posts`, `social`, `challenges`, `notifications`, `media`, `remote` | The only modules that touch the network: auth + PostgREST + R2, and the row⇄app mapping per domain | The same, pointed at production |
 | **store** | `store/store.js`, `store/persistence.js` | The single source of truth: `state`, `ui`, selectors, and the persistence adapter | The client cache / API layer talking to your backend |
 | **domain** | `domain/art.js`, `domain/scoring.js` | Craft logic: latte-art rendering, art scores, badges | Same logic, shared between client and server |
-| **ui** | `ui/*` | Rendering (`views`, `overlays`, `components`, `icons`) and interaction (`actions`, `app`) | Native screens & view models |
+| **ui** | `ui/*` | Rendering (`gate`, `views`, `overlays`, `components`, `icons`) and interaction (`actions`, `app`) | Native screens & view models |
 
 ## The persistence seam — where the backend plugs in
 
@@ -53,9 +54,20 @@ Every adapter method is `async`, `load()` is awaited once in `app.js` before the
 `render()`, and `save()` is optimistic — the UI has already repainted, so a failed write
 warns rather than blocks. **No view, overlay, component or action changed for any of it.**
 
-`makePersistence(session, KEY)` is the whole sign-in migration: signed out it returns the
-shared demo store, signed in the same adapter under a user-scoped key. `useSession()` swaps
-it and reloads.
+`makePersistence(session, KEY)` scopes that store to the signed-in user's id, so two accounts
+on one browser never see each other's data. `useSession()` swaps it and reloads.
+
+## The gate — there is no signed-out app
+
+`app.js` restores the session before the first paint. Without one it paints
+[`ui/gate.js`](src/ui/gate.js) into the same `#view` mount point the screens use, with no tab
+bar to leave it by, and stops. Sign-in is a *screen*, not an overlay, because overlays can be
+popped. Everything a user sees afterwards belongs to a row in Postgres that belongs to them.
+
+The session (access + refresh token) lives in `localStorage` and is discarded **only** when the
+auth server actually rejects the refresh token — a 4xx. An offline or 5xx refresh keeps the
+session, so coming back the next day, or opening the app on a flaky connection, never means
+signing in again.
 
 ## From seed data to API
 
@@ -68,16 +80,18 @@ degrades to the bundled arrays if the network fails:
 | Cafés, beans, challenges | `data/remote.js` | ✅ read-only, TTL-cached, refills the exported arrays in place |
 | Posts | `data/posts.js` | ✅ paginated feed, optimistic create |
 | Profiles | `data/profiles.js` | ✅ created from local `state.me` on first sign-in |
-| Follows, likes, saves, comments | — | still local; `state.localLikes` / `localSaves` bridge them onto remote posts |
-| Notifications, challenges, leaderboard | — | still local |
+| Follows, likes, saves, comments, blocks, reports | `data/social.js` | ✅ rows, with counts from aggregates/views |
+| Challenges, entries, votes, leaderboard | `data/challenges.js` | ✅ rows; the board is refreshed by a scheduled job |
+| Notifications | `data/notifications.js` | ✅ rows, written by triggers — the client cannot forge one |
+| Photos | `data/media.js` | ✅ R2 via presigned URLs, delivered through the CDN |
 
-Whatever has not migrated keeps living in the state blob, per user. That is what makes every
-step end in a working app rather than a half-migrated one.
+Nothing user-visible is bundled or invented any more: `world.js` starts empty, counts are
+counted in Postgres, and an empty section says it is empty.
 
 The backend is reached only through `data/supabase.js` — a ~150-line client (GoTrue auth with
 PKCE + refresh, and PostgREST queries) rather than a vendored SDK, so the app stays buildless
-and self-contained. Endpoints and the publishable key live in `src/config.js`; setting
-`SUPABASE_URL` to `''` forces pure demo mode.
+and self-contained. Endpoints and the publishable key live in `src/config.js`; both are
+required — with either missing the app can only say it is misconfigured.
 
 ## Toward native (iOS/Android)
 

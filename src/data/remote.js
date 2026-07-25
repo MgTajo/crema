@@ -2,20 +2,21 @@
 /* ============================================================
    data/remote — reference data (cafés, beans, challenges) from the DB.
 
-   The lowest-risk real migration: read-only rows, no writes, no auth.
-   Three rules make it safe to run before anything else is migrated:
+   Read-only rows, no writes: cafés, beans and challenges are editorial
+   content maintained in the dashboard, not user data. Two rules:
 
-     1. The bundled arrays in seed.js / catalog.js stay in the repo and
-        stay the fallback. If the network fails, the app is unchanged.
-     2. Results are cached in localStorage with a short TTL, so the PWA
+     1. Results are cached in localStorage with a short TTL, so the PWA
         still opens offline and a cold start isn't gated on a fetch.
-     3. The exported arrays are refilled IN PLACE. Every module that
+     2. The exported arrays are refilled IN PLACE. Every module that
         already did `import { CAFES }` keeps working untouched — the
         array identity never changes.
+
+   There is no bundled copy to fall back on any more: what the tables
+   say is what the app shows. An empty table means an empty section.
    ============================================================ */
 import { BACKEND, REFERENCE_TTL_MS } from '../config.js';
 import { rest } from './supabase.js';
-import { CAFES, CHALLENGES } from './seed.js';
+import { CAFES, CHALLENGES } from './world.js';
 import { BEANS, rebuildRoasterList } from './catalog.js';
 
 const CACHE_KEY = 'crema_reference_v1';
@@ -56,9 +57,9 @@ function projectPins(list){
 
 /* Refill the exported arrays without replacing them. */
 function apply({cafes,beans,challenges}){
-  if(cafes&&cafes.length){ projectPins(cafes); CAFES.length=0; CAFES.push(...cafes); }
+  if(cafes){ projectPins(cafes); CAFES.length=0; CAFES.push(...cafes); }
   if(beans&&beans.length){ BEANS.length=0; BEANS.push(...beans); rebuildRoasterList(); }
-  if(challenges&&challenges.length){ CHALLENGES.length=0; CHALLENGES.push(...challenges); }
+  if(challenges){ CHALLENGES.length=0; CHALLENGES.push(...challenges); }
 }
 
 /* ---------- cache ---------- */
@@ -74,7 +75,7 @@ function writeCache(data){
    Returns the source, which the caller can use to decide whether to
    repaint. */
 export async function loadReferenceData(){
-  if(!BACKEND) return 'bundled';
+  if(!BACKEND) return 'none';
 
   const cached=readCache();
   if(cached && Date.now()-cached.at < REFERENCE_TTL_MS){ apply(cached); return 'cache'; }
@@ -90,14 +91,11 @@ export async function loadReferenceData(){
       beans:(beanRows||[]).map(beanOf),
       challenges:(challengeRows||[]).map(challengeOf)
     };
-    /* An empty table means "not seeded yet", not "no cafés exist" —
-       keep the bundled data rather than emptying the app. */
-    if(!data.cafes.length && !data.beans.length && !data.challenges.length) throw new Error('reference tables are empty');
     apply(data); writeCache(data);
     return 'network';
   }catch(e){
-    console.warn('reference data unavailable, using '+(cached?'cached':'bundled')+' copy',e);
+    console.warn('reference data unavailable'+(cached?', using the cached copy':''),e);
     if(cached){ apply(cached); return 'stale-cache'; }
-    return 'bundled';
+    return 'none';
   }
 }

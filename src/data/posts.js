@@ -11,15 +11,14 @@
      submitPost()  → POST /posts
      findPost(id)  → GET /posts?id=eq.…
 
-   Not here yet: likes, saves and comments are their own tables and
-   their own step (1.7). Until then a remote post genuinely has none —
-   nothing can write them — so zero is the honest answer, and the
-   store overlays the local demo interactions on top.
+   Likes, saves and comments are their own tables with their own
+   modules (data/social.js); the counts here come from PostgREST
+   aggregates over them.
    ============================================================ */
 import { FEED_PAGE } from '../config.js';
 import { agoFrom } from '../core/util.js';
 import { rest } from './supabase.js';
-import { CAFES, registerUser } from './seed.js';
+import { CAFES, registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
 
 const COLS = 'id,user_id,drink,art,pattern,quality,image_key,caption,cafe_id,recipe,created_at';

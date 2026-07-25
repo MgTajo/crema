@@ -12,17 +12,19 @@
    `import { state }` always observe the latest value, including
    after load() reassigns it on reset.
    ============================================================ */
-import { clone, agoDays } from '../core/util.js';
+import { agoDays } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
 import { beanCatalog } from '../data/catalog.js';
-import { USERS, SEED_POSTS, LEADERBOARD, handleToUid } from '../data/seed.js';
+import { USERS, CAFES, CHALLENGES, LEADERBOARD, handleToUid } from '../data/world.js';
 import { fetchFeed } from '../data/posts.js';
-import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks } from '../data/social.js';
-import { fetchMyJoins, fetchLeaderboard } from '../data/challenges.js';
+import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
+         fetchCafeFollowCounts } from '../data/social.js';
+import { fetchMyJoins, fetchLeaderboard, fetchJoinCounts } from '../data/challenges.js';
+import { fetchProfileCounts, fetchSuggestedProfiles } from '../data/profiles.js';
 import { fetchNotifications } from '../data/notifications.js';
 import { makePersistence } from './persistence.js';
 
-export const KEY='crema_v10';
+export const KEY='crema_v11';
 let persistence=makePersistence(null,KEY);
 
 /* The auth session, or null when signed out. Exported as a live binding
@@ -32,44 +34,43 @@ export let session=null;
 export let state;
 export const ui={route:'home', filter:'foryou', ovStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null};
 
+/* A brand-new account: nothing invented, nothing borrowed. Everything
+   visible after this comes from the user or from the backend. */
 export function freshState(){
-  // A demo user starts like a fresh download: no pours, no followers, no streak.
-  // Everyone else's world stays alive — the community feed, challenges, cafés & leaderboards are all populated.
   return {
-    posts:SEED_POSTS.map(clone), myGallery:[],
-    follows:{mara:false,yuki:false,sofia:false,tom:false,dev:false,lena:false,kofi:false,june:false,aria:false},
+    posts:[], myGallery:[],
+    follows:{},
     cafeFollow:{},
     challenges:{},
-    challengeSubs:{}, streak:0, customBeans:[],
+    challengeSubs:{}, customBeans:[],
     onboarded:false, theme:'auto',
-    me:{name:'',handle:'',city:'Tübingen',machineBrand:'Sage',machineModel:'Bambino Plus',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:''},
+    me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:''},
     notifications:[]
   };
 }
-export async function load(){try{const s=await persistence.read(); state=s&&s.posts?s:freshState();
-  ['customBeans','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
-  if(!state.me)state.me=freshState().me; if(!state.me.favMilk)state.me.favMilk='Whole milk'; if(!state.challengeSubs)state.challengeSubs={};
+export async function load(){try{const s=await persistence.read(); state=(s&&s.me)?s:freshState();
+  ['posts','customBeans','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
+  ['follows','cafeFollow','challenges','challengeSubs'].forEach(k=>{if(!state[k])state[k]={};});
+  if(!state.me)state.me=freshState().me; if(!state.me.favMilk)state.me.favMilk='Whole milk';
  }catch(e){state=freshState();}}
 /* fire-and-forget: the UI has already repainted optimistically, so a failed
    write must never block or throw — it only warns. */
 export function save(){ Promise.resolve(persistence.write(state)).catch(err=>console.warn('save failed',err)); }
 export async function clearSaved(){ try{ await persistence.clear(); }catch(err){ console.warn('clear failed',err); } }
 
-/* Swap the persistence adapter for the new auth state and reload.
-   The whole sign-in/sign-out migration goes through this one function.
-
-   First sign-in on a device is the interesting case: the user has been
-   using the demo and has a world already. Rather than dropping them into
-   an empty account, we carry that world across to their user-scoped
-   store. Signing in should never feel like starting over. */
-/* ---------- the remote feed (step 1.5) ----------
-   Signed out, none of this runs and the bundled seed feed is the feed. */
-export const feed={ loading:false, done:false, cursor:null, seeded:false };
+/* ---------- the remote feed ----------
+   The posts table is the feed. There is no local stand-in: an empty feed
+   is an empty feed, and the UI says so. */
+export const feed={ loading:false, done:false, cursor:null, loaded:false };
 
 /* Who you follow / block, from the server. `state.follows` stays the
-   app-wide truth (seed ids and auth uuids share the map) so no view
-   needed changing. */
-export const social={ blocks:[], loaded:false };
+   app-wide truth, keyed by auth uuid. */
+export const social={ blocks:[], loaded:false, listsLoaded:false, followers:[], following:[],
+                      counts:{followers:0,following:0,pours:0} };
+
+/* People to follow — the newest profiles that aren't you, filled by
+   hydrateSocial(). Empty until the backend answers. */
+export const discover={ list:[], loaded:false };
 export const followeeIds = () => Object.keys(state.follows||{}).filter(k=>state.follows[k]);
 
 /* Entries per challenge, loaded on demand when a challenge opens. */
@@ -92,13 +93,27 @@ export async function hydrateSocial(){
   try{ state.notifications=await fetchNotifications(uid); }
   catch(e){ console.warn('notifications failed',e); }
 
+  /* The board is whatever the scheduled job last wrote. Empty is a real
+     answer ("no points logged this week yet"), and the UI shows it. */
   try{
-    const board=await fetchLeaderboard();
-    /* Empty means the scheduled job hasn't run yet; keep the bundled
-       board rather than showing an empty screen. */
-    if(board.length){ LEADERBOARD.length=0; LEADERBOARD.push(...board); }
+    const board=await fetchLeaderboard(uid);
+    LEADERBOARD.length=0; LEADERBOARD.push(...board);
   }catch(e){ console.warn('leaderboard failed',e); }
+
+  try{ social.counts=await fetchProfileCounts(uid); }
+  catch(e){ console.warn('profile counts failed',e); }
+
+  try{ discover.list=await fetchSuggestedProfiles(uid,social.blocks); discover.loaded=true; }
+  catch(e){ console.warn('suggestions failed',e); }
+
+  /* Real join / follow counts, so no screen shows a number nobody earned. */
+  try{ applyCounts(await fetchJoinCounts(), CHALLENGES, 'participants'); }
+  catch(e){ console.warn('challenge counts failed',e); }
+  try{ applyCounts(await fetchCafeFollowCounts(), CAFES, 'followers'); }
+  catch(e){ console.warn('cafe follow counts failed',e); }
 }
+
+function applyCounts(counts,list,field){ list.forEach(x=>{ x[field]=counts[x.id]|0; }); }
 
 /* Which of these posts you liked or saved. Per-viewer, so it can't ride
    along on the cached feed query. */
@@ -125,22 +140,17 @@ export async function loadFeed(){
   feed.loading=true;
   try{
     const list=await fetchFeed(feedArgs());
-    /* An empty *For you* table is the expected state right after
-       migrating, not a broken feed — keep the seeded world visible so
-       the app still has something to show. An empty Following feed is
-       just an empty following list, and says so honestly. */
-    if(!list.length && ui.filter!=='following'){ feed.seeded=true; feed.done=true; feed.cursor=null; return false; }
-    feed.seeded=false;
     state.posts=await markMine(list);
     feed.cursor=list.length?list[list.length-1].createdAt:null;
     feed.done=list.length<FEED_PAGE;
+    feed.loaded=true;
     return true;
-  }catch(e){ console.warn('feed load failed — staying on local data',e); return false; }
+  }catch(e){ console.warn('feed load failed — keeping what we have',e); return false; }
   finally{ feed.loading=false; }
 }
 
 export async function loadMoreFeed(){
-  if(!session||feed.loading||feed.done||feed.seeded||!feed.cursor) return false;
+  if(!session||feed.loading||feed.done||!feed.cursor) return false;
   feed.loading=true;
   try{
     const list=await fetchFeed({ ...feedArgs(), before:feed.cursor });
@@ -151,15 +161,17 @@ export async function loadMoreFeed(){
   finally{ feed.loading=false; }
 }
 
+/* Point the store at the signed-in user's own store and load their world.
+   Signing out drops back to an empty state behind the sign-in gate.
+   Every sign-in and sign-out goes through this one function. */
 export async function useSession(next){
-  const carried = next && state ? state : null;
   session = next;
   persistence = makePersistence(next, KEY);
-  const existing = await persistence.read();
-  if(carried && !(existing && existing.posts)) save();
-  else await load();
-  feed.done=false; feed.cursor=null; feed.seeded=false;
-  social.blocks=[]; social.loaded=false;
+  await load();
+  feed.done=false; feed.cursor=null; feed.loaded=false;
+  social.blocks=[]; social.loaded=false; social.listsLoaded=false; social.followers=[]; social.following=[];
+  social.counts={followers:0,following:0,pours:0};
+  discover.list=[]; discover.loaded=false;
   if(next){ await hydrateSocial(); await loadFeed(); }
 }
 
@@ -169,6 +181,9 @@ export function applyMe(){
   USERS.me.name=state.me.name||'You';
   USERS.me.city=(state.me.city||'').trim();
   USERS.me.bio=state.me.bio||'';
+  /* counts come from the server (profile_counts), never from guesswork */
+  USERS.me.followerN=social.counts.followers|0;
+  USERS.me.pourN=Math.max(social.counts.pours|0,myPosts().length);
   let h=(state.me.handle||'').replace(/\s+/g,'').replace(/^@+/,'');
   if(!h) h=USERS.me.name.toLowerCase().replace(/[^a-z0-9._]/g,'')||'you';
   USERS.me.handle='@'+h;
@@ -184,12 +199,32 @@ export const myPosts=()=>allPosts().filter(p=>p.user==='me');
 export function myBeans(){const seen=new Set(),out=[];myPosts().forEach(p=>{const b=p.recipe&&p.recipe.bean;if(b&&!seen.has(b)){seen.add(b);out.push(b);}});state.customBeans.forEach(b=>{if(b&&!seen.has(b)){seen.add(b);out.push(b);}});return out;}
 export function myCountries(){return [...new Set(myBeans().map(n=>{const c=beanCatalog(n);return c&&c.c;}).filter(Boolean))];}
 export function myRoasters(){const set=new Set();myBeans().forEach(n=>{const c=beanCatalog(n);if(c)set.add(c.roaster);});return [...set];}
-/* Signed in, the server already applied the Following filter and the
-   block list, so the page is the feed. Signed out, filter the seeded
-   world locally exactly as before. */
-export function feedPosts(){
-  if(session && !feed.seeded) return state.posts;
-  return ui.filter==='following' ? state.posts.filter(p=>p.user==='me'||state.follows[p.user]) : state.posts;
-}
+/* The server applied the Following filter and the block list, so the
+   page it returned *is* the feed. */
+export const feedPosts=()=>state.posts;
+
 /* activity bars derive from the user's own pours (last 21 days) — empty until they post */
-export function activityBars(){const a=Array(21).fill(0);myPosts().forEach(p=>{const i=20-Math.min(20,agoDays(p.ago));if(i>=0)a[i]++;});return a;}
+export function activityBars(){const a=Array(21).fill(0);myPosts().forEach(p=>{const i=20-Math.min(20,dayIndex(p));if(i>=0)a[i]++;});return a;}
+
+/* How many days ago a pour was, from its real timestamp where we have
+   one and from the relative label otherwise. */
+function dayIndex(p){
+  if(p.createdAt){
+    const t=Date.parse(p.createdAt);
+    if(isFinite(t)) return Math.floor((startOfDay(Date.now())-startOfDay(t))/864e5);
+  }
+  return agoDays(p.ago);
+}
+const startOfDay=ms=>{const d=new Date(ms); d.setHours(0,0,0,0); return d.getTime();};
+
+/* The streak is counted, not stored: consecutive days up to today (or
+   up to yesterday, so a streak isn't "broken" before you've had your
+   morning coffee) on which the user logged at least one pour. */
+export function streak(){
+  const days=new Set(myPosts().map(dayIndex).filter(d=>d>=0));
+  if(!days.size) return 0;
+  let start=days.has(0)?0:(days.has(1)?1:-1);
+  if(start<0) return 0;
+  let n=0; for(let d=start;days.has(d);d++) n++;
+  return n;
+}

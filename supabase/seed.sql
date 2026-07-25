@@ -4,20 +4,22 @@
 -- GENERATED from src/data/seed.js and src/data/catalog.js.
 -- Run after schema.sql. Re-runnable: upserts on the primary key.
 --
--- These tables stay bundled in the repo as the offline/fallback
--- dataset (guiding principle 4) — this makes the DB authoritative
--- without making it required.
+-- These tables are the app's only source for cafés, beans and
+-- challenges: src/data/world.js ships empty arrays and fills them from
+-- here. Follower and participant counts are NOT stored — they are
+-- counted from cafe_follows / challenge_joins at read time, so nothing
+-- in the app can show a number nobody earned.
 -- ============================================================
 
 -- ---------- cafés ----------
 -- lat/lng are APPROXIMATE, derived from the street/area names. Verify
 -- against real addresses before the native map (step 2.3) uses them.
 insert into cafes (id,name,area,city,spec,rating,followers,promo,img,color,blurb,hours,lat,lng,menu,sort) values
-  ('suedhang','Südhang','Österbergstraße · Österberg','Tübingen','Hillside café & roastery',4.7,1120,true,'assets/l4.jpg','#8a5a30','A sunlit café on the Österberg with a panoramic terrace over the old town — house-roasted single origins and meticulous espresso.','Open · closes 18:00',48.5231,9.0625,'{"beans":["Bumblebee Espresso","Espresso Anniversario"],"roaster":"The Barn","machine":"La Marzocco Linea Mini","milks":["Whole milk","Barista oat","Almond"]}'::jsonb,0),
-  ('willis','Willi''s','Am Lustnauer Tor · Altstadt','Tübingen','Café & bar',4.5,860,false,'assets/l7.jpg','#527a86','Easy-going café-bar by the Lustnauer Tor — sharp espresso and cake through the day, natural wine after dark.','Open · closes 23:00',48.5228,9.0588,'{"beans":["Espresso Blend"],"roaster":"Five Elephant","machine":"Sage Barista Pro","milks":["Whole milk","Oat","Almond"]}'::jsonb,1),
-  ('marktschenke','Marktschenke','Marktplatz · Altstadt','Tübingen','Old-town coffee house',4.4,700,false,'assets/l5.jpg','#a8544a','Right on the Marktplatz under the Rathaus — classic coffee-house mornings, house cakes and a terrace on the square.','Open · closes 18:30',48.5216,9.0553,'{"beans":["Crema d''Oro Intensa","Prodomo"],"roaster":"Dallmayr","machine":"Sage Dual Boiler","milks":["Whole milk","Semi-skimmed","Oat"]}'::jsonb,2),
-  ('hanseatica','Hanseatica','Neckargasse · Altstadt','Tübingen','Kaffeehaus & pâtisserie',4.6,780,true,'assets/l6.jpg','#6f7a4e','A refined Kaffeehaus off the Neckargasse — pâtisserie counter, filter flights and unhurried afternoons.','Open · closes 19:00',48.5205,9.0548,'{"beans":["Bel Canto Espresso"],"roaster":"Supremo","machine":"Rocket Appartamento","milks":["Whole milk","Oat","Soy"]}'::jsonb,3),
-  ('waschhaus','Waschhaus','Gartenstraße · am Neckar','Tübingen','Café in a former washhouse',4.3,640,false,'assets/l1.jpg','#b58a3a','A characterful café in a converted washhouse by the Neckar — big communal tables, students and a steady flow of flat whites.','Open · closes 17:00',48.519,9.051,'{"beans":["Dark Horse Espresso"],"roaster":"Bonanza","machine":"Profitec Pro 500","milks":["Whole milk","Oat","Soy"]}'::jsonb,4)
+  ('suedhang','Südhang','Österbergstraße · Österberg','Tübingen','Hillside café & roastery',4.7,0,true,'assets/l4.jpg','#8a5a30','A sunlit café on the Österberg with a panoramic terrace over the old town — house-roasted single origins and meticulous espresso.','Open · closes 18:00',48.5231,9.0625,'{"beans":["Bumblebee Espresso","Espresso Anniversario"],"roaster":"The Barn","machine":"La Marzocco Linea Mini","milks":["Whole milk","Barista oat","Almond"]}'::jsonb,0),
+  ('willis','Willi''s','Am Lustnauer Tor · Altstadt','Tübingen','Café & bar',4.5,0,false,'assets/l7.jpg','#527a86','Easy-going café-bar by the Lustnauer Tor — sharp espresso and cake through the day, natural wine after dark.','Open · closes 23:00',48.5228,9.0588,'{"beans":["Espresso Blend"],"roaster":"Five Elephant","machine":"Sage Barista Pro","milks":["Whole milk","Oat","Almond"]}'::jsonb,1),
+  ('marktschenke','Marktschenke','Marktplatz · Altstadt','Tübingen','Old-town coffee house',4.4,0,false,'assets/l5.jpg','#a8544a','Right on the Marktplatz under the Rathaus — classic coffee-house mornings, house cakes and a terrace on the square.','Open · closes 18:30',48.5216,9.0553,'{"beans":["Crema d''Oro Intensa","Prodomo"],"roaster":"Dallmayr","machine":"Sage Dual Boiler","milks":["Whole milk","Semi-skimmed","Oat"]}'::jsonb,2),
+  ('hanseatica','Hanseatica','Neckargasse · Altstadt','Tübingen','Kaffeehaus & pâtisserie',4.6,0,true,'assets/l6.jpg','#6f7a4e','A refined Kaffeehaus off the Neckargasse — pâtisserie counter, filter flights and unhurried afternoons.','Open · closes 19:00',48.5205,9.0548,'{"beans":["Bel Canto Espresso"],"roaster":"Supremo","machine":"Rocket Appartamento","milks":["Whole milk","Oat","Soy"]}'::jsonb,3),
+  ('waschhaus','Waschhaus','Gartenstraße · am Neckar','Tübingen','Café in a former washhouse',4.3,0,false,'assets/l1.jpg','#b58a3a','A characterful café in a converted washhouse by the Neckar — big communal tables, students and a steady flow of flat whites.','Open · closes 17:00',48.519,9.051,'{"beans":["Dark Horse Espresso"],"roaster":"Bonanza","machine":"Profitec Pro 500","milks":["Whole milk","Oat","Soy"]}'::jsonb,4)
 on conflict (id) do update set
   name=excluded.name, area=excluded.area, city=excluded.city, spec=excluded.spec,
   rating=excluded.rating, followers=excluded.followers, promo=excluded.promo,
@@ -62,10 +64,10 @@ on conflict (name) do update set
 
 -- ---------- challenges ----------
 insert into challenges (id,title,tag,pattern,ends,participants,blurb,sort) values
-  ('tue','Tulip Tuesday','#TulipTuesday','tulip','2d',1240,'Stack your best tulip this week. Clean separation between layers wins.',0),
-  ('rush','Rosetta Rush','#RosettaRush','rosetta','3d',862,'Seven days, one goal: the sharpest rosetta of your life.',1),
-  ('hearts','Beginner Hearts','#FirstHeart','heart','5d',2103,'New to latte art? Post your best heart — wobble welcome.',2),
-  ('swan','Swan Sundays','#SwanSundays','swan','6d',317,'The hardest pour there is. Show us your neck game.',3)
+  ('tue','Tulip Tuesday','#TulipTuesday','tulip','2d',0,'Stack your best tulip this week. Clean separation between layers wins.',0),
+  ('rush','Rosetta Rush','#RosettaRush','rosetta','3d',0,'Seven days, one goal: the sharpest rosetta of your life.',1),
+  ('hearts','Beginner Hearts','#FirstHeart','heart','5d',0,'New to latte art? Post your best heart — wobble welcome.',2),
+  ('swan','Swan Sundays','#SwanSundays','swan','6d',0,'The hardest pour there is. Show us your neck game.',3)
 on conflict (id) do update set
   title=excluded.title, tag=excluded.tag, pattern=excluded.pattern, ends=excluded.ends,
   participants=excluded.participants, blurb=excluded.blurb, sort=excluded.sort;

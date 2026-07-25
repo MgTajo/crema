@@ -7,9 +7,9 @@
    vendored bundle, which keeps the app a static site with no build
    step and nothing to go stale.
 
-   Everything here fails soft. If the network is down or the project is
-   misconfigured, calls reject and the caller falls back to demo mode —
-   they never throw during module evaluation.
+   Everything here fails soft: calls reject with a message the UI can
+   show, and nothing throws during module evaluation. A rejected refresh
+   token signs the user out; a network failure never does.
 
    The seam this sits behind: nothing above data/ imports fetch.
    ============================================================ */
@@ -41,14 +41,26 @@ export const currentUser = () => session && session.user;
 export function onAuthChange(fn){ listeners.add(fn); return ()=>listeners.delete(fn); }
 
 /* ---------- low-level auth calls ---------- */
-async function authPost(path, body){
+async function authPost(path, body, token){
+  const headers = { apikey:SUPABASE_KEY, 'Content-Type':'application/json' };
+  if(token) headers.Authorization = `Bearer ${token}`;
   const r = await fetch(`${SUPABASE_URL}/auth/v1/${path}`,{
-    method:'POST', headers:{ apikey:SUPABASE_KEY, 'Content-Type':'application/json' },
-    body: JSON.stringify(body) });
+    method:'POST', headers, body: JSON.stringify(body) });
   const json = await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(json.error_description || json.msg || json.message || `Auth error ${r.status}`);
+  if(!r.ok){
+    const e = new Error(json.error_description || json.msg || json.message || `Auth error ${r.status}`);
+    e.status = r.status;
+    throw e;
+  }
   return json;
 }
+
+/* A 4xx from the auth server is final: the token was rejected and the
+   user has to sign in again. Anything else — offline, DNS, a 5xx — is
+   transient, and must NOT cost someone their session. That distinction
+   is the whole reason "stay signed in across days" works on a flaky
+   connection. */
+const fatalAuth = e => !!(e && e.status >= 400 && e.status < 500);
 
 /* ---------- PKCE (OAuth) ---------- */
 const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -62,10 +74,39 @@ async function challengeOf(verifier){
 }
 
 /* Strip auth params so a refresh doesn't try to redeem a spent code. */
-function cleanUrl(){
+function cleanUrl(keepHash){
   const u=new URL(location.href);
   ['code','error','error_description','error_code','state'].forEach(k=>u.searchParams.delete(k));
-  history.replaceState({}, '', u.pathname + (u.searchParams.toString()?'?'+u.searchParams:'') + u.hash);
+  history.replaceState({}, '', u.pathname + (u.searchParams.toString()?'?'+u.searchParams:'') + (keepHash?u.hash:''));
+}
+
+/* Password-recovery and magic links come back with the tokens in the URL
+   fragment rather than as a code to redeem. Pick them up, then wipe the
+   fragment so the tokens don't sit in the address bar or get shared.
+   Returns 'recovery' when the link was a password reset. */
+function completeHashTokens(){
+  const h=location.hash||'';
+  if(h.indexOf('access_token=')<0) return null;
+  const p=new URLSearchParams(h.replace(/^#/,''));
+  const at=p.get('access_token'), rt=p.get('refresh_token');
+  const kind=p.get('type');
+  if(at&&rt){
+    store({ access_token:at, refresh_token:rt,
+            expires_at: Date.now() + ((+p.get('expires_in')||3600)*1000), user:null });
+  }
+  history.replaceState({}, '', location.pathname + location.search);
+  return kind==='recovery' ? 'recovery' : (at?'link':null);
+}
+
+/* The hash-token path gives us tokens but no user object. Everything
+   above data/ reads session.user, so fill it in before returning. */
+async function fetchUser(){
+  const r = await fetch(`${SUPABASE_URL}/auth/v1/user`,{
+    headers:{ apikey:SUPABASE_KEY, Authorization:`Bearer ${session.access_token}` } });
+  if(!r.ok){ const e=new Error(`Could not load your account (${r.status})`); e.status=r.status; throw e; }
+  const user = await r.json();
+  store({ ...session, user });
+  return user;
 }
 
 /* Returns an error string if the provider bounced us back with one. */
@@ -86,40 +127,55 @@ async function completeOAuthRedirect(){
 }
 
 /* ---------- public auth API ---------- */
+/* Restore the stored session, if there is one, and finish any redirect
+   we were sent back from. This is what "no need to sign in again
+   tomorrow" rests on: the refresh token lives in localStorage and is
+   only ever discarded when the server actually rejects it. */
 export async function initAuth(){
-  if(!BACKEND) return { session:null, error:null };
+  if(!BACKEND) return { session:null, error:'Crema is not configured to reach its backend.', recovery:false };
   session = readStored();
+  const kind = completeHashTokens();
   const error = await completeOAuthRedirect();
-  if(session && session.expires_at - Date.now() < 60000){
-    try{ await refresh(); }catch(e){ store(null); }
+  if(session && !session.user){
+    try{ await fetchUser(); }
+    catch(e){ if(fatalAuth(e)) store(null); }
   }
-  return { session, error };
+  if(session && session.expires_at - Date.now() < 60000){
+    try{ await refresh(); }
+    catch(e){ if(fatalAuth(e)) store(null); }
+  }
+  return { session, error, recovery: kind==='recovery' && !!session };
 }
 
 async function refresh(){
   if(refreshing) return refreshing;
   refreshing = (async()=>{
     try{
-      store(shape(await authPost('token?grant_type=refresh_token',{ refresh_token:session.refresh_token })));
+      const user = session.user;
+      const next = shape(await authPost('token?grant_type=refresh_token',{ refresh_token:session.refresh_token }));
+      /* the refresh response carries the user, but keep ours if it doesn't */
+      store({ ...next, user: next.user || user });
       return session;
     } finally { refreshing = null; }
   })();
   return refreshing;
 }
 
-/* A valid access token, refreshed if it is about to expire. Null when
-   signed out — callers then query as the anon role. */
+/* A valid access token, refreshed if it is about to expire. Returns the
+   stale token rather than nothing when a refresh fails for a reason that
+   isn't the token being rejected — the request may still fail, but the
+   user stays signed in and the next attempt can succeed. */
 export async function accessToken(){
   if(!session) return null;
   if(session.expires_at - Date.now() < 60000){
     try{ await refresh(); }
-    catch(e){ store(null); emit(); return null; }
+    catch(e){ if(fatalAuth(e)){ store(null); emit(); return null; } }
   }
-  return session.access_token;
+  return session && session.access_token;
 }
 
 export async function signUp(email,password){
-  const json = await authPost('signup',{ email, password });
+  const json = await authPost(`signup?redirect_to=${encodeURIComponent(appUrl())}`,{ email, password });
   /* With email confirmation on, signup returns a user but no session. */
   if(json.access_token){ store(shape(json)); emit(); return { session, confirmationRequired:false }; }
   return { session:null, confirmationRequired:true };
@@ -131,12 +187,36 @@ export async function signInWithPassword(email,password){
   return session;
 }
 
+/* Email a password-reset link back to this app. The link returns with
+   tokens in the fragment; completeHashTokens() picks them up, so the
+   user lands signed in and can set a new password in Settings. */
+export async function sendPasswordReset(email){
+  return authPost(`recover?redirect_to=${encodeURIComponent(appUrl())}`,{ email });
+}
+
+/* Change the password of the signed-in user. */
+export async function updatePassword(password){
+  const token = await accessToken();
+  if(!token) throw new Error('Sign in first.');
+  const r = await fetch(`${SUPABASE_URL}/auth/v1/user`,{
+    method:'PUT', headers:{ apikey:SUPABASE_KEY, Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+    body: JSON.stringify({ password }) });
+  const json = await r.json().catch(()=>({}));
+  if(!r.ok){
+    const e=new Error(json.error_description || json.msg || json.message || `Could not change the password (${r.status})`);
+    e.status=r.status; throw e;
+  }
+  return json;
+}
+
+const appUrl = () => location.href.split('#')[0].split('?')[0];
+
 export async function signInWithOAuth(provider){
   const verifier = randomVerifier();
   try{ localStorage.setItem(VERIFIER_KEY, verifier); }
   catch(e){ throw new Error('Sign-in needs browser storage — check your privacy settings.'); }
   const challenge = await challengeOf(verifier);
-  const redirect = location.href.split('#')[0].split('?')[0];
+  const redirect = appUrl();
   location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=${encodeURIComponent(provider)}`
     + `&redirect_to=${encodeURIComponent(redirect)}`
     + `&code_challenge=${challenge}&code_challenge_method=s256`;
