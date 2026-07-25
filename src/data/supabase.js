@@ -109,19 +109,42 @@ async function fetchUser(){
   return user;
 }
 
-/* Returns an error string if the provider bounced us back with one. */
+/* The verifier is written before we navigate away and read when we come
+   back. It carries the time it was issued, so a flow that never
+   completed can be told apart from one nobody started. */
+function takeVerifier(){
+  let raw=null;
+  try{ raw=localStorage.getItem(VERIFIER_KEY); localStorage.removeItem(VERIFIER_KEY); }catch(e){}
+  if(!raw) return null;
+  try{ const o=JSON.parse(raw); return o&&o.v ? o : null; }
+  catch(e){ return { v:raw, at:0 }; }        // written by an older build
+}
+
+/* Returns an error string if the round trip didn't bring us a session. */
 async function completeOAuthRedirect(){
   const p = new URLSearchParams(location.search);
   const err = p.get('error_description') || p.get('error');
-  if(err){ cleanUrl(); return err; }
+  if(err){ takeVerifier(); cleanUrl(); return err; }
+
   const code = p.get('code');
-  if(!code) return null;
-  let verifier=null;
-  try{ verifier=localStorage.getItem(VERIFIER_KEY); localStorage.removeItem(VERIFIER_KEY); }catch(e){}
+  if(!code){
+    /* We started a sign-in and came back with nothing to redeem. That is
+       almost always the provider redirect landing somewhere other than
+       this app: Supabase falls back to the project's Site URL when the
+       app's URL is not in Auth → URL Configuration → Redirect URLs.
+       Silence here reads as "the button does nothing", so say it. */
+    const pending=takeVerifier();
+    if(pending && pending.at && Date.now()-pending.at < 10*60*1000){
+      return 'Sign-in didn\'t come back with a session. Check that this app\'s URL is listed under Redirect URLs in the Supabase auth settings.';
+    }
+    return null;
+  }
+
+  const pending=takeVerifier();
   cleanUrl();
-  if(!verifier) return 'Sign-in could not be completed — please try again.';
+  if(!pending) return 'Sign-in could not be completed — please try again.';
   try{
-    store(shape(await authPost('token?grant_type=pkce',{ auth_code:code, code_verifier:verifier })));
+    store(shape(await authPost('token?grant_type=pkce',{ auth_code:code, code_verifier:pending.v })));
     return null;
   }catch(e){ return e.message; }
 }
@@ -213,7 +236,7 @@ const appUrl = () => location.href.split('#')[0].split('?')[0];
 
 export async function signInWithOAuth(provider){
   const verifier = randomVerifier();
-  try{ localStorage.setItem(VERIFIER_KEY, verifier); }
+  try{ localStorage.setItem(VERIFIER_KEY, JSON.stringify({ v:verifier, at:Date.now() })); }
   catch(e){ throw new Error('Sign-in needs browser storage — check your privacy settings.'); }
   const challenge = await challengeOf(verifier);
   const redirect = appUrl();

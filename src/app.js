@@ -18,6 +18,7 @@ import { loadReferenceData } from './data/remote.js';
 import { fetchPost } from './data/posts.js';
 import { useSession, applyMe, findPost, state } from './store/store.js';
 import { render } from './ui/views.js';
+import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile } from './ui/actions.js';
 
@@ -31,9 +32,14 @@ const auth = await initAuth();
 if(auth.session) await loadReferenceData();
 
 await useSession(auth.session);
-applyMe(); applyTheme(); tick(); render();
+applyMe(); applyTheme(); tick();
+
+/* A sign-in that failed on the way back belongs on the sign-in screen,
+   where it stays put — a toast for this would fade before it was read. */
+if(auth.error && !auth.session) authState().error = auth.error;
+render();
 setInterval(tick,10000);
-if(auth.error) toast(auth.error);
+if(auth.error && auth.session) toast(auth.error);
 
 if(auth.session){
   /* The profile row is the truth about who this is, and whether the

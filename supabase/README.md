@@ -43,9 +43,29 @@ Dashboard → **Authentication → Providers**:
 
 - **Email** — on by default. Turn *Confirm email* off while testing, or you'll need to click
   a link for every throwaway account.
-- **Google** and **Apple** — the app already has the buttons and does the PKCE dance. Set the
-  redirect URL to wherever the app is served (`http://localhost:4599` for local dev, plus the
-  GitHub Pages URL).
+- **Google** and **Apple** — the app already has the buttons and does the PKCE dance.
+
+**Two different redirect settings have to agree, and only one of them is in Supabase:**
+
+1. **Google Cloud console** → your OAuth client → *Authorized redirect URIs* must contain
+   Supabase's callback, shown on the provider page:
+   `https://diabtvahplwoipvrprvb.supabase.co/auth/v1/callback`.
+   Get this wrong and Google refuses before any login, with `redirect_uri_mismatch`.
+
+2. **Supabase → Authentication → URL Configuration → Redirect URLs** must contain the URL the
+   *app* is served from, because that is what the app sends as `redirect_to`:
+
+   ```
+   https://mgtajo.github.io/crema/**
+   http://localhost:4599/**
+   ```
+
+   and **Site URL** should be `https://mgtajo.github.io/crema/`. This is the one that fails
+   quietly: if the app's URL is not listed, Google and Supabase both succeed, then Supabase
+   redirects to the Site URL instead of back to the app — so the user lands on a page with no
+   `?code=` and nothing happens. Since the app cannot see this config, it now says so: coming
+   back from a provider with a pending sign-in and no code shows an error on the sign-in screen
+   naming this setting.
 
 > If you ship Google sign-in, Apple requires Sign in with Apple too. Both or neither.
 
