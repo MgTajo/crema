@@ -95,8 +95,12 @@ export const unvoteEntry = (uid,entryId) => rest(`entry_votes?user_id=eq.${uid}&
 
    Swap in a time window whenever the board wants to reset weekly — add
    `&created_at=gte.<monday>` and nothing else changes. */
-export async function fetchTopPosts(myUid=null, { limit=50 }={}){
-  const rows = await rest(`top_posts?select=*&order=like_count.desc,created_at.desc&limit=${limit}`);
+export async function fetchTopPosts(myUid=null, { limit=50, blocked=[] }={}){
+  /* Blocking has to hold everywhere, not just in the feed: a blocked
+     person's pour could otherwise still surface on Explore. */
+  let q = `top_posts?select=*&order=like_count.desc,created_at.desc&limit=${limit}`;
+  if(blocked.length) q += `&user_id=not.in.(${blocked.map(id=>`"${id}"`).join(',')})`;
+  const rows = await rest(q);
   return (rows||[]).filter(r=>(r.like_count|0)>0).map(r=>{
     registerUser(rowToUser({ id:r.user_id, handle:r.handle, name:r.name, city:r.city,
                              avatar_color:r.avatar_color, level:r.level }));

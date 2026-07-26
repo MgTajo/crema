@@ -16,7 +16,7 @@ import { agoDays } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
 import { beanCatalog } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, handleToUid } from '../data/world.js';
-import { fetchFeed, fetchMine } from '../data/posts.js';
+import { fetchFeed, fetchMine, fetchSavedPosts } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
          fetchCafeFollowCounts } from '../data/social.js';
 import { fetchMyJoins, fetchTopPosts, fetchJoinCounts } from '../data/challenges.js';
@@ -77,6 +77,21 @@ export const discover={ list:[], loaded:false };
    passport are built from this; before it existed they were built from
    the feed, so they emptied out as your posts aged off page one. */
 export const mine={ list:[], loaded:false };
+
+/* Your saved collection, from the `saves` table. Loaded when the Saved
+   tab is first opened rather than on boot — nobody pays for it until
+   they look. */
+export const saved={ list:[], loaded:false, loading:false };
+export async function loadSaved(){
+  if(!session||saved.loading) return false;
+  saved.loading=true;
+  try{
+    saved.list=await fetchSavedPosts(session.user.id);
+    saved.loaded=true; cachePosts(saved.list);
+    return true;
+  }catch(e){ console.warn('saved posts failed',e); return false; }
+  finally{ saved.loading=false; }
+}
 export const followeeIds = () => Object.keys(state.follows||{}).filter(k=>state.follows[k]);
 
 /* Entries per challenge, loaded on demand when a challenge opens. */
@@ -102,7 +117,7 @@ export async function hydrateSocial(){
   /* Top pours by likes. Empty is a real answer — nobody has been liked
      yet — and the UI says so rather than inventing a board. */
   try{
-    const board=await fetchTopPosts(uid);
+    const board=await fetchTopPosts(uid,{ blocked:social.blocks });
     TOP_POSTS.length=0; TOP_POSTS.push(...board);
     cachePosts(board);
   }catch(e){ console.warn('top pours failed',e); }
@@ -133,8 +148,8 @@ async function markMine(list){
   if(!session||!list.length) return list;
   try{
     const ids=list.map(p=>p.id);
-    const [liked,saved]=await Promise.all([ fetchMyLikes(session.user.id,ids), fetchMySaves(ids) ]);
-    const L=new Set(liked), S=new Set(saved);
+    const [liked,savedIds]=await Promise.all([ fetchMyLikes(session.user.id,ids), fetchMySaves(ids) ]);
+    const L=new Set(liked), S=new Set(savedIds);
     list.forEach(p=>{ p.likedByMe=L.has(p.id); p.saved=S.has(p.id); });
   }catch(e){ console.warn('interaction state failed',e); }
   return list;
@@ -185,6 +200,7 @@ export async function useSession(next){
   social.counts={followers:0,following:0,pours:0};
   discover.list=[]; discover.loaded=false;
   mine.list=[]; mine.loaded=false;
+  saved.list=[]; saved.loaded=false;
   if(next){ await hydrateSocial(); await loadFeed(); }
 }
 
@@ -231,7 +247,7 @@ function merge(...lists){
   lists.forEach(l=>(l||[]).forEach(p=>{ if(p&&p.id&&!seen.has(p.id)){ seen.add(p.id); out.push(p); } }));
   return out;
 }
-export const allPosts=()=>merge(state.posts, mine.list, state.myGallery);
+export const allPosts=()=>merge(state.posts, mine.list, saved.list, state.myGallery);
 export function myPosts(){
   return merge(state.posts.filter(p=>p.user==='me'), mine.list, (state.myGallery||[]))
     .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'') || dayIndex(a)-dayIndex(b));

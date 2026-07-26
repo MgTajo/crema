@@ -83,7 +83,7 @@ function overlayCafe(id){
       <div style="height:130px;background:linear-gradient(135deg,${c.color},#3a271a);position:relative"><div style="position:absolute;left:16px;bottom:-26px">${cafeThumb(c)}</div></div>
       <div style="padding:34px 16px 8px"><b style="font-family:var(--serif);font-size:22px">${c.name}</b>
         <div style="color:var(--muted);font-size:13px;margin:3px 0 10px">${c.spec} · ${c.area}, ${c.city}</div>
-        <div class="chips" style="margin:0 0 12px"><span class="chip"><span class="star">★ ${c.rating}</span></span><span class="chip">${fmt(c.followers)} followers</span><span class="chip" style="color:${c.hours.startsWith('Open')?'var(--green)':'var(--terra)'}">${c.hours}</span></div>
+        <div class="chips" style="margin:0 0 12px"><span class="chip"><span class="star">★ ${c.rating}</span></span><span class="chip">${fmt(c.followers)} followers</span>${c.hours?`<span class="chip" style="color:${c.hours.startsWith('Open')?'var(--green)':'var(--terra)'}">${esc(c.hours)}</span>`:''}</div>
         <p style="font-size:14px;line-height:1.55;color:var(--ink2);margin:0 0 14px">${c.blurb}</p>
         ${c.promo?`<div style="background:var(--pm1);border:1px solid var(--pm2);border-radius:14px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center"><span style="font-size:26px">🎟️</span><div><b style="color:var(--green)">10% off any drink</b><div style="font-size:12.5px;color:var(--green)">Show any post tagged here at the counter.</div></div></div>`:''}
         <div style="display:flex;gap:10px"><button class="btn ${followed?'ghost':''} block" data-action="follow-cafe" data-id="${c.id}">${followed?'✓ Following':'Follow café'}</button><button class="btn ghost" data-action="directions" data-id="${c.id}" aria-label="Directions">🧭</button></div></div>
@@ -232,8 +232,8 @@ function overlayChallenge(id){
     </div></div></div>`;
 }
 function overlayPicker(chId){
-  const ch=CHALLENGES.find(c=>c.id===chId);
-  const candidates=myPosts().filter(p=>p.art&&(p.pattern===ch.pattern||true));
+  const ch=CHALLENGES.find(c=>c.id===chId); if(!ch) return '';
+  const candidates=myPosts().filter(p=>p.art);
   const matching=candidates.filter(p=>p.pattern===ch.pattern), rest=candidates.filter(p=>p.pattern!==ch.pattern);
   const cell=p=>`<div class="gcell" data-action="pick-entry" data-ch="${chId}" data-id="${p.id}">${art(p.img,p.pattern,p.quality,seedOf(p.id),p.drink)}</div>`;
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="Pick your entry">
@@ -441,8 +441,11 @@ function overlayCreate(){
     <div class="ov-body" style="padding:0 16px 16px">
       <div class="create-prev">
         ${c.img?`<img class="photo" src="${imageUrl(c.img,'feed')}" alt="your coffee photo">`:cupSVG(isArt&&c.pattern?c.pattern:'none',.85,999)}
-        ${c.img?(c.uploading?`<span class="up-hint">Uploading…</span>`:''):`<span class="up-hint">${icon('cam',15)} Add a photo</span>`}
+        ${c.img?(c.uploading?`<span class="up-hint">Uploading…</span>`:(c.uploadFailed?`<span class="up-hint" style="background:rgba(168,84,74,.9)">Upload failed</span>`:'')):`<span class="up-hint">${icon('cam',15)} Add a photo</span>`}
       </div>
+      ${c.uploadFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
+        That photo couldn't reach the server. Tap Post to try again, or drop it and post without a photo.
+        <button class="btn ghost sm" style="margin-top:8px" data-action="drop-photo">Post without the photo</button></div>`:''}
       <div class="photo-actions">
         <label class="btn ghost sm"><input type="file" id="c-photo-cam" accept="image/*" capture="environment" hidden>${icon('cam',16)} ${c.img?'Retake':'Take photo'}</label>
         <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>🖼️ ${c.img?'Change':'Gallery'}</label>

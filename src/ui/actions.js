@@ -11,18 +11,18 @@
    view-model methods; the store calls it makes stay the same.
    ============================================================ */
 import { $, $$, fmt } from '../core/util.js';
-import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, combineMachine } from '../data/catalog.js';
+import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, combineMachine, splitMachine } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
 import { ensureProfile, pushProfile, fetchUserCard, searchProfiles, fetchScore } from '../data/profiles.js';
-import { createPost, deletePost, newPostId, fetchMine } from '../data/posts.js';
+import { createPost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
 import * as chal from '../data/challenges.js';
 import { markAllRead } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
-         loadFeed, loadMoreFeed, social as storeSocial, entryCache } from '../store/store.js';
+         saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, entryCache } from '../store/store.js';
 import { commentRow, postLink, searchHTML } from './components.js';
 import { icon } from './icons.js';
 import { render, renderView, renderAppbar } from './views.js';
@@ -33,7 +33,11 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-action]'); if(!t) return;
   const a=t.dataset.action, id=t.dataset.id;
   switch(a){
-    case 'nav': ui.route=t.dataset.r; ui.ovStack=[]; render(); break;
+    case 'nav':{ ui.route=t.dataset.r; ui.ovStack=[]; render();
+      /* points move when other people like your pours, so re-read them
+         when you look at your own profile rather than only after posting */
+      if(ui.route==='profile') refreshScore();
+      break;}
     case 'filter':{ if(ui.filter===t.dataset.f) break; ui.filter=t.dataset.f; renderView();
       /* signed in the Following tab is a different server query, not a
          client-side filter over one page */
@@ -47,7 +51,7 @@ document.addEventListener('click',e=>{
       const u=currentUser(); if(u&&had) markAllRead(u.id).catch(err=>console.warn('mark read failed',err));
       break;}
     case 'notif-go':{ const n=state.notifications[+t.dataset.idx]; if(!n)break;
-      if(n.post&&findPost(n.post)) pushOv({type:'post',id:n.post});
+      if(n.post) openNotifiedPost(n.post);
       else if(n.challenge) pushOv({type:'challenge',id:n.challenge});
       else if(n.cafe) pushOv({type:'cafe',id:n.cafe});
       else if(n.u) pushOv({type:'user',id:n.u}); break;}
@@ -73,7 +77,10 @@ document.addEventListener('click',e=>{
     case 'follow-cafe': toggleCafeFollow(id); break;
     case 'recipe':{const el=$('#rp-'+id); if(el){el.classList.toggle('open'); const o=el.classList.contains('open'); t.innerHTML=t.innerHTML.replace(o?'▾':'▴',o?'▴':'▾');} break;}
     case 'join': toggleJoin(id); break;
-    case 'ptab': ui.profTab=t.dataset.t; renderView(); break;
+    case 'ptab':{ ui.profTab=t.dataset.t; renderView();
+      /* the saves are rows, not a filter over the feed page */
+      if(ui.profTab==='saved'&&!saved.loaded) loadSaved().then(ok=>{ if(ok) renderView(); });
+      break;}
 
     case 'submit-entry': pushOv({type:'picker',id}); break;
     case 'pick-entry': pickEntry(t.dataset.ch,id); break;
@@ -107,6 +114,7 @@ document.addEventListener('click',e=>{
     case 'cpat':{ syncCreate(); ui.create.pattern=(ui.create.pattern===t.dataset.p)?null:t.dataset.p; renderOverlay(); break;}
     case 'csource':{ syncCreate(); ui.create.source=t.dataset.s; if(t.dataset.s==='home')ui.create.cafe=''; renderOverlay(); break;}
     case 'submit-post': submitPost(); break;
+    case 'drop-photo':{ syncCreate(); ui.create.img=null; ui.create.uploadFailed=false; renderOverlay(); break;}
 
     case 'set-theme': state.theme=t.dataset.t; save(); applyTheme(); renderOverlay(); break;
     case 'save-profile': saveProfile(); break;
@@ -145,7 +153,7 @@ document.addEventListener('input',e=>{
     const q=ui.searchQ.trim(); if(q.length<2) return;
     searchT=setTimeout(async()=>{
       const u=currentUser(); if(!u) return;
-      try{ await searchProfiles(u.id,q); if(ui.searchQ.trim()===q) paintSearch(); }
+      try{ await searchProfiles(u.id,q,8,storeSocial.blocks); if(ui.searchQ.trim()===q) paintSearch(); }
       catch(err){ console.warn('people search failed',err); }
     },300);
   }
@@ -340,6 +348,19 @@ async function openUser(uid){
   }catch(e){ console.warn('profile load failed',e); }
 }
 
+/* A like or comment on an older pour points at a post that is not on the
+   current feed page. Fetch it rather than doing nothing, which is what the
+   inbox used to do. */
+async function openNotifiedPost(id){
+  if(findPost(id)){ openPost(id); return; }
+  const u=currentUser(); if(!u){ toast('Couldn\'t open that pour'); return; }
+  try{
+    const p=await fetchPost(id,u.id);
+    if(!p){ toast('That pour is gone'); return; }
+    cachePosts([p]); openPost(id);
+  }catch(e){ console.warn('notification post failed',e); toast('Couldn\'t open that pour'); }
+}
+
 async function openFlist(kind){
   pushOv({type:'flist',id:kind});
   const u=currentUser(); if(!u) return;
@@ -384,7 +405,8 @@ function handleUpload(file){
       /* Show the local render immediately — no wait on a network round
          trip to see your own photo. If the upload fails this stays the
          final value: the post still goes out, with the photo inline. */
-      ui.create.img=cv.toDataURL('image/jpeg',0.82); renderOverlay(); toast('Photo added 📸');
+      ui.create.img=cv.toDataURL('image/jpeg',0.82); ui.create.uploadFailed=false;
+      renderOverlay(); toast('Photo added 📸');
       const u=currentUser(); if(!u) return;
       const target=ui.create;
       ui.create.uploading=true; renderOverlay();
@@ -392,11 +414,11 @@ function handleUpload(file){
         if(!blob){ if(ui.create===target){ui.create.uploading=false; renderOverlay();} return; }
         uploadImage(blob,'image/jpeg').then(key=>{
           if(ui.create!==target) return;   // sheet was closed/reset meanwhile
-          ui.create.img=key; ui.create.uploading=false; renderOverlay();
+          ui.create.img=key; ui.create.uploading=false; ui.create.uploadFailed=false; renderOverlay();
         }).catch(err=>{
           console.warn('upload failed',err);
-          if(ui.create===target){ ui.create.uploading=false; renderOverlay(); }
-          toast('Upload failed — photo will stay local for now');
+          if(ui.create===target){ ui.create.uploading=false; ui.create.uploadFailed=true; renderOverlay(); }
+          toast('Couldn\'t upload that photo — tap Post to retry');
         });
       },'image/jpeg',0.82);
     };
@@ -432,6 +454,8 @@ function paintSave(p){
 }
 function toggleSave(id){
   const p=findPost(id); if(!p) return; p.saved=!p.saved; save();
+  if(p.saved){ if(!saved.list.some(x=>x.id===p.id)) saved.list.unshift(p); }
+  else saved.list=saved.list.filter(x=>x.id!==p.id);
   paintSave(p);
   toast(p.saved?'Saved to your collection 🔖':'Removed from saved');
   const u=currentUser(); if(!u) return;
@@ -439,7 +463,10 @@ function toggleSave(id){
   (want?social.savePost(u.id,id):social.unsavePost(u.id,id)).catch(err=>{
     if(err.status===409) return;
     console.warn('save failed',err);
-    p.saved=!want; save(); paintSave(p); toast('Couldn\'t update your collection');
+    p.saved=!want;
+    if(p.saved){ if(!saved.list.some(x=>x.id===p.id)) saved.list.unshift(p); }
+    else saved.list=saved.list.filter(x=>x.id!==p.id);
+    save(); paintSave(p); toast('Couldn\'t update your collection');
   });
 }
 function paintFollow(id,on){
@@ -641,8 +668,11 @@ function brewAgain(id){
   const p=findPost(id); if(!p) return; const r=p.recipe||{};
   ui.create=freshCreate();
   Object.assign(ui.create,{drink:p.drink||ui.create.drink, pattern:p.pattern||ui.create.pattern,
-    bean:r.bean||'', machine:r.machine||ui.create.machine, milk:r.milk||ui.create.milk,
+    bean:r.bean||'', milk:r.milk||ui.create.milk,
     dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||''});
+  /* The recipe stores one combined "Brand Model" string; the picker needs
+     the two halves back or it silently falls back to your own machine. */
+  if(r.machine){ const m=splitMachine(r.machine); ui.create.machineBrand=m.brand; ui.create.machineModel=m.model; }
   ui.ovStack=[]; pushOv({type:'create'}); toast('Recipe loaded — brew it again ☕');
 }
 function sharePost(id){
@@ -660,8 +690,32 @@ function fallbackCopy(text,done){
     document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();}
   catch(e){toast('Couldn\'t copy here — long-press the post instead');}
 }
-function submitPost(){
+/* A photo belongs in R2, never in the row. `image_key` holds an object
+   key; a data: URI there is 300 KB shipped to every viewer on every feed
+   load, and Postgres now rejects it outright (step-1.11.sql). So if the
+   background upload didn't land, retry it here and say so if it fails —
+   rather than posting something the database will refuse. */
+async function ensureUploaded(c){
+  if(!c.img || !/^data:/.test(c.img)) return true;
+  if(!currentUser()) return true;
+  c.uploading=true; c.uploadFailed=false; renderOverlay();
+  try{
+    const blob=await (await fetch(c.img)).blob();
+    const key=await uploadImage(blob, blob.type||'image/jpeg');
+    if(ui.create===c){ c.img=key; c.uploading=false; renderOverlay(); }
+    return true;
+  }catch(e){
+    console.warn('upload retry failed',e);
+    if(ui.create===c){ c.uploading=false; c.uploadFailed=true; renderOverlay(); }
+    toast('Photo still won\'t upload — remove it to post without one');
+    return false;
+  }
+}
+
+async function submitPost(){
   syncCreate(); const c=ui.create; const T=v=>(v||'').trim();
+  if(c.uploading){ toast('Photo is still uploading — one moment'); return; }
+  if(!(await ensureUploaded(c))) return;
   const drink=c.drink||'Cappuccino';
   /* A milk drink can take latte art, but only counts as art if the user
      actually tagged a pattern — otherwise it is just a cappuccino. */

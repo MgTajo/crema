@@ -103,6 +103,19 @@ export async function fetchMine(uid, { limit=100, myUid=uid }={}){
   return (rows||[]).map(r=>postOf(r,myUid));
 }
 
+/* Your saved collection. The `saves` rows have always existed; nothing
+   ever read them back, so the Saved tab could only show saves that
+   happened to be on the current feed page. */
+export async function fetchSavedPosts(uid, { limit=100 }={}){
+  const rows = await rest(`saves?select=post_id&user_id=eq.${uid}&order=created_at.desc&limit=${limit}`);
+  const ids = (rows||[]).map(r=>r.post_id);
+  if(!ids.length) return [];
+  const list = await rest(`posts?select=${SELECT}&id=in.(${ids.map(i=>`"${i}"`).join(',')})`);
+  /* Keep the order the user saved them in, not the order Postgres returned. */
+  const byId = new Map((list||[]).map(r=>[r.id, r]));
+  return ids.map(id=>byId.get(id)).filter(Boolean).map(r=>{ const p=postOf(r,uid); p.saved=true; return p; });
+}
+
 export async function fetchPost(id, myUid=null){
   const rows = await rest(`posts?select=${SELECT}&id=eq.${id}&limit=1`);
   return rows && rows.length ? postOf(rows[0],myUid) : null;

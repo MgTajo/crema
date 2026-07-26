@@ -9,7 +9,7 @@ import { $, esc, fmt, cap, initials, seedOf, agoDays, agoLabel } from '../core/u
 import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS } from '../data/world.js';
-import { state, ui, session, feed, discover, social, streak,
+import { state, ui, session, feed, discover, social, saved, streak,
          myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art, cupSVG } from '../domain/art.js';
@@ -96,7 +96,11 @@ export function renderCafes(){
 
 /* ----- profile ----- */
 export function renderProfile(){
-  const u=USERS.me, mine=myPosts(), savedPosts=allPosts().filter(p=>p.saved);
+  const u=USERS.me, mine=myPosts();
+  /* The saved collection comes from the `saves` table, merged with
+     anything just bookmarked in this session. */
+  const savedPosts=[...saved.list, ...allPosts().filter(p=>p.saved&&!saved.list.some(s=>s.id===p.id))]
+    .filter(p=>p.saved!==false);
   const pourCount=Math.max(mine.length, social.counts.pours|0);
   const followingN=social.loaded ? (social.counts.following|0) : Object.values(state.follows).filter(Boolean).length;
   const days=streak();
@@ -108,7 +112,9 @@ export function renderProfile(){
   const grid = ui.profTab==='pours'
     ? (hasPours?`<div class="grid">${mine.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty"><div class="big">☕</div>No pours yet.<br>Tap ＋ to log your first coffee.</div>`)
     : ui.profTab==='saved'
-    ? (savedPosts.length?`<div class="grid">${savedPosts.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty"><div class="big">🔖</div>No saved pours yet.<br>Tap the bookmark on any post.</div>`)
+    ? (savedPosts.length?`<div class="grid">${savedPosts.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`
+       : saved.loading&&!saved.loaded ? `<div class="empty">Loading your collection…</div>`
+       : `<div class="empty"><div class="big">🔖</div>No saved pours yet.<br>Tap the bookmark on any post.</div>`)
     : ui.profTab==='badges' ? renderBadges() : renderStats();
   const bioHTML = state.me.bio ? esc(state.me.bio) : `<span style="color:var(--muted);cursor:pointer" data-action="open-settings">＋ Add a bio in Settings</span>`;
   const journeyHTML = `<div class="journey"><h3>Recent activity</h3><p class="sub">Your last few weeks of coffee.</p>

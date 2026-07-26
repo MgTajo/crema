@@ -61,7 +61,9 @@ export function rowToUser(row){
     id: row.id,
     name: row.name || 'Barista',
     handle: '@' + (row.handle||'barista'),
-    color: row.avatar_color || '#8a5a30',
+    /* Straight into style="background:…", and users can PATCH their own
+       row — so anything that isn't a plain hex colour is discarded. */
+    color: /^#[0-9a-f]{3,8}$/i.test(row.avatar_color||'') ? row.avatar_color : '#8a5a30',
     level: row.level || 1,
     levelName: levelName(row.level || 1)
   };
@@ -154,11 +156,12 @@ export async function fetchSuggestedProfiles(uid, blocked=[], limit=10){
 }
 
 /* Search people by name or username. */
-export async function searchProfiles(uid, q, limit=8){
+export async function searchProfiles(uid, q, limit=8, blocked=[]){
   const term = q.trim().replace(/[%,()*]/g,'');
   if(!term) return [];
   const pat = `*${term}*`;
-  const rows = await rest(
-    `profiles?select=${CARD}&id=neq.${uid}&or=(handle.ilike.${pat},name.ilike.${pat},city.ilike.${pat})&limit=${limit}`);
+  let query = `profiles?select=${CARD}&id=neq.${uid}&or=(handle.ilike.${pat},name.ilike.${pat},city.ilike.${pat})&limit=${limit}`;
+  if(blocked.length) query += `&id=not.in.(${blocked.map(id=>`"${id}"`).join(',')})`;
+  const rows = await rest(query);
   return (rows||[]).map(r=>registerUser(rowToUser(r)));
 }

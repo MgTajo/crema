@@ -57,6 +57,18 @@ export const MACHINES={
 };
 export const MACHINE_BRANDS=Object.keys(MACHINES);
 export function combineMachine(brand,model){ if(!brand) return ''; if(brand==='Other') return (model||'').trim(); return model?brand+' '+model:''; }
+/* The inverse, for re-logging someone's recipe: a stored "Sage Bambino
+   Plus" has to become brand + model again, or the machine picker silently
+   drops it. Longest brand first, so 'Rocket Espresso' beats 'Rocket'. */
+export function splitMachine(combined){
+  const s=(combined||'').trim();
+  if(!s) return { brand:'', model:'' };
+  const brand=MACHINE_BRANDS.filter(b=>b!=='Other')
+    .sort((a,b)=>b.length-a.length)
+    .find(b=>s===b || s.toLowerCase().startsWith(b.toLowerCase()+' '));
+  if(!brand) return { brand:'Other', model:s };
+  return { brand, model:s.slice(brand.length).trim() };
+}
 
 export const ADD_BEAN='＋ Add your own coffee…';
 /* [level, name, points needed to reach it]. Each step costs roughly 1.5x

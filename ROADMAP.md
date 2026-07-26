@@ -437,15 +437,34 @@ degrades quietly: the board is empty and everyone reads 0 points at Level 1.
 Audited 2026-07-26 against the running code. Phase 2 ports these to native, so fixing them
 here means fixing them once.
 
-**Correctness (P0)** — 3 of 4 done in step 1.9:
+### Step 1.11 — audit fixes ✅ DONE (2026-07-26)
+
+Found by asking "is this number real?" of the *media* path for the first time:
+
+- 🔴 **No photo had ever reached R2.** The bucket had no CORS policy, so the browser's PUT died at
+  the preflight, the client fell back to keeping the image inline, and `image_key` — a column for
+  R2 object keys — received a 300 KB base64 data URI. Every viewer downloaded every photo at full
+  size on every feed load (753 KB for four posts), no CDN resizing ever ran, and `deleteImage()`
+  had nothing to delete, so a deleted post kept its image (a GDPR problem, not just waste).
+  Fixed at three levels: a CHECK constraint so the column cannot hold an image, a submit-time
+  retry with a visible failure instead of a silent fallback, and
+  `supabase/migrate-base64-images.mjs` to move the three existing photos into R2.
+- ✅ Saved collection is readable — `saves` rows are fetched instead of filtering the feed page.
+- ✅ Notification deep links fetch the post instead of doing nothing.
+- ✅ The board and people search respect blocks; blocking now holds everywhere, not just the feed.
+- ✅ "Brew this recipe" restores the machine — `splitMachine()` reverses the stored "Brand Model".
+- ✅ Points refresh when you open your profile, not only after you post.
+- ✅ `avatar_color` is validated as a hex colour, client and database. It flows into a `style`
+  attribute and users can PATCH their own row, so it was a CSS injection vector.
+- ✅ Null guards on the café sheet (a café without hours) and the entry picker.
+
+**Correctness (P0)** — done in steps 1.9 and 1.11:
 - ✅ Own pours fetched in full, not derived from the feed page.
 - ✅ Post cache: board rows, challenge entries and profile grids open instead of showing a blank
   sheet (`findPost()` only knew about the feed).
 - ✅ `fetchMine()` takes the viewer's id, not the author's.
-- ⬜ **Saved collection cannot be read back.** The `saves` rows exist, but the Saved tab filters
-  the current feed page, so a saved pour vanishes on reload. Needs a fetch of saves → posts.
-- ⬜ **Notification deep links to older posts do nothing** — `notif-go` gives up when `findPost()`
-  misses instead of fetching the post.
+- ✅ Saved collection reads from `saves`.
+- ✅ Notification deep links fetch the post.
 
 **Data honesty (P1)** — what is still decorative:
 - ⬜ Challenge `ends` is the literal string `'2d'`; challenges never actually end. Needs a
@@ -458,12 +477,17 @@ here means fixing them once.
   **before** it ever means money (see step 2.5).
 
 **Operational, needs a human at a dashboard:**
-- ⬜ Run `supabase/step-1.9.sql`.
+- ✅ `step-1.9.sql` and `step-1.10.sql` run (points live, cafés emptied, test accounts gone).
+- ✅ Email confirmation enabled.
+- ⬜ **R2 bucket CORS** — the allowed origin currently carries a path
+  (`https://mgtajo.github.io/crema`). Browsers send scheme+host only, so it can never match; it
+  has to be `https://mgtajo.github.io`. Until then every photo still lands inline.
+- ⬜ Run `step-1.11.sql`, then `migrate-base64-images.mjs`, then validate the constraint.
 - ⬜ **Supabase → Auth → URL Configuration → Redirect URLs** must list `https://mgtajo.github.io/crema/**`
   (and `http://localhost:4599/**`), or Google sign-in completes and then lands on the Site URL with
   no `?code=`. The Google console side is already correct.
 - ⬜ Rotate the R2 access key that was pasted into a chat window.
-- ⬜ Delete the throwaway auth users `crema.qa.43284@` and `crema.qa.beans@`.
+- ✅ Throwaway auth users deleted; `step-1.11.sql` sweeps any remaining profile-less accounts.
 
 ---
 
