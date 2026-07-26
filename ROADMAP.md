@@ -408,6 +408,30 @@ degrades quietly: the board is empty and everyone reads 0 points at Level 1.
 
 ---
 
+## Step 1.10 — Small edges, sharpened ✅ DONE
+
+- ✅ **You cannot like your own pour.** Enforced in the `likes` insert policy, not just hidden in
+  the UI — points come from likes received, so a self-like was 2 free points a tap. Existing
+  self-likes are deleted by the migration.
+- ✅ **The café directory is empty.** The five Tübingen cafés were real names wrapped in unverified
+  hours, ratings and menus. Removed from the DB and from `seed.sql`, so re-seeding cannot bring
+  them back. The Cafés tab and the "at a café" option in the create sheet both handle an empty
+  directory rather than rendering a map with no pins.
+- ✅ **Roasters are gone from the product.** You pick a coffee; a bean name already identifies its
+  maker. The roaster select, the `recipe.roaster` field, the roaster row on bean pages and the
+  roaster counts in the passport and stats are all removed, and the "Roaster hopper" badge is now
+  "World tour" (5 origins).
+- ✅ **Latte art is opt-in.** `freshCreate()` used to default `pattern` to `'rosetta'`, so every milk
+  drink was tagged with art the user never claimed — and a post with `art:true` and no pattern
+  rendered a `#null` chip. A pour counts as art only when a pattern was actually tagged.
+- ✅ **The wordmark reloads the app.**
+- ✅ Both throwaway test accounts removed (`delete from auth.users` — needs the SQL editor; the
+  browser's role cannot do it, which is the same gap that blocks in-app account deletion).
+
+⚠️ **`supabase/step-1.10.sql` must be run by hand.**
+
+---
+
 ## Before Phase 2 — the honest gap list
 
 Audited 2026-07-26 against the running code. Phase 2 ports these to native, so fixing them

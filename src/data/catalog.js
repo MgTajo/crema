@@ -71,8 +71,11 @@ export const LEVELS=[[1,'First Sips',0],[2,'Steam Dreams',100],[3,'Heart Starter
 /* ---------- origin flags ---------- */
 export const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Kenya:'🇰🇪',Guatemala:'🇬🇹',Indonesia:'🇮🇩',Peru:'🇵🇪',Rwanda:'🇷🇼','Costa Rica':'🇨🇷',Germany:'🇩🇪',Italy:'🇮🇹','United Kingdom':'🇬🇧',Norway:'🇳🇴',Denmark:'🇩🇰',USA:'🇺🇸'};
 
-/* Specific coffee brands you can actually buy in Germany — local roasters + international.
-   c = roaster's country (for the flag); loc: 'DE' local, 'INT' international. */
+/* Specific coffee brands you can actually buy in Germany.
+   c = country the coffee comes from (for the flag); loc: 'DE' local,
+   'INT' international. The `roaster` field is retained as catalogue
+   metadata but is no longer shown anywhere: you pick a coffee, not a
+   roaster, and a bean name already identifies its maker. */
 export const BEANS=[
   // ---- Local · roasted in Germany ----
   {n:'Bumblebee Espresso',roaster:'The Barn',c:'Germany',loc:'DE',origin:'Colombia · Ethiopia blend',roast:'Medium',notes:['Milk chocolate','Red berry','Caramel']},
@@ -108,16 +111,6 @@ export const BEANS=[
   {n:'House Espresso',roaster:'The Coffee Collective',c:'Denmark',loc:'INT',origin:'Seasonal',roast:'Light-medium',notes:['Stone fruit','Caramel','Clean']},
   {n:'Espresso Roast',roaster:'Starbucks',c:'USA',loc:'INT',origin:'Blend',roast:'Dark',notes:['Caramelized','Rich','Bold']}
 ];
-/* Derived from BEANS. Kept as a stable array so importers hold one
-   reference; data/remote.js calls rebuildRoasterList() after refilling
-   BEANS from the database. */
-export const ROASTER_LIST=[];
-export function rebuildRoasterList(){
-  ROASTER_LIST.length=0;
-  ROASTER_LIST.push(...[...new Set(BEANS.map(b=>b.roaster))].sort(),'Other / home roast');
-}
-rebuildRoasterList();
-
 /* Look up a catalog bean by (possibly partial) name.
 
    Exact match first, and only then a prefix match — longest candidate

@@ -246,6 +246,13 @@
   .lb-thumb{width:46px; height:46px; border-radius:12px; overflow:hidden; flex:none; background:var(--surface2)}
   .lb-thumb img,.lb-thumb svg{width:100%; height:100%; object-fit:cover; display:block}
 
+  /* the wordmark reloads the app */
+  .appbar .title[data-action="reload"]{cursor:pointer}
+
+  /* your own pour: the count without the affordance */
+  .act.like.own{cursor:default; opacity:.75}
+  .act.like.own:hover{background:none}
+
   /* bean passport rows */
   .bean-fl{width:34px; height:34px; border-radius:10px; background:var(--surface2); border:1px solid var(--line);
            display:grid; place-items:center; font-size:17px; flex:none}

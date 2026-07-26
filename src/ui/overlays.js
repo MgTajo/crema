@@ -8,13 +8,13 @@
 import { $, esc, fmt, cap, initials, seedOf } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
-import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ROASTER_LIST, BEANS, flag } from '../data/catalog.js';
+import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache,
-         beanPassport, myRoasters } from '../store/store.js';
+         beanPassport } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanSelectHTML, lbRow, gcell, commentCount, joinedLabel } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanSelectHTML, lbRow, gcell, commentCount, joinedLabel, likeButton } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -54,7 +54,7 @@ function overlayPost(id){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Post">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Post</b>
       <button class="act" data-action="share-post" data-id="${p.id}" aria-label="Share">${icon('send',20)}</button>
-      <button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}">${icon(p.likedByMe?'heartF':'heart',22)} <span class="cnt">${fmt(p.likes)}</span></button></div>
+      ${likeButton(p)}</div>
     <div class="ov-body">
       <div class="media" data-action="none">${art(imageUrl(p.img,'hero'),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">
@@ -63,7 +63,7 @@ function overlayPost(id){
         ${p.user==='me'?'':`<button class="followmini ${state.follows[p.user]?'on':''}" data-action="follow" data-id="${p.user}">${state.follows[p.user]?'Following':'Follow'}</button>`}
         <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
       <div class="p-body"><div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
-        <div class="chips"><span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>${p.art?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
+        <div class="chips"><span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
       ${rows.length?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0">${recipePanel(r)}
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ Brew this recipe</button></div></div></div>`:''}
       <div style="padding:14px 14px 4px;font-weight:700;font-family:var(--serif);font-size:16px">${commentCount(p)} comments</div>
@@ -95,11 +95,11 @@ function overlayCafe(id){
 function overlayBean(name){
   const b=BEANS.find(x=>x.n===name); if(!b) return '';
   const matches=myPosts().filter(p=>{const rb=p.recipe&&p.recipe.bean; return rb&&(rb===b.n||rb.indexOf(b.n)===0||b.n.indexOf(rb)===0);});
-  const rows=[['Roaster',b.roaster],['Origin',b.origin],['Roast level',b.roast],['Availability',b.loc==='INT'?'Sold in Germany':'Roasted in Germany']];
+  const rows=[['Origin',b.origin],['Roast level',b.roast],['Availability',b.loc==='INT'?'Sold in Germany':'Roasted in Germany']];
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(b.n)}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${b.n}</b></div>
     <div class="ov-body">
-      <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t"><span class="fl">${flag[b.c]||'🫘'}</span><div><b>${b.n}</b><span>Roasted by ${b.roaster}</span></div></div></div>
+      <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t"><span class="fl">${flag[b.c]||'🫘'}</span><div><b>${b.n}</b><span>${esc(b.origin||'')}</span></div></div></div>
       <div style="padding:16px">
         <div class="section-h" style="margin:2px 0 10px"><h2>Tasting notes</h2></div>
         <div class="chips">${b.notes.map(t=>`<span class="chip tag">${t}</span>`).join('')}</div>
@@ -311,11 +311,12 @@ function overlayScoring(){
 /* The bean passport — every coffee you have logged, in one place.
    Built from all of your pours, not the feed page. */
 function overlayPassport(){
-  const beans=beanPassport(), roasters=myRoasters();
+  const beans=beanPassport();
   const origins=[...new Set(beans.map(b=>b.cat&&b.cat.c).filter(Boolean))];
+  const totalPours=beans.reduce((n,b)=>n+b.pours,0);
   const row=b=>{
     const known=!!b.cat;
-    const sub=[b.roaster, b.cat&&b.cat.origin, b.cat&&b.cat.roast].filter(Boolean).join(' · ');
+    const sub=[b.cat&&b.cat.origin, b.cat&&b.cat.roast].filter(Boolean).join(' · ');
     return `<div class="lb-row ${known?'click':''}"${known?` data-action="open-bean" data-id="${esc(b.name)}"`:''}>
       <div class="bean-fl">${(b.cat&&flag[b.cat.c])||'🫘'}</div>
       <div class="who" style="flex:1;min-width:0"><b>${esc(b.name)}</b>
@@ -328,7 +329,7 @@ function overlayPassport(){
     <div class="ov-body">
       <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t">
         <span class="fl">🛂</span><div><b>${beans.length} bean${beans.length===1?'':'s'} tried</b>
-        <span>${roasters.length} roaster${roasters.length===1?'':'s'}${origins.length?` · ${origins.length} origin${origins.length===1?'':'s'}`:''}</span></div></div></div>
+        <span>${totalPours} pour${totalPours===1?'':'s'}${origins.length?` · ${origins.length} origin${origins.length===1?'':'s'}`:''}</span></div></div></div>
       <div style="padding:16px">
         ${origins.length?`<div class="chips" style="margin:0 0 14px">${origins.map(c=>`<span class="chip">${flag[c]||'🫘'} ${esc(c)}</span>`).join('')}</div>`:''}
         ${beans.length
@@ -363,7 +364,7 @@ function overlaySettings(){
            <button class="btn ghost block" data-action="toggle-premium">Turn Premium off</button>`
         : `<div style="background:linear-gradient(135deg,var(--st1),var(--st2));border:1px solid var(--st3);border-radius:var(--r-sm);padding:14px;margin-bottom:2px">
              <b style="font-family:var(--serif);font-size:16px;color:var(--st4)">✦ Crema Premium</b>
-             <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 12px">Add your own coffees &amp; roasters, and get early access to new features. Free while Crema is young — billing comes later.</div>
+             <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 12px">Add your own coffees, and get early access to new features. Free while Crema is young — billing comes later.</div>
              <button class="btn block" data-action="toggle-premium">Turn Premium on</button></div>`}
       <div class="rlabel" style="margin-top:18px">Appearance</div>
       <div class="seg">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(x=>`<button class="${th===x[0]?'on':''}" data-action="set-theme" data-t="${x[0]}">${x[1]}</button>`).join('')}</div>
@@ -447,29 +448,28 @@ function overlayCreate(){
         <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>🖼️ ${c.img?'Change':'Gallery'}</label>
       </div>
       <div class="field sel"><label>Drink</label><select id="c-drink">${DRINKS.map(d=>`<option${d===c.drink?' selected':''}>${d}</option>`).join('')}</select></div>
-      ${isArt?`<div class="field"><label>Latte-art tag <span style="text-transform:none;letter-spacing:0;color:var(--muted)">· optional #hashtag, tap to toggle</span></label>
-        <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div></div>`:''}
-      <div class="rlabel">Where did you have it?</div>
+      ${isArt?`<div class="field"><label>Latte art <span style="text-transform:none;letter-spacing:0;color:var(--muted)">· only if you poured one — tap to toggle</span></label>
+        <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div>
+        ${c.pattern?'':`<div style="font-size:11.5px;color:var(--muted);margin:6px 2px 0">No art? Leave these alone — your ${esc((c.drink||'coffee').toLowerCase())} posts without a pattern.</div>`}</div>`:''}
+      ${CAFES.length?`<div class="rlabel">Where did you have it?</div>
       <div class="seg" style="margin:-4px 0 12px">
         <button class="${c.source==='home'?'on':''}" data-action="csource" data-s="home">🏠 I made it</button>
-        <button class="${c.source==='cafe'?'on':''}" data-action="csource" data-s="cafe">☕ At a café</button></div>
+        <button class="${c.source==='cafe'?'on':''}" data-action="csource" data-s="cafe">☕ At a café</button></div>`:''}
       ${c.source==='cafe'?`<div class="field sel"><label>Café</label><select id="c-cafe"><option value=""${c.cafe?'':' selected'}>Choose a café…</option>${CAFES.map(cf=>`<option value="${cf.id}"${cf.id===c.cafe?' selected':''}>${cf.name} · ${cf.area}</option>`).join('')}</select></div>`:''}
       ${HAS_MILK.has(c.drink)?`<div class="field sel"><label>Milk</label><select id="c-milk">${sel(mkList(milkOpts,c.milk),c.milk,'Optional')}</select></div>`:''}
       <div class="field"><label>Caption</label><textarea id="c-caption" placeholder="Say something about this coffee…">${esc(c.caption)}</textarea></div>
       ${c.source==='cafe' ? (chosenCafe?`
       <div class="rlabel">${esc(chosenCafe.name)}'s setup <span>· what they're pouring</span></div>
       <div class="field sel"><label>Bean</label><select id="c-bean">${sel(chosenCafe.menu.beans,c.bean,'Which bean did you have?')}</select></div>
-      <div class="recipe-panel open" style="margin:0"><div class="recipe-grid">
-        <div class="recipe-bean">🫘 <div><span>Roaster</span><b>${esc(chosenCafe.menu.roaster)}</b></div></div>
-        <div class="recipe-mach"><span>Machine</span><b>${esc(chosenCafe.menu.machine)}</b></div></div></div>
-      <div style="font-size:11.5px;color:var(--muted);margin:8px 2px 2px">Roaster & machine come from the café · your pour will be tagged 📍 ${esc(chosenCafe.name)}</div>`
+      ${chosenCafe.menu&&chosenCafe.menu.machine?`<div class="recipe-panel open" style="margin:0"><div class="recipe-grid">
+        <div class="recipe-mach"><span>Machine</span><b>${esc(chosenCafe.menu.machine)}</b></div></div></div>`:''}
+      <div style="font-size:11.5px;color:var(--muted);margin:8px 2px 2px">Your pour will be tagged 📍 ${esc(chosenCafe.name)}</div>`
       : `<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">Pick a café above to load the beans and gear they use.</div>`)
       : `
       <div class="rlabel">Recipe <span>· optional — add only what you know</span></div>
       <div class="field sel"><label>Coffee / beans</label><select id="c-bean">${beanSelectHTML(c.bean)}</select></div>
-      ${c.bean===ADD_BEAN?`<div class="field"><label>Your coffee</label><input id="c-bean-custom" placeholder="e.g. My Local Roastery — House Espresso" value="${esc(c.beanCustom)}"></div>`:''}
+      ${c.bean===ADD_BEAN?`<div class="field"><label>Your coffee</label><input id="c-bean-custom" placeholder="e.g. House Espresso" value="${esc(c.beanCustom)}"></div>`:''}
       ${!state.me.premium?`<div style="font-size:11.5px;color:var(--muted);margin:-4px 2px 11px">🔒 Adding your own coffee is a <b style="color:var(--crema-deep);cursor:pointer" data-action="open-settings">Premium</b> feature.</div>`:''}
-      <div class="field sel"><label>Roaster</label><select id="c-roaster">${sel(mkList(ROASTER_LIST,c.roaster),c.roaster,'Optional')}</select></div>
       ${machinePicker('c',c.machineBrand,c.machineModel)}
       <div class="rowfields">
         <div class="field"><label>Dose in</label><input id="c-dose" placeholder="—" value="${esc(c.dose)}"></div>

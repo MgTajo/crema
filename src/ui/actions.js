@@ -11,7 +11,7 @@
    view-model methods; the store calls it makes stay the same.
    ============================================================ */
 import { $, $$, fmt } from '../core/util.js';
-import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, combineMachine, beanCatalog } from '../data/catalog.js';
+import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, combineMachine } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
@@ -60,6 +60,8 @@ document.addEventListener('click',e=>{
     case 'open-flist': openFlist(id); break;
     case 'open-scoring': pushOv({type:'scoring'}); break;
     case 'open-passport': pushOv({type:'passport'}); break;
+    /* the logo is the way back to a clean slate */
+    case 'reload': location.reload(); break;
     case 'open-settings': pushOv({type:'settings'}); break;
     case 'open-create': ui.create=freshCreate(); pushOv({type:'create'}); break;
     case 'close-ov': popOv(); break;
@@ -157,9 +159,9 @@ document.addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='c-photo-cam'||id==='c-photo-lib'){ if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]); return; }
   if(id==='c-mbrand'){ syncCreate(); ui.create.machineModel=''; renderOverlay(); return; }
-  if(id==='c-bean'){ syncCreate(); const cat=beanCatalog(ui.create.bean); if(cat) ui.create.roaster=cat.roaster; renderOverlay(); return; }
+  if(id==='c-bean'){ syncCreate(); renderOverlay(); return; }
   if(id==='c-drink'||id==='c-cafe'){ syncCreate(); renderOverlay(); return; }
-  if(id==='c-roaster'||id==='c-mmodel'||id==='c-mother'||id==='c-milk'){ syncCreate(); return; }
+  if(id==='c-mmodel'||id==='c-mother'||id==='c-milk'){ syncCreate(); return; }
   if(id==='ob-mbrand'){ syncOb(); state.me.machineModel=''; renderOverlay(); return; }
   if(id==='sp-mbrand'){ syncSettings(); state.me.machineModel=''; renderOverlay(); return; }
 });
@@ -351,7 +353,7 @@ async function openFlist(kind){
 
 function syncCreate(){ if(!ui.create) ui.create=freshCreate();
   const g=i=>{const el=$('#'+i); return el?el.value:undefined;}, c=ui.create;
-  ['caption','drink','cafe','bean','bean-custom','roaster','milk','dose','yield','time','temp','mbrand'].forEach(f=>{
+  ['caption','drink','cafe','bean','bean-custom','milk','dose','yield','time','temp','mbrand'].forEach(f=>{
     const v=g('c-'+f); if(v!==undefined) c[f==='bean-custom'?'beanCustom':f==='mbrand'?'machineBrand':f]=v;});
   if(c.machineBrand==='Other'){const mo=g('c-mother'); if(mo!==undefined) c.machineModel=mo;}
   else{const mm=g('c-mmodel'); if(mm!==undefined) c.machineModel=mm;}}
@@ -410,6 +412,9 @@ function paintLike(p){
 }
 function toggleLike(id){
   const p=findPost(id); if(!p) return;
+  /* Liking your own pour is refused by RLS (step-1.10.sql); the button
+     isn't rendered either, so this only guards a stray dispatch. */
+  if(p.user==='me'){ toast('You can\'t like your own pour'); return; }
   p.likedByMe=!p.likedByMe; p.likes+=p.likedByMe?1:-1; save();
   paintLike(p);
   if(p.likedByMe){const hp=$('#hp-'+id); if(hp){hp.classList.remove('go'); void hp.offsetWidth; hp.classList.add('go');}}
@@ -636,7 +641,7 @@ function brewAgain(id){
   const p=findPost(id); if(!p) return; const r=p.recipe||{};
   ui.create=freshCreate();
   Object.assign(ui.create,{drink:p.drink||ui.create.drink, pattern:p.pattern||ui.create.pattern,
-    bean:r.bean||'', roaster:r.roaster||'', machine:r.machine||ui.create.machine, milk:r.milk||ui.create.milk,
+    bean:r.bean||'', machine:r.machine||ui.create.machine, milk:r.milk||ui.create.milk,
     dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||''});
   ui.ovStack=[]; pushOv({type:'create'}); toast('Recipe loaded — brew it again ☕');
 }
@@ -657,21 +662,22 @@ function fallbackCopy(text,done){
 }
 function submitPost(){
   syncCreate(); const c=ui.create; const T=v=>(v||'').trim();
-  const drink=c.drink||'Cappuccino', isArt=!!DRINK_ART[drink];
+  const drink=c.drink||'Cappuccino';
+  /* A milk drink can take latte art, but only counts as art if the user
+     actually tagged a pattern — otherwise it is just a cappuccino. */
+  const hasArt=!!DRINK_ART[drink] && !!c.pattern;
   const caption=T(c.caption)||`${drink} ☕`;
   const cafe=(c.source==='cafe'&&c.cafe)?CAFES.find(x=>x.id===c.cafe):null;
   const recipe={};
   if(cafe){
-    // café-sourced: bean from their list, roaster & machine from the café
+    // café-sourced: bean from their list, machine from the café
     if(T(c.bean)) recipe.bean=T(c.bean);
-    recipe.roaster=cafe.menu.roaster;
-    recipe.machine=cafe.menu.machine;
+    if(cafe.menu&&cafe.menu.machine) recipe.machine=cafe.menu.machine;
     if(HAS_MILK.has(drink)&&c.milk) recipe.milk=c.milk;
   }else{
     let bean=c.bean===ADD_BEAN?(state.me.premium?T(c.beanCustom):''):T(c.bean);
     if(c.bean===ADD_BEAN && state.me.premium && bean && !BEANS.some(b=>b.n===bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
     if(bean) recipe.bean=bean;
-    if(c.roaster) recipe.roaster=(c.roaster==='Other / home roast'?'home roast':c.roaster);
     const machine=combineMachine(c.machineBrand,c.machineModel);
     if(machine) recipe.machine=machine;
     if(HAS_MILK.has(drink)&&c.milk) recipe.milk=c.milk;
@@ -684,7 +690,7 @@ function submitPost(){
   /* The id is minted client-side so it never changes under us — the
      generated cup art is seeded from it, and so is the share link. */
   const u=currentUser();
-  const np={ id:newPostId(), user:'me', drink, art:isArt, pattern:isArt?(c.pattern||null):null,
+  const np={ id:newPostId(), user:'me', drink, art:hasArt, pattern:hasArt?c.pattern:null,
     /* No art score: nothing here can judge a pour, so nothing claims to.
        quality stays null and the generated cup art uses its own default. */
     quality:null, cafe:cafe?cafe.name:undefined, img:c.img, ago:'now',

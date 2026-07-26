@@ -26,9 +26,10 @@ export function machinePicker(pfx,brand,model){
     <div class="field sel"><label>Model</label><select id="${pfx}-mmodel"${brand&&brand!=='Other'?'':' disabled'}><option value=""${model?'':' selected'}>${brand&&brand!=='Other'?'Choose model…':'—'}</option>${models.map(m=>`<option${m===model?' selected':''}>${esc(m)}</option>`).join('')}</select></div>
   </div>${brand==='Other'?`<div class="field"><label>Your machine</label><input id="${pfx}-mother" placeholder="e.g. Custom lever setup" value="${esc(model||'')}"></div>`:''}`;
 }
-/* branded-coffee <select>, grouped local/international; own-bean option gated behind Premium */
+/* Coffee <select>, grouped local/international; own-bean option gated
+   behind Premium. Bean names only — the roaster picker is gone. */
 export function beanSelectHTML(cur){
-  const opt=b=>`<option value="${esc(b.n)}"${b.n===cur?' selected':''}>${esc(b.roaster)} — ${esc(b.n)}</option>`;
+  const opt=b=>`<option value="${esc(b.n)}"${b.n===cur?' selected':''}>${esc(b.n)}</option>`;
   let h=`<option value=""${cur?'':' selected'}>Not sure / choose…</option>`;
   h+=`<optgroup label="Local · roasted in Germany">${BEANS.filter(b=>b.loc!=='INT').map(opt).join('')}</optgroup>`;
   h+=`<optgroup label="International · sold in Germany">${BEANS.filter(b=>b.loc==='INT').map(opt).join('')}</optgroup>`;
@@ -45,8 +46,8 @@ export const joinedLabel = c => (c.participants|0) ? `${fmt(c.participants)} joi
 /* ----- recipe helpers (no fabricated defaults) ----- */
 export function recipeRows(r){
   if(!r) return [];
-  const rows=[]; const bean=[r.bean,r.roaster].filter(Boolean).join(' · ');
-  if(bean) rows.push(['bean','Bean',bean]);
+  const rows=[];
+  if(r.bean) rows.push(['bean','Coffee',r.bean]);
   if(r.machine) rows.push(['mach','Machine / brewer',r.machine]);
   if(r.milk) rows.push(['h','Milk',r.milk]);
   if(r.dose) rows.push(['h','Dose in',r.dose]);
@@ -65,6 +66,14 @@ export const recipeBtnLabel=r=>(r.dose&&r.yield)?`Recipe · ${r.dose} in → ${r
    thread only when opened, so prefer the count when we have one. */
 export const commentCount = p => (p.commentN!=null ? p.commentN : p.comments.length);
 
+/* Your own pour shows its like count but cannot be liked. The server
+   refuses a self-like too (step-1.10.sql) — this only keeps the UI from
+   offering something that would be rejected. */
+export function likeButton(p,size=22){
+  if(p.user==='me') return `<div class="act like own" title="Your own pour">${icon('heart',size)} <span class="cnt">${fmt(p.likes)}</span></div>`;
+  return `<button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}" aria-label="Like">${icon(p.likedByMe?'heartF':'heart',size)} <span class="cnt">${fmt(p.likes)}</span></button>`;
+}
+
 export function postCard(p){
   const u=userOf(p.user), following=p.user==='me'||state.follows[p.user], r=p.recipe, top=p.comments[0];
   const rows=recipeRows(r), cn=commentCount(p);
@@ -78,7 +87,7 @@ export function postCard(p){
       ${art(imageUrl(p.img,'feed'),p.pattern,p.quality,seedOf(p.id),p.drink)}
       <div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
     <div class="p-act">
-      <button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}" aria-label="Like">${icon(p.likedByMe?'heartF':'heart',22)} <span class="cnt">${fmt(p.likes)}</span></button>
+      ${likeButton(p)}
       <button class="act" data-action="open-post" data-id="${p.id}" aria-label="Comments">${icon('chat',22)} ${cn}</button>
       <button class="act" data-action="share-post" data-id="${p.id}" aria-label="Share">${icon('send',20)}</button>
       <div class="grow"></div>
@@ -87,7 +96,7 @@ export function postCard(p){
       <div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
       <div class="chips">
         <span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>
-        ${p.art?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}
+        ${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}
         ${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}
         ${r&&r.machine?`<span class="chip"><span class="g">${icon('mach',12)}</span>${esc(r.machine)}</span>`:''}
         ${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}

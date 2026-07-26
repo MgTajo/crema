@@ -216,8 +216,11 @@ export function applyMe(){
   USERS.me.handle='@'+h;
   handleToUid[h]='me';
 }
-export function freshCreate(){return{drink:state.me.favDrink||'Cappuccino',pattern:'rosetta',caption:'',img:null,source:'home',cafe:'',
-  bean:'',beanCustom:'',roaster:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
+/* pattern starts empty: a cappuccino is a cappuccino whether or not you
+   attempted latte art, and defaulting to 'rosetta' tagged every milk
+   drink with art the user never claimed. */
+export function freshCreate(){return{drink:state.me.favDrink||'Cappuccino',pattern:null,caption:'',img:null,source:'home',cafe:'',
+  bean:'',beanCustom:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 /* ---------- derived selectors (read-only views over state) ----------
    The feed's copy of a post wins over the profile's: it is the one
@@ -236,7 +239,7 @@ export function myPosts(){
 /* the user's own beans passport — grows from the beans they log, not the global catalog */
 export function myBeans(){const seen=new Set(),out=[];myPosts().forEach(p=>{const b=p.recipe&&p.recipe.bean;if(b&&!seen.has(b)){seen.add(b);out.push(b);}});state.customBeans.forEach(b=>{if(b&&!seen.has(b)){seen.add(b);out.push(b);}});return out;}
 export function myCountries(){return [...new Set(myBeans().map(n=>{const c=beanCatalog(n);return c&&c.c;}).filter(Boolean))];}
-export function myRoasters(){const set=new Set();myBeans().forEach(n=>{const c=beanCatalog(n);if(c)set.add(c.roaster);});return [...set];}
+
 
 /* Every bean you have logged, most-poured first, with what the catalog
    knows about it. Beans you added yourself have no catalog entry and
@@ -245,16 +248,14 @@ export function beanPassport(){
   const map=new Map();
   myPosts().forEach(p=>{
     const n=p.recipe&&p.recipe.bean; if(!n) return;
-    const e=map.get(n)||{ name:n, pours:0, last:null, roaster:(p.recipe&&p.recipe.roaster)||'' };
+    const e=map.get(n)||{ name:n, pours:0, last:null };
     e.pours++;
     if(p.createdAt&&(!e.last||p.createdAt>e.last)) e.last=p.createdAt;
     map.set(n,e);
   });
   (state.customBeans||[]).forEach(n=>{ if(n&&!map.has(n)) map.set(n,{ name:n, pours:0, last:null, roaster:'' }); });
-  return [...map.values()].map(e=>{
-    const cat=beanCatalog(e.name);
-    return { ...e, cat, roaster:(cat&&cat.roaster)||e.roaster };
-  }).sort((a,b)=>b.pours-a.pours || a.name.localeCompare(b.name));
+  return [...map.values()].map(e=>({ ...e, cat:beanCatalog(e.name) }))
+    .sort((a,b)=>b.pours-a.pours || a.name.localeCompare(b.name));
 }
 /* The server applied the Following filter and the block list, so the
    page it returned *is* the feed. */

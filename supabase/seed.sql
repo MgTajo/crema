@@ -12,19 +12,11 @@
 -- ============================================================
 
 -- ---------- cafés ----------
--- lat/lng are APPROXIMATE, derived from the street/area names. Verify
--- against real addresses before the native map (step 2.3) uses them.
-insert into cafes (id,name,area,city,spec,rating,followers,promo,img,color,blurb,hours,lat,lng,menu,sort) values
-  ('suedhang','Südhang','Österbergstraße · Österberg','Tübingen','Hillside café & roastery',4.7,0,true,'assets/l4.jpg','#8a5a30','A sunlit café on the Österberg with a panoramic terrace over the old town — house-roasted single origins and meticulous espresso.','Open · closes 18:00',48.5231,9.0625,'{"beans":["Bumblebee Espresso","Espresso Anniversario"],"roaster":"The Barn","machine":"La Marzocco Linea Mini","milks":["Whole milk","Barista oat","Almond"]}'::jsonb,0),
-  ('willis','Willi''s','Am Lustnauer Tor · Altstadt','Tübingen','Café & bar',4.5,0,false,'assets/l7.jpg','#527a86','Easy-going café-bar by the Lustnauer Tor — sharp espresso and cake through the day, natural wine after dark.','Open · closes 23:00',48.5228,9.0588,'{"beans":["Espresso Blend"],"roaster":"Five Elephant","machine":"Sage Barista Pro","milks":["Whole milk","Oat","Almond"]}'::jsonb,1),
-  ('marktschenke','Marktschenke','Marktplatz · Altstadt','Tübingen','Old-town coffee house',4.4,0,false,'assets/l5.jpg','#a8544a','Right on the Marktplatz under the Rathaus — classic coffee-house mornings, house cakes and a terrace on the square.','Open · closes 18:30',48.5216,9.0553,'{"beans":["Crema d''Oro Intensa","Prodomo"],"roaster":"Dallmayr","machine":"Sage Dual Boiler","milks":["Whole milk","Semi-skimmed","Oat"]}'::jsonb,2),
-  ('hanseatica','Hanseatica','Neckargasse · Altstadt','Tübingen','Kaffeehaus & pâtisserie',4.6,0,true,'assets/l6.jpg','#6f7a4e','A refined Kaffeehaus off the Neckargasse — pâtisserie counter, filter flights and unhurried afternoons.','Open · closes 19:00',48.5205,9.0548,'{"beans":["Bel Canto Espresso"],"roaster":"Supremo","machine":"Rocket Appartamento","milks":["Whole milk","Oat","Soy"]}'::jsonb,3),
-  ('waschhaus','Waschhaus','Gartenstraße · am Neckar','Tübingen','Café in a former washhouse',4.3,0,false,'assets/l1.jpg','#b58a3a','A characterful café in a converted washhouse by the Neckar — big communal tables, students and a steady flow of flat whites.','Open · closes 17:00',48.519,9.051,'{"beans":["Dark Horse Espresso"],"roaster":"Bonanza","machine":"Profitec Pro 500","milks":["Whole milk","Oat","Soy"]}'::jsonb,4)
-on conflict (id) do update set
-  name=excluded.name, area=excluded.area, city=excluded.city, spec=excluded.spec,
-  rating=excluded.rating, followers=excluded.followers, promo=excluded.promo,
-  img=excluded.img, color=excluded.color, blurb=excluded.blurb, hours=excluded.hours,
-  lat=excluded.lat, lng=excluded.lng, menu=excluded.menu, sort=excluded.sort;
+-- Deliberately empty. The five Tübingen cafés that used to be seeded here
+-- were removed in step-1.10.sql: real names, but hours, ratings and menus
+-- nobody had verified. Add cafés through the dashboard when there is real
+-- data behind them; the app reads whatever this table holds, including
+-- nothing.
 
 -- ---------- beans ----------
 insert into beans (name,roaster,country,loc,origin,roast,notes) values

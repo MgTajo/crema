@@ -10,7 +10,7 @@ import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS } from '../data/world.js';
 import { state, ui, session, feed, discover, social, streak,
-         myPosts, allPosts, myBeans, myRoasters, activityBars, feedPosts } from '../store/store.js';
+         myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art, cupSVG } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
@@ -21,10 +21,10 @@ import { renderGate } from './gate.js';
 
 export function renderAppbar(){
   const bar=$('#appbar');
-  if(!session){ bar.innerHTML=`<div class="title">${logoMark()} Crema</div>`; return; }
+  if(!session){ bar.innerHTML=`<div class="title" data-action="reload" title="Reload Crema">${logoMark()} Crema</div>`; return; }
   const unread=state.notifications.some(n=>!n.read);
   const bell=`<button class="iconbtn" data-action="open-notifs" aria-label="Notifications">${icon('bell',20)}${unread?'<span class="ndot"></span>':''}</button>`;
-  if(ui.route==='home'){ const s=streak(); const streakChip=s>0?`<div class="streak" title="Day streak">${icon('bolt',15)} ${s}</div>`:''; bar.innerHTML=`<div class="title">${logoMark()} Crema</div><div class="actions">${streakChip}${bell}</div>`; }
+  if(ui.route==='home'){ const s=streak(); const streakChip=s>0?`<div class="streak" title="Day streak">${icon('bolt',15)} ${s}</div>`:''; bar.innerHTML=`<div class="title" data-action="reload" title="Reload Crema">${logoMark()} Crema</div><div class="actions">${streakChip}${bell}</div>`; }
   else if(ui.route==='explore') bar.innerHTML=`<div class="title">Explore</div><div class="actions">${bell}</div>`;
   else if(ui.route==='cafes') bar.innerHTML=`<div class="title">Cafés</div><div class="actions">${USERS.me.city?`<div class="streak" style="background:var(--pm1);border-color:var(--pm2);color:var(--green)">📍 ${esc(USERS.me.city)}</div>`:''}${bell}</div>`;
   else if(ui.route==='profile') bar.innerHTML=`<div class="title">Profile</div><div class="actions"><button class="iconbtn" data-action="open-settings" aria-label="Settings">${icon('gear',20)}</button></div>`;
@@ -78,7 +78,9 @@ export function renderExplore(){
 
 export function renderCafes(){
   const f=ui.cafeF;
-  const list=CAFES.filter(c=>(!f.open||c.hours.startsWith('Open'))&&(!f.promo||c.promo)&&(!f.top||c.rating>=4.8));
+  const list=CAFES.filter(c=>(!f.open||(c.hours||'').startsWith('Open'))&&(!f.promo||c.promo)&&(!f.top||c.rating>=4.8));
+  if(!CAFES.length) return `<div class="pad">
+    <div class="empty"><div class="big">🗺️</div>No cafés in the directory yet.<br>They'll appear here once Crema lists some.</div></div>`;
   return `<div class="pad">
     <div class="map"><svg viewBox="0 0 340 190" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <rect width="340" height="190" fill="#e7dcc8"/>
@@ -101,7 +103,7 @@ export function renderProfile(){
   /* Level and points come from the profile row, where triggers keep them
      in step with the posts, likes, entries and votes behind them. */
   const points=state.me.points|0, lvl=levelOf(points), next=nextLevel(points);
-  const hasPours=pourCount>0, beans=myBeans(), roasters=myRoasters(), ACT=activityBars();
+  const hasPours=pourCount>0, beans=myBeans(), origins=myCountries(), ACT=activityBars();
   const recent=mine.slice().sort((a,b)=>agoDays(a.ago)-agoDays(b.ago)).slice(0,8);
   const grid = ui.profTab==='pours'
     ? (hasPours?`<div class="grid">${mine.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty"><div class="big">☕</div>No pours yet.<br>Tap ＋ to log your first coffee.</div>`)
@@ -120,7 +122,7 @@ export function renderProfile(){
   const startedHTML = `<div class="journey"><h3>Your journey starts here</h3><p class="sub" style="margin-bottom:12px">Every pour earns points, builds your streak and moves you up a level.</p>
       <div style="padding:0 12px 14px"><button class="btn block" data-action="open-create">${icon('bolt',18)} Log your first coffee</button></div></div>`;
   const passportHTML = beans.length?`<div class="section-h" style="margin-bottom:8px"><h2>Bean passport</h2><a data-action="open-passport">See all</a></div>
-    <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="coffee beans"><b>${beans.length} bean${beans.length===1?'':'s'}</b></div><span data-action="open-passport" style="cursor:pointer">${roasters.length} roaster${roasters.length===1?'':'s'} · tap for details</span></div>
+    <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="coffee beans"><b>${beans.length} bean${beans.length===1?'':'s'}</b></div><span data-action="open-passport" style="cursor:pointer">${origins.length?`${origins.length} origin${origins.length===1?'':'s'} · `:''}tap for details</span></div>
       <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return cat?`<div class="bean" data-action="open-bean" data-id="${esc(cat.n)}"><span class="fl">${flag[cat.c]||'🫘'}</span>${cat.n}</div>`:`<div class="bean" data-action="toast" data-msg="Your own bean — details coming soon">🫘 ${esc(n)}</div>`;}).join('')}</div></div>`:'';
   return `<div class="pad">
     <div class="prof-top"><div class="prof-av" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px">${initials(u.name)}</div>
@@ -149,12 +151,12 @@ export function renderStats(){
   const pats=mine.filter(p=>p.pattern).map(p=>p.pattern);
   const styleCount={}; pats.forEach(p=>styleCount[p]=(styleCount[p]||0)+1);
   const topStyle=Object.keys(styleCount).sort((a,b)=>styleCount[b]-styleCount[a])[0];
-  const beans=myBeans(), roasters=myRoasters();
+  const beans=myBeans(), origins=myCountries();
   const rows=[
     ['Favourite drink',state.me.favDrink||'—',''],
     ['Most-used style',topStyle?cap(topStyle):'—',topStyle?Math.round(styleCount[topStyle]/pats.length*100)+'% of art pours':''],
     ['Current streak',`${streak()} day${streak()===1?'':'s'}`,''],
-    ['Beans tried',''+beans.length,roasters.length?`${roasters.length} roaster${roasters.length===1?'':'s'}`:''],
+    ['Beans tried',''+beans.length,origins.length?`${origins.length} origin${origins.length===1?'':'s'}`:''],
     ['Total pours',''+mine.length,''],
     ['Points',fmt(state.me.points|0),`Level ${levelOf(state.me.points|0)[0]}`]
   ];

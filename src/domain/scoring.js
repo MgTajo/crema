@@ -14,7 +14,7 @@
    actually see it (roadmap, "what comes after"), so nothing pretends to.
    ============================================================ */
 import { LEVELS } from '../data/catalog.js';
-import { state, myPosts, myBeans, myRoasters, streak } from '../store/store.js';
+import { state, myPosts, myBeans, myCountries, streak } from '../store/store.js';
 
 /* The level a score sits in, as [level, name, threshold]. */
 export function levelOf(points){
@@ -47,7 +47,7 @@ export const POINT_RULES=[
 export function computeBadges(){
   const mine=myPosts(), n=mine.length, pats=p=>mine.filter(x=>x.pattern===p).length;
   const beansN=myBeans().length;
-  const roasters=myRoasters().length;
+  const origins=myCountries().length;
   return [
     {i:'☕',n:'First pour',d:'Post your first coffee',e:n>0},
     {i:'🔥',n:'Week streak',d:'7 days of coffee in a row',e:streak()>=7},
@@ -55,7 +55,7 @@ export function computeBadges(){
     {i:'🌷',n:'Tulip time',d:'Post your first tulip',e:pats('tulip')>=1},
     {i:'🦢',n:'Swan whisperer',d:'Post a swan',e:pats('swan')>=1,p:pats('swan')+'/1'},
     {i:'🫘',n:'Bean explorer',d:'Log 7 different beans',e:beansN>=7,p:Math.min(beansN,7)+'/7'},
-    {i:'🌍',n:'Roaster hopper',d:'Try beans from 5 roasters',e:roasters>=5},
+    {i:'🌍',n:'World tour',d:'Try coffees from 5 origins',e:origins>=5,p:Math.min(origins,5)+'/5'},
     {i:'🧊',n:'Cold brew curious',d:'Post a cold brew',e:mine.some(p=>p.drink==='Cold brew')},
     {i:'🎯',n:'Challenger',d:'Join a challenge',e:Object.values(state.challenges).some(Boolean)},
     {i:'💯',n:'Century club',d:'Log 100 pours',e:n>=100,p:n+'/100'}];
