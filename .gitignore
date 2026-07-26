@@ -4,3 +4,7 @@
 .idea/
 node_modules/
 supabase/.temp/
+
+# generated code graph (graphify) — machine-local, rebuild with `graphify update .`
+graphify-out/
+.cograph/
