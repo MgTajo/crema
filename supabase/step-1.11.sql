@@ -39,10 +39,16 @@ alter table profiles add constraint profiles_avatar_color_is_hex
 -- ---------- sweep auth users with no profile ----------
 -- Abandoned sign-ups and probe accounts. A user with no profile row has
 -- never completed onboarding and owns no data (everything cascades from
--- profiles), so this is safe — and it removes the account I created while
+-- profiles), so this is safe — and it removes the account created while
 -- checking whether email confirmation was enabled.
+--
+-- The age guard matters now that email confirmation is on: someone who
+-- signed up two minutes ago and hasn't clicked the link yet also has no
+-- profile row, and deleting them would silently kill a sign-up in
+-- progress. A day is long enough for anyone to find the email.
 delete from auth.users u
- where not exists (select 1 from profiles p where p.id = u.id);
+ where not exists (select 1 from profiles p where p.id = u.id)
+   and u.created_at < now() - interval '1 day';
 
 -- ---------- what to expect afterwards ----------
 --   select count(*) from posts where image_key like 'data:%';  -- until migrated
