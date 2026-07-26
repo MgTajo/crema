@@ -1,7 +1,13 @@
 /* Crema service worker
-   - network-first for HTML (so page updates always show when online)
-   - cache-first for static assets (images/icons) */
-const C = 'crema-v8';
+   - network-first for HTML and app code (so deploys are visible at once)
+   - cache-first for artwork (images/icons — fixed names, never change)
+   - everything precached below, so the app opens offline either way */
+/* Bump on any deploy that must reach existing installs immediately: the
+   browser reinstalls this worker only when this file's bytes change, and
+   `activate` then purges every other cache. With code served
+   network-first (below) a bump is no longer required for code changes —
+   it is the lever for evicting a bad cache. */
+const C = 'crema-v9';
 const ASSETS = ['./manifest.webmanifest','./styles.css',
   './src/app.js','./src/config.js','./src/core/util.js',
   './src/data/assets.js','./src/data/catalog.js','./src/data/world.js',
@@ -34,12 +40,24 @@ self.addEventListener('fetch', e => {
   const isHTML = e.request.mode === 'navigate'
     || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
 
-  if (isHTML) {
-    // network-first: always try the latest page, fall back to cache offline
+  // App code, as opposed to artwork. This distinction is the whole point:
+  // cache-first on code meant a deploy was invisible until `C` changed,
+  // because a service worker only reinstalls when sw.js itself differs.
+  // Three deploys shipped behind a stale cache that way. Code is now
+  // network-first — always current when online, cache when not — while
+  // images and icons, which never change under a fixed name, stay
+  // cache-first and instant.
+  const isCode = /\.(?:js|mjs|css|webmanifest)$/.test(url.pathname);
+
+  if (isHTML || isCode) {
     e.respondWith(
       fetch(e.request)
-        .then(res => { const cp = res.clone(); caches.open(C).then(c => c.put(e.request, cp)); return res; })
-        .catch(() => caches.match(e.request).then(h => h || caches.match('./index.html')))
+        .then(res => {
+          if (res.ok) { const cp = res.clone(); caches.open(C).then(c => c.put(e.request, cp)); }
+          return res;
+        })
+        .catch(() => caches.match(e.request)
+          .then(h => h || (isHTML ? caches.match('./index.html') : undefined)))
     );
   } else {
     // cache-first for static assets
