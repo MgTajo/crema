@@ -14,7 +14,7 @@ import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, e
          beanPassport } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanSelectHTML, lbRow, gcell, commentCount, joinedLabel, likeButton } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, lbRow, gcell, commentCount, joinedLabel, likeButton } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -470,7 +470,8 @@ function overlayCreate(){
       : `<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">Pick a café above to load the beans and gear they use.</div>`)
       : `
       <div class="rlabel">Recipe <span>· optional — add only what you know</span></div>
-      <div class="field sel"><label>Coffee / beans</label><select id="c-bean">${beanSelectHTML(c.bean)}</select></div>
+      <div class="rlabel" style="margin-top:0">Coffee / beans</div>
+      ${beanPicker('c',c.beanBrand,c.bean)}
       ${c.bean===ADD_BEAN?`<div class="field"><label>Your coffee</label><input id="c-bean-custom" placeholder="e.g. House Espresso" value="${esc(c.beanCustom)}"></div>`:''}
       ${!state.me.premium?`<div style="font-size:11.5px;color:var(--muted);margin:-4px 2px 11px">🔒 Adding your own coffee is a <b style="color:var(--crema-deep);cursor:pointer" data-action="open-settings">Premium</b> feature.</div>`:''}
       ${machinePicker('c',c.machineBrand,c.machineModel)}

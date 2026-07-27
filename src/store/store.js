@@ -236,7 +236,7 @@ export function applyMe(){
    attempted latte art, and defaulting to 'rosetta' tagged every milk
    drink with art the user never claimed. */
 export function freshCreate(){return{drink:state.me.favDrink||'Cappuccino',pattern:null,caption:'',img:null,source:'home',cafe:'',
-  bean:'',beanCustom:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
+  bean:'',beanBrand:'',beanCustom:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 /* ---------- derived selectors (read-only views over state) ----------
    The feed's copy of a post wins over the profile's: it is the one

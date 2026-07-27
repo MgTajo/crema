@@ -11,7 +11,7 @@
    view-model methods; the store calls it makes stay the same.
    ============================================================ */
 import { $, $$, fmt } from '../core/util.js';
-import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, combineMachine, splitMachine } from '../data/catalog.js';
+import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, MY_BEANS, beanCatalog, combineMachine, splitMachine } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
@@ -167,6 +167,7 @@ document.addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='c-photo-cam'||id==='c-photo-lib'){ if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]); return; }
   if(id==='c-mbrand'){ syncCreate(); ui.create.machineModel=''; renderOverlay(); return; }
+  if(id==='c-bbrand'){ syncCreate(); ui.create.bean=ui.create.beanBrand===ADD_BEAN?ADD_BEAN:''; renderOverlay(); return; }
   if(id==='c-bean'){ syncCreate(); renderOverlay(); return; }
   if(id==='c-drink'||id==='c-cafe'){ syncCreate(); renderOverlay(); return; }
   if(id==='c-mmodel'||id==='c-mother'||id==='c-milk'){ syncCreate(); return; }
@@ -374,8 +375,8 @@ async function openFlist(kind){
 
 function syncCreate(){ if(!ui.create) ui.create=freshCreate();
   const g=i=>{const el=$('#'+i); return el?el.value:undefined;}, c=ui.create;
-  ['caption','drink','cafe','bean','bean-custom','milk','dose','yield','time','temp','mbrand'].forEach(f=>{
-    const v=g('c-'+f); if(v!==undefined) c[f==='bean-custom'?'beanCustom':f==='mbrand'?'machineBrand':f]=v;});
+  ['caption','drink','cafe','bean','bbrand','bean-custom','milk','dose','yield','time','temp','mbrand'].forEach(f=>{
+    const v=g('c-'+f); if(v!==undefined) c[f==='bean-custom'?'beanCustom':f==='bbrand'?'beanBrand':f==='mbrand'?'machineBrand':f]=v;});
   if(c.machineBrand==='Other'){const mo=g('c-mother'); if(mo!==undefined) c.machineModel=mo;}
   else{const mm=g('c-mmodel'); if(mm!==undefined) c.machineModel=mm;}}
 function syncOb(){ const g=i=>{const el=$('#'+i); return el?el.value:undefined;};
@@ -667,8 +668,13 @@ async function deleteMyPost(id){
 function brewAgain(id){
   const p=findPost(id); if(!p) return; const r=p.recipe||{};
   ui.create=freshCreate();
+  /* The bean field only ever stored the coffee's own name, never its
+     roaster — the brand picker needs that back too, or a re-logged
+     recipe shows no brand and the bean list stays empty and disabled. */
+  const cat=r.bean&&beanCatalog(r.bean);
+  const beanBrand=cat?cat.roaster:(r.bean&&state.customBeans.includes(r.bean))?MY_BEANS:'';
   Object.assign(ui.create,{drink:p.drink||ui.create.drink, pattern:p.pattern||ui.create.pattern,
-    bean:r.bean||'', milk:r.milk||ui.create.milk,
+    bean:r.bean||'', beanBrand, milk:r.milk||ui.create.milk,
     dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||''});
   /* The recipe stores one combined "Brand Model" string; the picker needs
      the two halves back or it silently falls back to your own machine. */

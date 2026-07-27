@@ -85,9 +85,9 @@ export const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Ken
 
 /* Specific coffee brands you can actually buy in Germany.
    c = country the coffee comes from (for the flag); loc: 'DE' local,
-   'INT' international. The `roaster` field is retained as catalogue
-   metadata but is no longer shown anywhere: you pick a coffee, not a
-   roaster, and a bean name already identifies its maker. */
+   'INT' international. `roaster` drives the brand step of the picker
+   (beanBrands/beansByBrand below) — pick the brand off the shelf first,
+   then which of their coffees, the way you actually buy beans. */
 export const BEANS=[
   // ---- Local · roasted in Germany ----
   {n:'Bumblebee Espresso',roaster:'The Barn',c:'Germany',loc:'DE',origin:'Colombia · Ethiopia blend',roast:'Medium',notes:['Milk chocolate','Red berry','Caramel']},
@@ -140,3 +140,19 @@ export function beanCatalog(name){
     .filter(x=>{ const a=x.n.toLowerCase(); return lc.indexOf(a)===0 || a.indexOf(lc)===0; })
     .sort((a,b)=>b.n.length-a.n.length)[0] || null;
 }
+
+/* Sentinel brand value for a user's own logged coffees — they have no
+   roaster of record, so they get their own picker slot instead of one
+   of the real brands below. */
+export const MY_BEANS='__mine__';
+
+/* Brand-first lookup: a supermarket shelf (and a specialty roaster's
+   lineup) both work the same way — you recognize the brand before you
+   know which of their coffees you want. One entry per roaster, in
+   catalog order, so the picker's brand list stays stable. */
+export function beanBrands(){
+  const seen=new Set(), out=[];
+  BEANS.forEach(b=>{ if(!seen.has(b.roaster)){ seen.add(b.roaster); out.push({name:b.roaster,loc:b.loc,c:b.c}); } });
+  return out;
+}
+export function beansByBrand(roaster){ return BEANS.filter(b=>b.roaster===roaster); }

@@ -6,7 +6,7 @@
    store selectors but never mutate state or touch the DOM directly.
    ============================================================ */
 import { esc, fmt, seedOf, initials } from '../core/util.js';
-import { MACHINES, MACHINE_BRANDS, BEANS, ADD_BEAN, flag } from '../data/catalog.js';
+import { MACHINES, MACHINE_BRANDS, BEANS, ADD_BEAN, MY_BEANS, beanBrands, beansByBrand, flag } from '../data/catalog.js';
 import { USERS, handleToUid, CAFES, userOf } from '../data/world.js';
 import { state, allPosts, findPost } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
@@ -26,16 +26,30 @@ export function machinePicker(pfx,brand,model){
     <div class="field sel"><label>Model</label><select id="${pfx}-mmodel"${brand&&brand!=='Other'?'':' disabled'}><option value=""${model?'':' selected'}>${brand&&brand!=='Other'?'Choose model…':'—'}</option>${models.map(m=>`<option${m===model?' selected':''}>${esc(m)}</option>`).join('')}</select></div>
   </div>${brand==='Other'?`<div class="field"><label>Your machine</label><input id="${pfx}-mother" placeholder="e.g. Custom lever setup" value="${esc(model||'')}"></div>`:''}`;
 }
-/* Coffee <select>, grouped local/international; own-bean option gated
-   behind Premium. Bean names only — the roaster picker is gone. */
-export function beanSelectHTML(cur){
-  const opt=b=>`<option value="${esc(b.n)}"${b.n===cur?' selected':''}>${esc(b.n)}</option>`;
-  let h=`<option value=""${cur?'':' selected'}>Not sure / choose…</option>`;
-  h+=`<optgroup label="Local · roasted in Germany">${BEANS.filter(b=>b.loc!=='INT').map(opt).join('')}</optgroup>`;
-  h+=`<optgroup label="International · sold in Germany">${BEANS.filter(b=>b.loc==='INT').map(opt).join('')}</optgroup>`;
-  if(state.customBeans.length) h+=`<optgroup label="Your coffees">${state.customBeans.map(n=>`<option${n===cur?' selected':''}>${esc(n)}</option>`).join('')}</optgroup>`;
-  if(state.me.premium) h+=`<option${cur===ADD_BEAN?' selected':''}>${ADD_BEAN}</option>`;
-  return h;
+/* Brand → coffee bean picker: pick the brand off the shelf first, then
+   which of their coffees, same as buying beans in a supermarket (or
+   picking a specialty roaster's espresso vs. filter blend). Mirrors
+   machinePicker's brand→model shape. Own-bean option gated behind
+   Premium; previously-added own coffees get their own brand slot. */
+export function beanPicker(pfx,brand,bean){
+  const brands=beanBrands();
+  const bopt=b=>`<option${b.name===brand?' selected':''}>${esc(b.name)}</option>`;
+  const beans=brand===MY_BEANS?state.customBeans.map(n=>({n})):(brand&&brand!==ADD_BEAN)?beansByBrand(brand):[];
+  const copt=b=>`<option value="${esc(b.n)}"${b.n===bean?' selected':''}>${esc(b.n)}</option>`;
+  const hasSecond=!!brand&&brand!==ADD_BEAN;
+  return `<div class="rowfields">
+    <div class="field sel"><label>Brand</label><select id="${pfx}-bbrand">
+      <option value=""${brand?'':' selected'}>Not sure / choose…</option>
+      <optgroup label="Local · roasted in Germany">${brands.filter(b=>b.loc!=='INT').map(bopt).join('')}</optgroup>
+      <optgroup label="International · sold in Germany">${brands.filter(b=>b.loc==='INT').map(bopt).join('')}</optgroup>
+      ${state.customBeans.length?`<option value="${esc(MY_BEANS)}"${brand===MY_BEANS?' selected':''}>Your own coffees</option>`:''}
+      ${state.me.premium?`<option value="${esc(ADD_BEAN)}"${brand===ADD_BEAN?' selected':''}>${ADD_BEAN}</option>`:''}
+    </select></div>
+    <div class="field sel"><label>Coffee</label><select id="${pfx}-bean"${hasSecond?'':' disabled'}>
+      <option value=""${bean?'':' selected'}>${hasSecond?'Choose…':'—'}</option>
+      ${beans.map(copt).join('')}
+    </select></div>
+  </div>`;
 }
 export const postLink=id=>location.href.split('#')[0]+'#p/'+id;
 
