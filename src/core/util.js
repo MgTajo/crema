@@ -23,6 +23,17 @@ export const esc=s=>(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;
 export const clone=o=>JSON.parse(JSON.stringify(o));
 export const initials=n=>n.split(' ').map(w=>w[0]).slice(0,2).join('');
 
+/* Strips everything but digits/one decimal point out of a recipe field
+   and tacks the unit back on — the mask behind the dose/yield/time/temp
+   inputs, so "18" becomes "18g" as you type and stays that way however
+   the value got there (typed, pasted, or loaded from an old post). */
+export function withUnit(raw,unit){
+  let n=(''+(raw==null?'':raw)).replace(/[^0-9.]/g,'');
+  const dot=n.indexOf('.');
+  if(dot!==-1) n=n.slice(0,dot+1)+n.slice(dot+1).replace(/\./g,'');
+  return n?n+unit:'';
+}
+
 /* ---------- relative-time helpers ---------- */
 export function agoDays(a){if(!a||a==='now')return 0;const m=(''+a).match(/(\d+)([hdw])/);if(!m)return 0;const n=+m[1];return m[2]==='h'?0:m[2]==='d'?n:n*7;}
 /* timestamptz → the compact relative label the UI already speaks ('2h', '3d') */

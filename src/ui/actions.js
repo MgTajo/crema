@@ -10,7 +10,7 @@
    In the target app this layer maps onto screen event handlers /
    view-model methods; the store calls it makes stay the same.
    ============================================================ */
-import { $, $$, fmt } from '../core/util.js';
+import { $, $$, fmt, withUnit } from '../core/util.js';
 import { DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, MY_BEANS, beanCatalog, combineMachine, splitMachine } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
@@ -152,7 +152,23 @@ document.addEventListener('keydown',e=>{ if(e.key!=='Enter') return;
   if(t.dataset.enter==='add-cmt') addComment(t.dataset.id);
   else if(t.dataset.enter==='auth-submit') doAuth();
   else if(t.dataset.enter==='pw-save') savePassword(); });
+/* Recipe fields wear their unit as you type — "18" becomes "18g" the
+   moment you type it, not just after you've moved on. Reapplied on
+   every keystroke, with the caret parked back where you left it (by
+   digit count, since the unit itself isn't editable). */
+const RECIPE_UNITS={'c-dose':'g','c-yield':'g','c-time':'s','c-temp':'°'};
+function maskRecipeInput(el,unit){
+  const raw=el.value, caret=el.selectionStart;
+  const digitsBefore=raw.slice(0,caret).replace(/[^0-9.]/g,'').length;
+  const next=withUnit(raw,unit);
+  el.value=next;
+  const numLen=Math.max(0,next.length-unit.length);
+  const pos=Math.min(digitsBefore,numLen);
+  el.setSelectionRange(pos,pos);
+}
 document.addEventListener('input',e=>{
+  const unit=RECIPE_UNITS[e.target.id];
+  if(unit){ maskRecipeInput(e.target,unit); return; }
   if(e.target.id==='search-input'){ ui.searchQ=e.target.value;
     paintSearch();
     /* People live in Postgres, so searching them is a query. Debounced,

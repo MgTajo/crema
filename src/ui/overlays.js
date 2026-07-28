@@ -5,7 +5,7 @@
    Overlays are data-driven strings just like the screens; opening
    one pushes a descriptor, closing pops it.
    ============================================================ */
-import { $, esc, fmt, cap, initials, seedOf } from '../core/util.js';
+import { $, esc, fmt, cap, initials, seedOf, withUnit } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, flag } from '../data/catalog.js';
@@ -529,10 +529,10 @@ function overlayCreate(){
       ${!state.me.premium?`<div style="font-size:11.5px;color:var(--muted);margin:-4px 2px 11px">🔒 Adding your own coffee is a <b style="color:var(--crema-deep);cursor:pointer" data-action="open-settings">Premium</b> feature.</div>`:''}
       ${machinePicker('c',c.machineBrand,c.machineModel)}
       <div class="rowfields">
-        <div class="field"><label>Dose in</label><input id="c-dose" placeholder="—" value="${esc(c.dose)}"></div>
-        <div class="field"><label>Yield out</label><input id="c-yield" placeholder="—" value="${esc(c.yield)}"></div>
-        <div class="field"><label>Time</label><input id="c-time" placeholder="—" value="${esc(c.time)}"></div>
-        <div class="field"><label>Temp</label><input id="c-temp" placeholder="—" value="${esc(c.temp)}"></div></div>`}
+        <div class="field"><label>Dose in</label><input id="c-dose" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.dose,'g'))}"></div>
+        <div class="field"><label>Yield out</label><input id="c-yield" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.yield,'g'))}"></div>
+        <div class="field"><label>Time</label><input id="c-time" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.time,'s'))}"></div>
+        <div class="field"><label>Temp</label><input id="c-temp" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.temp,'°'))}"></div></div>`}
       <button class="btn block" style="margin-top:12px" data-action="submit-post">${editing?'Save changes':`${icon('bolt',18)} Post`}</button>
       ${editing?`<button class="btn ghost block" style="margin-top:8px" data-action="close-ov">Cancel</button>`:''}
       <div style="height:8px"></div>
