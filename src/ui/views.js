@@ -8,14 +8,14 @@
 import { $, esc, fmt, cap, initials, seedOf, agoDays, agoLabel } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, TOP_POSTS } from '../data/world.js';
+import { USERS, TOP_POSTS } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, streak,
          myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
-import { art, cupSVG } from '../domain/art.js';
+import { art } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
-import { postCard, searchHTML, avatar, lbRow, cafeCard, gcell, joinedLabel } from './components.js';
-import { icon, pin, logoMark } from './icons.js';
+import { postCard, searchHTML, avatar, lbRow, gcell } from './components.js';
+import { icon, logoMark } from './icons.js';
 import { renderOverlay } from './overlays.js';
 import { renderGate } from './gate.js';
 
@@ -63,11 +63,8 @@ export function renderExplore(){
     <div id="explore-results">${ui.searchQ?searchHTML(ui.searchQ):''}</div>
     <div id="explore-normal" style="${ui.searchQ?'display:none':''}">
     ${people?`<div class="section-h"><h2>People to follow</h2></div>${people}`:''}
-    ${CHALLENGES.length?`<div class="section-h"><h2>Challenges</h2><a data-action="open-challenges">See all</a></div>
-    <div class="hscroll">${CHALLENGES.map(c=>{const j=state.challenges[c.id];return `<div class="ch-card">
-      <div class="ch-top" data-action="open-challenge" data-id="${c.id}"><span class="ends">Ends in ${c.ends}</span>${cupSVG(c.pattern,.9,c.id.charCodeAt(0))}</div>
-      <div class="ch-b"><h3>${c.title}</h3><p>${joinedLabel(c)} · ${c.tag}</p>
-        <button class="btn ${j?'ghost':''} sm block" data-action="join" data-id="${c.id}">${j?'✓ Joined':'Join challenge'}</button></div></div>`;}).join('')}</div>`:''}
+    <div class="section-h"><h2>Challenges</h2></div>
+    <div class="empty" style="padding:18px 20px">Coming soon</div>
     <div class="section-h"><h2>Most-loved pours</h2>${lbPrev.length?'<a data-action="open-board">Full list</a>':''}</div>
     ${board}
     <div class="section-h"><h2>Trending patterns</h2></div>
@@ -77,20 +74,9 @@ export function renderExplore(){
 }
 
 export function renderCafes(){
-  const f=ui.cafeF;
-  const list=CAFES.filter(c=>(!f.open||(c.hours||'').startsWith('Open'))&&(!f.promo||c.promo)&&(!f.top||c.rating>=4.8));
-  if(!CAFES.length) return `<div class="pad">
-    <div class="empty"><div class="big">🗺️</div>No cafés in the directory yet.<br>They'll appear here once Crema lists some.</div></div>`;
   return `<div class="pad">
-    <div class="map"><svg viewBox="0 0 340 190" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <rect width="340" height="190" fill="#e7dcc8"/>
-      <path d="M-10 120 Q120 90 180 140 T360 120 L360 200 L-10 200Z" fill="#cfe0dd" opacity=".7"/>
-      <g stroke="#d8cbb2" stroke-width="8" fill="none" opacity=".8"><path d="M40 -10 L60 200"/><path d="M150 -10 L140 200"/><path d="M250 -10 L270 200"/><path d="M-10 60 L360 40"/><path d="M-10 130 L360 150"/></g>
-      <g fill="#ddd0ba" opacity=".8"><rect x="70" y="50" width="60" height="60" rx="6"/><rect x="170" y="60" width="70" height="50" rx="6"/><rect x="80" y="150" width="50" height="40" rx="6"/><rect x="280" y="70" width="50" height="60" rx="6"/></g></svg>
-      ${CAFES.map(c=>`<div class="pin" style="left:${c.x};top:${c.y}" data-action="open-cafe" data-id="${c.id}">${pin(c.color)}</div>`).join('')}</div>
-    <div class="filters">${[['open','Open now'],['promo','Deals'],['top','Top rated']].map(x=>`<button class="fchip ${f[x[0]]?'on':''}" data-action="cafe-filter" data-f="${x[0]}">${x[1]}</button>`).join('')}</div>
-    <div class="section-h" style="margin-top:4px"><h2>Near you</h2></div>
-    ${list.length?list.map(cafeCard).join(''):`<div class="empty"><div class="big">🗺️</div>${CAFES.length?'No cafés match those filters.':'No cafés yet — they arrive from the Crema directory.'}</div>`}
+    <div class="section-h"><h2>Cafés</h2></div>
+    <div class="empty" style="padding:18px 20px">Coming soon</div>
   </div>`;
 }
 
