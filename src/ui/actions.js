@@ -402,6 +402,12 @@ function syncCreate(){ if(!ui.create) ui.create=freshCreate();
   const g=i=>{const el=$('#'+i); return el?el.value:undefined;}, c=ui.create;
   ['caption','drink','drink-custom','cafe','bean','bbrand','bean-custom','milk','dose','yield','time','temp','mbrand'].forEach(f=>{
     const v=g('c-'+f); if(v!==undefined) c[f==='drink-custom'?'drinkCustom':f==='bean-custom'?'beanCustom':f==='bbrand'?'beanBrand':f==='mbrand'?'machineBrand':f]=v;});
+  /* "Add your own coffee" leaves the Coffee select with nothing to hold
+     the sentinel — it renders empty and disabled — so reading it back
+     would erase the very thing that says a custom name is being typed,
+     and the bean would vanish on submit. The brand select is the
+     authority for that state, exactly as the change handler treats it. */
+  if(c.beanBrand===ADD_BEAN) c.bean=ADD_BEAN;
   if(c.machineBrand==='Other'){const mo=g('c-mother'); if(mo!==undefined) c.machineModel=mo;}
   else{const mm=g('c-mmodel'); if(mm!==undefined) c.machineModel=mm;}}
 function syncOb(){ const g=i=>{const el=$('#'+i); return el?el.value:undefined;};
