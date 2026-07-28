@@ -487,6 +487,10 @@ Found by asking "is this number real?" of the *media* path for the first time:
 - ⬜ Run `step-1.13.sql` — until it does, Settings says profile photos aren't switched on yet.
   Nothing else breaks: every query naming `avatar_key` gives that one column up on the first
   error and retries without it, so avatars stay as initials.
+- ⬜ Run `step-1.14.sql` — the new scoring. Do this one promptly: the Levels screen already
+  shows the new rules, so until it runs the app describes a score the database isn't keeping.
+  It restates everyone's points in one pass (challenges stop paying; exact recipes and new
+  beans start).
 - ⬜ **Supabase → Auth → URL Configuration → Redirect URLs** must list `https://mgtajo.github.io/crema/**`
   (and `http://localhost:4599/**`), or Google sign-in completes and then lands on the Site URL with
   no `?code=`. The Google console side is already correct.

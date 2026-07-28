@@ -789,7 +789,10 @@ async function saveEdit(c){
   ui.create=null; ui.ovStack=[]; save(); render(); toast('Changes saved');
 
   if(!currentUser()) return;
-  try{ await updatePost(p.id,p); }
+  /* An edit can move the score now: filling in dose and yield earns the
+     exact-recipe points, and naming a coffee you've never logged earns
+     the new-bean ones (step-1.14.sql). */
+  try{ await updatePost(p.id,p); refreshScore(); }
   catch(err){
     console.warn('edit failed',err);
     copies.forEach((x,i)=>Object.assign(x,before[i]));

@@ -35,13 +35,19 @@ export function levelProgress(points){
 }
 export const levelName = n => (LEVELS.find(l=>l[0]===n)||LEVELS[0])[1];
 
-/* What things are worth, mirrored from user_points() in step-1.9.sql.
-   Shown on the levels screen so the rules are visible, not folklore. */
+/* What things are worth, mirrored from user_points() in step-1.14.sql.
+   Shown on the levels screen so the rules are visible, not folklore —
+   which also means this list has to stay honest: if the SQL changes and
+   this doesn't, the app is lying about how it scores people.
+
+   Every line is something you did with coffee, or something a real
+   person did in response to it. Nothing pays for using the app. */
 export const POINT_RULES=[
   ['Log a coffee','+10'],
-  ['Someone likes your pour','+2'],
-  ['Enter a challenge','+25'],
-  ['A vote on your entry','+1']
+  ['A bean you\'ve never logged','+15'],
+  ['An exact recipe · dose in, yield out','+5'],
+  ['Someone comments on your pour','+3'],
+  ['Someone likes your pour','+2']
 ];
 
 export function computeBadges(){

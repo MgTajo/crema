@@ -17,6 +17,7 @@ Supabase dashboard → **SQL Editor** → paste and run:
 7. [`step-1.11.sql`](step-1.11.sql) — `image_key` holds a key, `avatar_color` holds a colour.
 8. [`step-1.12.sql`](step-1.12.sql) — editing your own pour, on the day you poured it.
 9. [`step-1.13.sql`](step-1.13.sql) — optional profile photos (`profiles.avatar_key`).
+10. [`step-1.14.sql`](step-1.14.sql) — points for coffee: pours, likes, comments, exact recipes, new beans.
 
 All of them are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
@@ -35,6 +36,14 @@ the first error and retries without it (`optionalColumns()` in
 `src/data/supabase.js`), so avatars stay as initials — but picking a photo
 in Settings says it isn't switched on yet, because there is nowhere to
 store the key.
+
+**`step-1.14.sql` restates every score**, so run it when you're happy for
+scores to move — they will, both ways. Challenge entries and votes stop
+paying (challenges are behind "Coming soon" and being reworked), and
+exact recipes and new beans start paying. It rewrites `user_points()` and
+repoints the triggers; the level curve is untouched. Until it runs, the
+Levels screen shows the new rules while the database still scores by the
+old ones — which is the one combination worth not leaving for long.
 
 **`step-1.9.sql` is required by the current app.** It adds `profiles.points`,
 makes `profiles.level` a function of that score (triggers recompute both from
