@@ -966,6 +966,12 @@ function composeFromSheet(c){
     let bean=c.bean===ADD_BEAN?(state.me.premium?T(c.beanCustom):''):T(c.bean);
     if(c.bean===ADD_BEAN && state.me.premium && bean && !BEANS.some(b=>b.n===bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
     if(bean) recipe.bean=bean;
+    /* A bag of coffee outlasts a single pour, so the next create sheet
+       opens on this one already chosen (freshCreate). Only pours you
+       made yourself count — a café's bean is theirs, not what's on your
+       shelf. Posting without a bean leaves the memory alone: the last
+       coffee you actually used is still the last one you used. */
+    if(bean) state.lastBean=bean;
     const machine=combineMachine(c.machineBrand,c.machineModel);
     if(machine) recipe.machine=machine;
     if(HAS_MILK.has(drink)&&c.milk) recipe.milk=c.milk;

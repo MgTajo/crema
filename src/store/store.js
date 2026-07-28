@@ -14,7 +14,7 @@
    ============================================================ */
 import { agoDays, isToday } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
-import { beanCatalog } from '../data/catalog.js';
+import { beanCatalog, MY_BEANS } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, handleToUid } from '../data/world.js';
 import { fetchFeed, fetchMine, fetchSavedPosts } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
@@ -46,6 +46,11 @@ export function freshState(){
        most people post the same way every day, and asking again every
        time is asking them to re-decide something they already decided. */
     lastVisibility:'public',
+    /* The coffee you brewed with last, remembered for the same reason:
+       a bag lasts weeks, so the next pour is almost always the same
+       beans. Only the name is kept — the brand is derived from it, so
+       a coffee that later joins the catalogue picks up its roaster. */
+    lastBean:'',
     cafeFollow:{},
     challenges:{},
     challengeSubs:{}, customBeans:[], customDrinks:[],
@@ -270,8 +275,19 @@ export function applyMe(){
    The database enforces the same rule — see supabase/step-1.12.sql. */
 export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
 
-export function freshCreate(){return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',drinkCustom:'',pattern:null,caption:'',img:null,source:'home',cafe:'',
-  bean:'',beanBrand:'',beanCustom:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
+/* Which brand slot a remembered coffee belongs in. The bean field only
+   ever stored the coffee's own name, so the picker's first step has to
+   be worked back out of it — the catalogue's roaster if it is one of
+   theirs, your own-coffees slot if you added it yourself. Same unpacking
+   brewAgain() and editMyPost() do for a stored recipe. */
+function brandOfBean(bean){
+  if(!bean) return '';
+  const cat=beanCatalog(bean);
+  return cat ? cat.roaster : ((state.customBeans||[]).includes(bean) ? MY_BEANS : '');
+}
+export function freshCreate(){const bean=state.lastBean||'';
+  return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',drinkCustom:'',pattern:null,caption:'',img:null,source:'home',cafe:'',
+  bean,beanBrand:brandOfBean(bean),beanCustom:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 /* ---------- derived selectors (read-only views over state) ----------
    The feed's copy of a post wins over the profile's: it is the one
