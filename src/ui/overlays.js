@@ -128,7 +128,7 @@ function overlayUser(uid){
       <div style="height:96px;background:linear-gradient(135deg,${u.color},#3a271a)"></div>
       <div style="padding:0 16px 20px">
         <div style="display:flex;align-items:flex-end;gap:12px;margin-top:-28px">
-          <div class="avatar" style="width:74px;height:74px;font-size:26px;background:${u.color};border:3px solid var(--cream)">${initials(u.name)}</div>
+          ${avatar(uid,'xl')}
           ${followBtn(uid,'sm','margin-left:auto')}</div>
         <div style="margin-top:10px"><b style="font-family:var(--serif);font-size:22px">${esc(u.name)}</b> <span class="lvlchip">Lv${u.level}</span>
           <div style="color:var(--muted);font-size:13px;margin:2px 0 8px">${esc(u.handle)}${u.city?` · 📍 ${esc(u.city)}`:''}</div>

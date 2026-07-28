@@ -144,6 +144,8 @@
   /* the photo covers the initials rather than replacing them — see avatar() */
   .avatar img{position:absolute; inset:0; width:100%; height:100%; border-radius:50%; object-fit:cover}
   .avatar.big{width:56px; height:56px; font-size:20px; margin:0 auto 10px}
+  /* the header avatar on someone else's profile sheet, overlapping the banner */
+  .avatar.xl{width:74px; height:74px; font-size:26px; border:3px solid var(--cream)}
   /* story-ring on discovery + profile avatars */
   .ucard .avatar.big:after, .prof-av:after{content:""; position:absolute; inset:-5px; border-radius:50%; padding:2.5px; background:var(--ring);
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none}
