@@ -34,9 +34,15 @@ export function machinePicker(pfx,brand,model){
 export function beanPicker(pfx,brand,bean){
   const brands=beanBrands();
   const bopt=b=>`<option${b.name===brand?' selected':''}>${esc(b.name)}</option>`;
-  const beans=brand===MY_BEANS?state.customBeans.map(n=>({n})):(brand&&brand!==ADD_BEAN)?beansByBrand(brand):[];
+  const known=brand===MY_BEANS?state.customBeans.map(n=>({n})):(brand&&brand!==ADD_BEAN)?beansByBrand(brand):[];
+  /* A coffee that's already on the post but isn't in the list it belongs
+     to — an older pour, a café's bean, a name from before the catalogue
+     had it — stays on the list anyway. Otherwise reopening that post in
+     the sheet shows an empty Coffee field and saving quietly drops what
+     it used to say. */
+  const beans=(bean&&bean!==ADD_BEAN&&!known.some(b=>b.n===bean))?known.concat({n:bean}):known;
   const copt=b=>`<option value="${esc(b.n)}"${b.n===bean?' selected':''}>${esc(b.n)}</option>`;
-  const hasSecond=!!brand&&brand!==ADD_BEAN;
+  const hasSecond=(!!brand&&brand!==ADD_BEAN)||beans.length>0;
   return `<div class="rowfields">
     <div class="field sel"><label>Brand</label><select id="${pfx}-bbrand">
       <option value=""${brand?'':' selected'}>Not sure / choose…</option>
@@ -88,13 +94,18 @@ export function likeButton(p,size=22){
   return `<button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}" aria-label="Like">${icon(p.likedByMe?'heartF':'heart',size)} <span class="cnt">${fmt(p.likes)}</span></button>`;
 }
 
+/* An edited pour says so — in the timestamp line, in the same dimmed
+   type as the rest of it. Honest, and quiet enough that nobody has to
+   feel watched for fixing a typo. */
+export const editedMark = p => p.edited ? ' · <span class="edited">edited</span>' : '';
+
 export function postCard(p){
   const u=userOf(p.user), following=p.user==='me'||state.follows[p.user], r=p.recipe, top=p.comments[0];
   const rows=recipeRows(r), cn=commentCount(p);
   return `<div class="card" data-post="${p.id}">
     <div class="p-head">
       <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}</span></div></div>
+        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}${editedMark(p)}</span></div></div>
       ${p.user==='me'?'':`<button class="followmini ${following?'on':''}" data-action="follow" data-id="${p.user}">${following?'Following':'Follow'}</button>`}
       <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
     <div class="media" data-action="open-post" data-id="${p.id}">

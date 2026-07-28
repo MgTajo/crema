@@ -35,4 +35,12 @@ export function agoFrom(iso){
   const d=h/24;    if(d<7)  return Math.floor(d)+'d';
   return Math.floor(d/7)+'w';
 }
+/* Was this timestamp today, in the *user's* local calendar day? Editing a
+   pour is allowed only on the day it was poured, and "the day" is the one
+   the user lived through, not UTC's. */
+export function isToday(iso){
+  const t=Date.parse(iso); if(!isFinite(t)) return false;
+  const d=new Date(t), n=new Date();
+  return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
+}
 export function agoLabel(a){const d=agoDays(a);if(d===0)return'Today';if(d===1)return'Yesterday';if(d<7)return new Date(Date.now()-d*864e5).toLocaleDateString('en',{weekday:'short'});return a+' ago';}

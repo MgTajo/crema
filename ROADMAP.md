@@ -483,6 +483,9 @@ Found by asking "is this number real?" of the *media* path for the first time:
   (`https://mgtajo.github.io/crema`). Browsers send scheme+host only, so it can never match; it
   has to be `https://mgtajo.github.io`. Until then every photo still lands inline.
 - ⬜ Run `step-1.11.sql`, then `migrate-base64-images.mjs`, then validate the constraint.
+- ⬜ Run `step-1.12.sql` — until it does, "own post, same day, photo unchanged" is enforced only
+  in the client, and the `edited` marker doesn't survive a reload (the feed detects the missing
+  column once and stops selecting it, so nothing breaks in the meantime).
 - ⬜ **Supabase → Auth → URL Configuration → Redirect URLs** must list `https://mgtajo.github.io/crema/**`
   (and `http://localhost:4599/**`), or Google sign-in completes and then lands on the Site URL with
   no `?code=`. The Google console side is already correct.

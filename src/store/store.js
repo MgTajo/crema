@@ -12,7 +12,7 @@
    `import { state }` always observe the latest value, including
    after load() reassigns it on reset.
    ============================================================ */
-import { agoDays } from '../core/util.js';
+import { agoDays, isToday } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
 import { beanCatalog } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, handleToUid } from '../data/world.js';
@@ -235,7 +235,12 @@ export function applyMe(){
 /* pattern starts empty: a cappuccino is a cappuccino whether or not you
    attempted latte art, and defaulting to 'rosetta' tagged every milk
    drink with art the user never claimed. */
-export function freshCreate(){return{drink:state.me.favDrink||'Cappuccino',pattern:null,caption:'',img:null,source:'home',cafe:'',
+/* Editing is for fixing what you meant to say, not for rewriting
+   history: your own pour, on the day you poured it, and never the photo.
+   The database enforces the same rule — see supabase/step-1.12.sql. */
+export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
+
+export function freshCreate(){return{editId:null,drink:state.me.favDrink||'Cappuccino',pattern:null,caption:'',img:null,source:'home',cafe:'',
   bean:'',beanBrand:'',beanCustom:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 /* ---------- derived selectors (read-only views over state) ----------

@@ -11,10 +11,10 @@ import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache,
-         beanPassport } from '../store/store.js';
+         beanPassport, canEdit } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, lbRow, gcell, commentCount, joinedLabel, likeButton } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, lbRow, gcell, commentCount, joinedLabel, likeButton, editedMark } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -59,7 +59,7 @@ function overlayPost(id){
       <div class="media" data-action="none">${art(imageUrl(p.img,'hero'),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">
         <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${esc(p.cafe)}`:''} · ${p.ago}</span></div></div>
+          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${esc(p.cafe)}`:''} · ${p.ago}${editedMark(p)}</span></div></div>
         ${p.user==='me'?'':`<button class="followmini ${state.follows[p.user]?'on':''}" data-action="follow" data-id="${p.user}">${state.follows[p.user]?'Following':'Follow'}</button>`}
         <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
       <div class="p-body"><div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
@@ -158,6 +158,7 @@ function overlayMenu(id){
       <div class="mrow" data-action="menu-copy" data-id="${id}"><div class="mi">🔗</div>Copy link</div>
       ${p.recipe?`<div class="mrow" data-action="brew" data-id="${id}"><div class="mi">☕</div>Brew this recipe</div>`:''}
       <div class="mrow" data-action="menu-save" data-id="${id}"><div class="mi">🔖</div>${p.saved?'Remove from saved':'Save to collection'}</div>
+      ${mine&&canEdit(p)?`<div class="mrow" data-action="menu-edit" data-id="${id}"><div class="mi">✏️</div>Edit this pour</div>`:''}
       ${mine?`<div class="mrow danger" data-action="menu-delete" data-id="${id}"><div class="mi">🗑️</div>Delete this pour</div>`
             :`<div class="mrow danger" data-action="menu-report" data-id="${id}"><div class="mi">🚩</div>Report</div>
               <div class="mrow danger" data-action="menu-block" data-id="${p.user}"><div class="mi">🚫</div>Block ${esc((who&&who.name||'this person').split(' ')[0])}</div>`}
@@ -428,28 +429,33 @@ function overlayOnboard(){
   return `<div class="ov-back"></div><div class="sheet" role="dialog" aria-label="Welcome"><div class="ov-body" style="padding:26px 22px">${dots}${body}</div></div>`;
 }
 
+/* The same sheet does double duty: with `editId` set it edits that pour
+   instead of starting a new one. Everything except the photo is the same
+   form, so an edit looks and behaves exactly like the post did — the
+   camera row is simply not there, because the photo is not editable. */
 function overlayCreate(){
-  const c=ui.create||freshCreate(), isArt=!!DRINK_ART[c.drink];
+  const c=ui.create||freshCreate(), isArt=!!DRINK_ART[c.drink], editing=!!c.editId;
   const pats=[['heart','Heart'],['rosetta','Rosetta'],['tulip','Tulip'],['swan','Swan']];
   const mkList=(base,cur)=>{const l=base.slice(); if(cur&&cur!==ADD_BEAN&&!l.includes(cur))l.push(cur); return l;};
   const sel=(list,cur,ph,extra)=>`<option value=""${cur?'':' selected'}>${ph}</option>`+list.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')+(extra?`<option${cur===extra?' selected':''}>${extra}</option>`:'');
   const chosenCafe=(c.source==='cafe'&&c.cafe)?CAFES.find(x=>x.id===c.cafe):null;
   const milkOpts=chosenCafe?chosenCafe.menu.milks:MILK_LIST;
-  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="New coffee">
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${editing?'Edit coffee':'New coffee'}">
     <div class="grab"></div>
-    <div class="ov-bar" style="border:0"><b>New coffee</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
+    <div class="ov-bar" style="border:0"><b>${editing?'Edit coffee':'New coffee'}</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 16px">
       <div class="create-prev">
         ${c.img?`<img class="photo" src="${imageUrl(c.img,'feed')}" alt="your coffee photo">`:cupSVG(isArt&&c.pattern?c.pattern:'none',.85,999)}
-        ${c.img?(c.uploading?`<span class="up-hint">Uploading…</span>`:(c.uploadFailed?`<span class="up-hint" style="background:rgba(168,84,74,.9)">Upload failed</span>`:'')):`<span class="up-hint">${icon('cam',15)} Add a photo</span>`}
+        ${c.img?(c.uploading?`<span class="up-hint">Uploading…</span>`:(c.uploadFailed?`<span class="up-hint" style="background:rgba(168,84,74,.9)">Upload failed</span>`:'')):(editing?'':`<span class="up-hint">${icon('cam',15)} Add a photo</span>`)}
       </div>
-      ${c.uploadFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
+      ${!editing&&c.uploadFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
         That photo couldn't reach the server. Tap Post to try again, or drop it and post without a photo.
         <button class="btn ghost sm" style="margin-top:8px" data-action="drop-photo">Post without the photo</button></div>`:''}
-      <div class="photo-actions">
+      ${editing?`<div style="font-size:11.5px;color:var(--muted);margin:10px 2px 12px">The photo stays as it was poured — everything else is yours to fix.</div>`
+      :`<div class="photo-actions">
         <label class="btn ghost sm"><input type="file" id="c-photo-cam" accept="image/*" capture="environment" hidden>${icon('cam',16)} ${c.img?'Retake':'Take photo'}</label>
         <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>🖼️ ${c.img?'Change':'Gallery'}</label>
-      </div>
+      </div>`}
       <div class="field sel"><label>Drink</label><select id="c-drink">${DRINKS.map(d=>`<option${d===c.drink?' selected':''}>${d}</option>`).join('')}</select></div>
       ${isArt?`<div class="field"><label>Latte art <span style="text-transform:none;letter-spacing:0;color:var(--muted)">· only if you poured one — tap to toggle</span></label>
         <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div>
@@ -480,7 +486,8 @@ function overlayCreate(){
         <div class="field"><label>Yield out</label><input id="c-yield" placeholder="—" value="${esc(c.yield)}"></div>
         <div class="field"><label>Time</label><input id="c-time" placeholder="—" value="${esc(c.time)}"></div>
         <div class="field"><label>Temp</label><input id="c-temp" placeholder="—" value="${esc(c.temp)}"></div></div>`}
-      <button class="btn block" style="margin-top:12px" data-action="submit-post">${icon('bolt',18)} Post</button>
+      <button class="btn block" style="margin-top:12px" data-action="submit-post">${editing?'Save changes':`${icon('bolt',18)} Post`}</button>
+      ${editing?`<button class="btn ghost block" style="margin-top:8px" data-action="close-ov">Cancel</button>`:''}
       <div style="height:8px"></div>
     </div></div>`;
 }

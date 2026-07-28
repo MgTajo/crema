@@ -16,13 +16,13 @@ import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
 import { ensureProfile, pushProfile, fetchUserCard, searchProfiles, fetchScore } from '../data/profiles.js';
-import { createPost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
+import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
 import * as chal from '../data/challenges.js';
 import { markAllRead } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
-         saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, entryCache } from '../store/store.js';
+         saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, entryCache, canEdit } from '../store/store.js';
 import { commentRow, postLink, searchHTML } from './components.js';
 import { icon } from './icons.js';
 import { render, renderView, renderAppbar } from './views.js';
@@ -104,6 +104,7 @@ document.addEventListener('click',e=>{
     case 'report-send': sendReport(id,t.dataset.reason); break;
     case 'menu-block': blockUser(id); break;
     case 'menu-delete': deleteMyPost(id); break;
+    case 'menu-edit': editMyPost(id); break;
     case 'brew': brewAgain(id); break;
     case 'directions':{ const c=CAFES.find(x=>x.id===id); if(!c)break;
       const url='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(c.name+', '+c.area+', '+c.city);
@@ -665,6 +666,64 @@ async function deleteMyPost(id){
     save(); render(); toast('Couldn\'t delete that — it\'s still there');
   });
 }
+/* The same pour can sit in several lists at once (the feed, your profile
+   grid, your saves) and they are not always the same object. An edit has
+   to land on every copy, or the caption you just fixed comes back on the
+   next tab switch. */
+function postCopies(id){
+  const out=[];
+  [state.posts, mine.list, saved.list, state.myGallery, [findPost(id)]]
+    .forEach(l=>(l||[]).forEach(p=>{ if(p&&p.id===id&&!out.includes(p)) out.push(p); }));
+  return out;
+}
+
+/* Reopens the create sheet as an edit of an existing pour. Everything the
+   form can express is loaded back into it — including the halves the
+   recipe stores combined (machine) or without their brand (bean), the
+   same unpacking brewAgain does. */
+function editMyPost(id){
+  const p=findPost(id); if(!p) return;
+  if(!canEdit(p)){ popOv(); toast('Pours can only be edited on the day you posted them'); return; }
+  const r=p.recipe||{}, c=freshCreate();
+  const cat=r.bean&&beanCatalog(r.bean);
+  const cafe=p.cafe?CAFES.find(x=>x.name===p.cafe):null;
+  Object.assign(c,{
+    editId:p.id, img:p.img,
+    drink:p.drink||c.drink, pattern:p.art?(p.pattern||null):null,
+    caption:p.caption||'', source:cafe?'cafe':'home', cafe:cafe?cafe.id:'',
+    bean:r.bean||'',
+    beanBrand: cat?cat.roaster:(r.bean&&state.customBeans.includes(r.bean))?MY_BEANS:'',
+    /* prefill from the post, never from the profile: an edit shows what
+       was posted, not what you usually drink */
+    milk:r.milk||'', dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||'',
+    machineBrand:'', machineModel:''
+  });
+  if(r.machine&&!cafe){ const m=splitMachine(r.machine); c.machineBrand=m.brand; c.machineModel=m.model; }
+  ui.create=c; ui.ovStack=[]; pushOv({type:'create'});
+}
+
+/* Optimistic like every other write here: the change is on screen before
+   the request goes out, and every copy rolls back together if it fails. */
+async function saveEdit(c){
+  const p=findPost(c.editId);
+  if(!p){ ui.ovStack=[]; render(); toast('That pour is gone'); return; }
+  if(!canEdit(p)){ ui.ovStack=[]; render(); toast('Pours can only be edited on the day you posted them'); return; }
+  const copies=postCopies(p.id);
+  const KEYS=['drink','art','pattern','cafe','caption','recipe','edited'];
+  const before=copies.map(x=>{ const o={}; KEYS.forEach(k=>o[k]=x[k]); return o; });
+  const next={ ...composeFromSheet(c), edited:true };
+  copies.forEach(x=>Object.assign(x,next));
+  ui.create=null; ui.ovStack=[]; save(); render(); toast('Changes saved');
+
+  if(!currentUser()) return;
+  try{ await updatePost(p.id,p); }
+  catch(err){
+    console.warn('edit failed',err);
+    copies.forEach((x,i)=>Object.assign(x,before[i]));
+    save(); render(); toast('Couldn\'t save that — the pour is unchanged');
+  }
+}
+
 function brewAgain(id){
   const p=findPost(id); if(!p) return; const r=p.recipe||{};
   ui.create=freshCreate();
@@ -718,10 +777,11 @@ async function ensureUploaded(c){
   }
 }
 
-async function submitPost(){
-  syncCreate(); const c=ui.create; const T=v=>(v||'').trim();
-  if(c.uploading){ toast('Photo is still uploading — one moment'); return; }
-  if(!(await ensureUploaded(c))) return;
+/* What the sheet's fields mean, in one place, because the create and the
+   edit path have to agree on it exactly — a rule applied on one path and
+   not the other is how an edit silently drops someone's recipe. */
+function composeFromSheet(c){
+  const T=v=>(v||'').trim();
   const drink=c.drink||'Cappuccino';
   /* A milk drink can take latte art, but only counts as art if the user
      actually tagged a pattern — otherwise it is just a cappuccino. */
@@ -747,14 +807,23 @@ async function submitPost(){
     if(T(c.temp)) recipe.temp=T(c.temp);
   }
   const hasRecipe=Object.keys(recipe).length>0;
+  return { drink, art:hasArt, pattern:hasArt?c.pattern:null,
+           cafe:cafe?cafe.name:undefined, caption, recipe:hasRecipe?recipe:null };
+}
+
+async function submitPost(){
+  syncCreate(); const c=ui.create;
+  if(c.editId){ saveEdit(c); return; }
+  if(c.uploading){ toast('Photo is still uploading — one moment'); return; }
+  if(!(await ensureUploaded(c))) return;
   /* The id is minted client-side so it never changes under us — the
      generated cup art is seeded from it, and so is the share link. */
   const u=currentUser();
-  const np={ id:newPostId(), user:'me', drink, art:hasArt, pattern:hasArt?c.pattern:null,
+  const np={ id:newPostId(), user:'me', ...composeFromSheet(c),
     /* No art score: nothing here can judge a pour, so nothing claims to.
        quality stays null and the generated cup art uses its own default. */
-    quality:null, cafe:cafe?cafe.name:undefined, img:c.img, ago:'now',
-    createdAt:new Date().toISOString(), caption, recipe:hasRecipe?recipe:null,
+    quality:null, img:c.img, ago:'now',
+    createdAt:new Date().toISOString(),
     likes:0, likedByMe:false, saved:false, comments:[], commentN:0 };
   state.posts.unshift(np); mine.list.unshift(np); save();
   ui.ovStack=[]; ui.route='home'; ui.filter='foryou'; render();
