@@ -493,8 +493,11 @@ Found by asking "is this number real?" of the *media* path for the first time:
 - ⬜ Run `step-1.13.sql` — until it does, Settings says profile photos aren't switched on yet.
   Nothing else breaks: every query naming `avatar_key` gives that one column up on the first
   error and retries without it, so avatars stay as initials.
-- ⬜ Run `step-1.15.sql` — visibility + follow requests. Until it runs every pour is public and
-  follows are immediate; the UI offers both but has nowhere to store the answer.
+- ✅ `step-1.15.sql` run (2026-07-28) — visibility + follow requests. Followers-only pours are
+  enforced by the select policy on `posts`, and a follow is a request the other person accepts:
+  the asker sees Requested, the followee gets the row above the feed and the inbox notification,
+  and only they can move it to `accepted`. Before this the columns didn't exist, so the client
+  gave up on them and every follow landed accepted the moment it was made.
 - ⬜ Run `step-1.14.sql` — the new scoring. Do this one promptly: the Levels screen already
   shows the new rules, so until it runs the app describes a score the database isn't keeping.
   It restates everyone's points in one pass (challenges stop paying; exact recipes and new

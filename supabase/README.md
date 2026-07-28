@@ -194,15 +194,17 @@ python3 devserver.py
 Use this rather than `python3 -m http.server`: the latter sends no `Cache-Control`, so the
 browser serves stale ES modules and you end up debugging the previous version of a file.
 
-**`step-1.15.sql` is the one that has to run before people trust it.** It
-adds `posts.visibility` and `follows.status`, and — the part that matters
-— rewrites the select policy on `posts` so a followers-only pour is
-unreadable by a stranger *in the database*. Until it runs, the app is
-fully working but everything is public: the composer's Everyone/Followers
-switch has nowhere to store its answer, and follows are still immediate
-rather than requested. Both columns are given up on the first error and
-retried without, so nothing breaks in the meantime — but "private" is not
-true until this has run.
+**`step-1.15.sql` was the one that had to run before people could trust
+it, and it has (2026-07-28).** It adds `posts.visibility` and
+`follows.status`, and — the part that matters — rewrites the select policy
+on `posts` so a followers-only pour is unreadable by a stranger *in the
+database*. Until it ran, the app was fully working but everything was
+public: the composer's Everyone/Followers switch had nowhere to store its
+answer, and follows were immediate rather than requested. Both columns are
+given up on the first error and retried without, which is why nothing
+broke in the meantime — and also why the symptom was silent. If you ever
+see a follow accept itself again, that fallback is the first thing to
+check: the console says `column status is missing`.
 
 Existing rows are grandfathered on purpose: every pour becomes `public`
 (they were posted under rules where everything was), and every existing
