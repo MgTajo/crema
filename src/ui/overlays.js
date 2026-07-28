@@ -14,7 +14,7 @@ import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, e
          beanPassport, canEdit } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, lbRow, gcell, commentCount, joinedLabel, likeButton, editedMark, privateMark, followMini, followBtn } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, lbRow, gcell, commentCount, joinedLabel, likeButton, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -117,11 +117,30 @@ function theirPosts(uid){
   const loaded=ui.userPosts&&ui.userPosts.id===uid?ui.userPosts.list:null;
   return loaded||state.posts.filter(p=>p.user===uid);
 }
+/* What someone who doesn't follow them gets instead of the profile.
+   A follow here is a request, so there are two ways to be locked out and
+   they are waiting on different people — the copy says which. */
+function profileGate(u,rel){
+  const first=esc((u.name||'').split(' ')[0]||'They');
+  const pending=rel==='pending';
+  return `<div class="lockcard">
+    <div class="big">${pending?'⏳':'🔒'}</div>
+    <b>${pending?`Waiting on ${first}`:`Follow ${first} to see their pours`}</b>
+    <span>${pending
+      ? 'Your request is in. The moment they accept, their pours and recipes show up here.'
+      : 'Their pours, recipes and bio are only for people they\'ve accepted as followers.'}</span>
+  </div>`;
+}
+/* A profile you don't follow shows who they are — name, level, how many
+   people follow them — and nothing they've made. Pours, recipes, bio,
+   city and pour count are the profile's content, and content follows the
+   same rule the followers-only feed already applies. */
 function overlayUser(uid){
   if(!uid||uid==='me') return '';
   const u=userOf(uid);                       // renders while the profile loads
-  const theirs=theirPosts(uid);
-  const f=state.follows[uid];
+  const rel=followState(uid);
+  const open=rel==='following';
+  const theirs=open?theirPosts(uid):[];
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${u.name}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${u.name}</b></div>
     <div class="ov-body">
@@ -131,11 +150,12 @@ function overlayUser(uid){
           ${avatar(uid,'xl')}
           ${followBtn(uid,'sm','margin-left:auto')}</div>
         <div style="margin-top:10px"><b style="font-family:var(--serif);font-size:22px">${esc(u.name)}</b> <span class="lvlchip">Lv${u.level}</span>
-          <div style="color:var(--muted);font-size:13px;margin:2px 0 8px">${esc(u.handle)}${u.city?` · 📍 ${esc(u.city)}`:''}</div>
-          ${u.bio?`<p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:0 0 12px">${esc(u.bio)}</p>`:''}</div>
-        <div class="stats"><div><b>${fmt(u.pourN)}</b><span>Pours</span></div><div><b>${fmt(u.followerN)}</b><span>Followers</span></div><div><b>${u.levelName}</b><span>Level ${u.level}</span></div></div>
-        <div class="section-h"><h2>Recent pours</h2></div>
-        ${theirs.length?`<div class="grid">${theirs.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty">No pours yet.</div>`}
+          <div style="color:var(--muted);font-size:13px;margin:2px 0 8px">${esc(u.handle)}${open&&u.city?` · 📍 ${esc(u.city)}`:''}</div>
+          ${open&&u.bio?`<p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:0 0 12px">${esc(u.bio)}</p>`:''}</div>
+        <div class="stats">${open?`<div><b>${fmt(u.pourN)}</b><span>Pours</span></div>`:''}<div><b>${fmt(u.followerN)}</b><span>Followers</span></div><div><b>${u.levelName}</b><span>Level ${u.level}</span></div></div>
+        ${open?`<div class="section-h"><h2>Recent pours</h2></div>
+        ${theirs.length?`<div class="grid">${theirs.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty">No pours yet.</div>`}`
+        :profileGate(u,rel)}
       </div></div></div>`;
 }
 

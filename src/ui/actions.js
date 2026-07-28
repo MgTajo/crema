@@ -366,9 +366,14 @@ async function openUser(uid){
   try{
     const me=currentUser();
     await fetchUserCard(uid);
-    const list=await fetchMine(uid,{limit:60, myUid:me?me.id:null});
-    ui.userPosts={ id:uid, list };
-    cachePosts(list);   // so tapping one of them opens the post, not a blank sheet
+    /* Their pours are only shown to accepted followers, so only fetch
+       them for one — asking for a grid the sheet won't draw is a request
+       nobody reads. Following them later re-opens this path. */
+    if(state.follows[uid]){
+      const list=await fetchMine(uid,{limit:60, myUid:me?me.id:null});
+      ui.userPosts={ id:uid, list };
+      cachePosts(list);   // so tapping one of them opens the post, not a blank sheet
+    }
     const top=ui.ovStack[ui.ovStack.length-1];
     if(top&&top.type==='user'&&top.id===uid) renderOverlay();
   }catch(e){ console.warn('profile load failed',e); }
@@ -585,6 +590,12 @@ function paintFollow(id){
     b.classList.toggle('pending',label==='Requested');
     if(b.classList.contains('btn')) b.classList.toggle('ghost',on);
     b.textContent=label;});
+  /* Their profile sheet is gated on this exact relationship, so the
+     button is not the only thing that changed — repaint the whole sheet
+     and the gate follows along, including when a failed write rolls the
+     follow back underneath it. */
+  const top=ui.ovStack[ui.ovStack.length-1];
+  if(top&&top.type==='user'&&top.id===id) renderOverlay();
 }
 /* Three states, not two: not following → requested → following. The
    middle one is new (step-1.15) and is why this can't just be a boolean
