@@ -8,7 +8,7 @@
 import { $, esc, fmt, cap, initials, seedOf } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
-import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, flag } from '../data/catalog.js';
+import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache,
          beanPassport, canEdit } from '../store/store.js';
@@ -451,7 +451,7 @@ function overlayOnboard(){
   if(s===2) body=`
     <h2 class="obh2">Your setup</h2><p class="obsub">We'll prefill new posts with this — change it anytime in Settings.</p>
     ${machinePicker('ob',state.me.machineBrand,state.me.machineModel)}
-    <div class="rowfields"><div class="field sel"><label>Go-to drink</label><select id="ob-drink">${DRINKS.map(d=>`<option${d===state.me.favDrink?' selected':''}>${d}</option>`).join('')}</select></div>
+    <div class="rowfields"><div class="field sel"><label>Go-to drink</label><select id="ob-drink">${drinkOptions(state.me.favDrink,{allowAdd:false})}</select></div>
     <div class="field sel"><label>Go-to milk</label><select id="ob-milk">${MILK_LIST.map(x=>`<option${x===state.me.favMilk?' selected':''}>${x}</option>`).join('')}</select></div></div>
     <div style="display:flex;gap:10px;margin-top:6px"><button class="btn ghost" data-action="ob-back">Back</button><button class="btn" style="flex:1" data-action="ob-finish">Start brewing ☕</button></div>`;
   return `<div class="ov-back"></div><div class="sheet" role="dialog" aria-label="Welcome"><div class="ov-body" style="padding:26px 22px">${dots}${body}</div></div>`;
@@ -502,7 +502,7 @@ function overlayCreate(){
       </div>`}
       <div class="field sel"><label>Drink</label><select id="c-drink">${drinkOptions(c.drink)}</select></div>
       ${c.drink===ADD_DRINK?`<div class="field"><label>Your drink</label><input id="c-drink-custom" placeholder="e.g. Ristretto" value="${esc(c.drinkCustom)}"></div>`:''}
-      ${!state.me.premium?`<div style="font-size:11.5px;color:var(--muted);margin:-4px 2px 11px">🔒 Adding your own drink is a <b style="color:var(--crema-deep);cursor:pointer" data-action="open-settings">Premium</b> feature.</div>`:''}
+      ${!state.me.premium?`<div style="font-size:11.5px;color:var(--muted);margin:-4px 2px 11px">🔒 More drink types, and adding your own, are a <b style="color:var(--crema-deep);cursor:pointer" data-action="open-settings">Premium</b> feature.</div>`:''}
       ${isArt?`<div class="field"><label>Latte art <span style="text-transform:none;letter-spacing:0;color:var(--muted)">· only if you poured one — tap to toggle</span></label>
         <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div>
         ${c.pattern?'':`<div style="font-size:11.5px;color:var(--muted);margin:6px 2px 0">No art? Leave these alone — your ${esc((c.drink||'coffee').toLowerCase())} posts without a pattern.</div>`}</div>`:''}

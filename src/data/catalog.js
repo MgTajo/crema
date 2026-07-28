@@ -14,6 +14,11 @@ export const DRINK_ART=Object.fromEntries(DRINKS.map(d=>[d,MILK_DRINKS.has(d)]))
 export const HAS_MILK=new Set([...MILK_DRINKS,'Iced latte']);   // drinks where milk type matters
 export const MILK_LIST=['Whole milk','Semi-skimmed','Skimmed','Lactose-free','Oat','Barista oat','Almond','Soy','Coconut'];
 
+/* The free tier's whole drink list — the everyday six. Everything else
+   in DRINKS still exists (posts made with them keep showing correctly),
+   but only Premium accounts can pick one for a new pour. */
+export const FREE_DRINKS=['Cappuccino','Espresso','Americano','Flat white','Cortado','Filter'];
+
 /* Sentinel for a Premium user's own drink type — same trick as
    ADD_BEAN/MY_BEANS below: picking it swaps the dropdown for a text
    field, and the name they type is remembered (state.customDrinks) so
