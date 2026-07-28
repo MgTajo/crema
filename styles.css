@@ -110,6 +110,7 @@
   .statusbar .bat{width:23px; height:11.5px; border:1.4px solid var(--ink); border-radius:3px; position:relative; opacity:.9}
   .statusbar .bat:after{content:""; position:absolute; right:-3px; top:3px; width:2px; height:5px; background:var(--ink); border-radius:0 2px 2px 0}
   .statusbar .bat i{position:absolute; inset:1.4px; width:72%; background:var(--ink); border-radius:1px}
+  @media(max-width:520px){ .statusbar{display:none} }
 
   /* ---------- app bar ---------- */
   .appbar{flex:none; padding:8px 18px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;
