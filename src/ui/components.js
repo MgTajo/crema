@@ -15,7 +15,24 @@ import { icon } from './icons.js';
 
 export function mentionify(t){return esc(t).replace(/@([A-Za-z0-9_.]+)/g,(m,h)=>handleToUid[h]?`<span class="mention" data-action="open-user" data-id="${handleToUid[h]}">${m}</span>`:m);}
 
-export function avatar(uid,cls=''){const u=USERS[uid]||{name:'☕',color:'var(--crema)'}; return `<div class="avatar ${cls}" style="background:${u.color}">${initials(u.name)}</div>`;}
+/* A photo if they picked one, initials on their generated colour if they
+   didn't. The initials are always in the markup and the photo sits on top
+   of them, so they show through while it loads and come back on their own
+   if it 404s — a deleted R2 object degrades to the old avatar rather than
+   to an empty circle.
+
+   Deliberately NOT loading="lazy": the app scrolls inside its own
+   container rather than the document, and the browser's lazy heuristic
+   never considers these visible — a lazy avatar sitting in the middle of
+   the feed simply never loads. They're 240px thumbs, so eager is cheap
+   and, unlike lazy, it works. */
+export function avatar(uid,cls=''){
+  const u=USERS[uid]||{name:'☕',color:'var(--crema)'};
+  const photo=u.avatar
+    ? `<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`
+    : '';
+  return `<div class="avatar ${cls}" style="background:${u.color}">${initials(u.name)}${photo}</div>`;
+}
 export function cafeThumb(c){return `<div class="cafe-thumb" style="background:${c.color}">${initials(c.name)}</div>`;}
 
 /* brand → model machine picker (used in create, onboarding & settings) */

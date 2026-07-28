@@ -16,6 +16,7 @@ Supabase dashboard → **SQL Editor** → paste and run:
 6. [`step-1.10.sql`](step-1.10.sql) — no self-likes; real cafés only.
 7. [`step-1.11.sql`](step-1.11.sql) — `image_key` holds a key, `avatar_color` holds a colour.
 8. [`step-1.12.sql`](step-1.12.sql) — editing your own pour, on the day you poured it.
+9. [`step-1.13.sql`](step-1.13.sql) — optional profile photos (`profiles.avatar_key`).
 
 All of them are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
@@ -27,6 +28,13 @@ older than the window. Until it runs, the app still works — the client
 already hides Edit on anyone else's post and on yesterday's, and the feed
 degrades to not selecting `edited_at` — but the rules are then only the
 client's, and the client is a browser console away from anyone.
+
+**`step-1.13.sql` is what switches profile photos on.** Until it runs the
+app is fine — every query that names `avatar_key` gives the column up on
+the first error and retries without it (`optionalColumns()` in
+`src/data/supabase.js`), so avatars stay as initials — but picking a photo
+in Settings says it isn't switched on yet, because there is nowhere to
+store the key.
 
 **`step-1.9.sql` is required by the current app.** It adds `profiles.points`,
 makes `profiles.level` a function of that score (triggers recompute both from

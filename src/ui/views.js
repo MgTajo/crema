@@ -117,7 +117,7 @@ export function renderProfile(){
     <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="coffee beans"><b>${beans.length} bean${beans.length===1?'':'s'}</b></div><span data-action="open-passport" style="cursor:pointer">${origins.length?`${origins.length} origin${origins.length===1?'':'s'} · `:''}tap for details</span></div>
       <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return cat?`<div class="bean" data-action="open-bean" data-id="${esc(cat.n)}"><span class="fl">${flag[cat.c]||'🫘'}</span>${cat.n}</div>`:`<div class="bean" data-action="toast" data-msg="Your own bean — details coming soon">🫘 ${esc(n)}</div>`;}).join('')}</div></div>`:'';
   return `<div class="pad">
-    <div class="prof-top"><div class="prof-av" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px">${initials(u.name)}</div>
+    <div class="prof-top"><div class="prof-av" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px;cursor:pointer" data-action="open-settings" title="Change your photo in Settings">${initials(u.name)}${u.avatar?`<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}</div>
       <div class="prof-id"><b>${esc(u.name)}</b><div class="h">${u.handle}${u.city?` · 📍 ${esc(u.city)}`:''}</div>
         <span class="lvl" data-action="open-scoring">${icon('bolt',13)} Level ${lvl[0]} · ${lvl[1]}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:linear-gradient(135deg,#f5d78a,#e0b25a);color:#5a3d17;border-color:#e6c98a">✦ PREMIUM</span>`:''}</div></div>
     <div class="bio">${bioHTML}</div>

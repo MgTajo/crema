@@ -141,6 +141,8 @@
   .p-head{display:flex; align-items:center; gap:11px; padding:12px 13px}
   .p-head .idwrap{display:flex; align-items:center; gap:11px; flex:1; min-width:0; cursor:pointer}
   .avatar{position:relative; width:40px; height:40px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:700; font-size:15px; flex:none; box-shadow:inset 0 0 0 1.5px #ffffff44, var(--sh-sm); letter-spacing:.2px}
+  /* the photo covers the initials rather than replacing them — see avatar() */
+  .avatar img{position:absolute; inset:0; width:100%; height:100%; border-radius:50%; object-fit:cover}
   .avatar.big{width:56px; height:56px; font-size:20px; margin:0 auto 10px}
   /* story-ring on discovery + profile avatars */
   .ucard .avatar.big:after, .prof-av:after{content:""; position:absolute; inset:-5px; border-radius:50%; padding:2.5px; background:var(--ring);
@@ -295,6 +297,14 @@
   .prof-av{position:relative; width:84px; height:84px; border-radius:50%; overflow:hidden; display:grid; place-items:center; flex:none; box-shadow:var(--sh); position:relative;
     background:radial-gradient(120% 120% at 30% 20%,var(--mb1),var(--mb2))}
   .prof-av img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+  /* ---------- profile photo, in Settings ---------- */
+  .prof-av.sm{width:60px; height:60px}
+  .prof-av.sm:after{display:none}          /* no level ring on the settings copy */
+  .av-field{display:flex; gap:14px; align-items:center; margin:2px 2px 14px}
+  .av-actions{display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-width:0}
+  .av-actions .btn{margin:0}
+  .av-hint{flex-basis:100%; font-size:11.5px; color:var(--muted)}
+  .av-busy{position:absolute; inset:0; display:grid; place-items:center; background:#0006; color:#fff; font-size:20px; letter-spacing:2px}
   .prof-id b{font-family:var(--serif); font-size:24px; font-weight:600; line-height:1.08; letter-spacing:-.01em; display:block}
   .prof-id .h{color:var(--muted); font-size:13px; margin:3px 0 9px}
   .prof-id .lvl{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:800; color:var(--crema-deep); background:var(--crema-soft); border:1px solid var(--st3); padding:6px 12px; border-radius:999px; cursor:pointer}

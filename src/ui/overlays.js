@@ -350,6 +350,7 @@ function overlaySettings(){
     <div class="ov-body" style="padding:0 16px 18px">
       <div class="rlabel">Account</div>${accountBlock()}
       <div class="rlabel" style="margin-top:18px">Profile</div>
+      ${avatarField(m)}
       <div class="rowfields">
         <div class="field"><label>Name</label><input id="sp-name" value="${esc(m.name)}" placeholder="Your name"></div>
         <div class="field"><label>Username</label><input id="sp-handle" value="${esc(USERS.me.handle)}"></div></div>
@@ -372,6 +373,27 @@ function overlaySettings(){
       <div class="rlabel" style="margin-top:18px">About</div>
       <div class="mrow" data-action="open-scoring"><div class="mi">⭐</div>How levels work</div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">Signed in · your pours live in your account</div>
+    </div></div>`;
+}
+
+/* Profile photo, in Settings next to the name it belongs to. Entirely
+   optional — no photo is a first-class state, not an empty slot nagging
+   to be filled, so the fallback is the initials avatar the app already
+   draws and the only pressure to change it is the word "Add".
+
+   The upload happens on pick, not on Save: it's a network round trip with
+   its own failure mode, and burying it inside "Save profile" would make
+   one button mean two things. */
+function avatarField(m){
+  const uploading=ui.avatarBusy;
+  return `<div class="av-field">
+    <div class="prof-av sm" style="background:${USERS.me.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:22px">
+      ${initials(USERS.me.name||'You')}${m.avatar?`<img src="${esc(imageUrl(m.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}
+      ${uploading?`<span class="av-busy">…</span>`:''}</div>
+    <div class="av-actions">
+      <label class="btn ghost sm"><input type="file" id="sp-avatar" accept="image/*" hidden>${icon('cam',15)} ${m.avatar?'Change photo':'Add a photo'}</label>
+      ${m.avatar?`<button class="btn ghost sm" data-action="drop-avatar">Remove</button>`:''}
+      <div class="av-hint">${uploading?'Uploading…':'Optional — initials work fine.'}</div>
     </div></div>`;
 }
 

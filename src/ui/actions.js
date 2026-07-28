@@ -15,7 +15,7 @@ import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, MY_BEANS, beanCatalog, combineMac
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
-import { ensureProfile, pushProfile, fetchUserCard, searchProfiles, fetchScore } from '../data/profiles.js';
+import { ensureProfile, pushProfile, pushAvatar, fetchUserCard, searchProfiles, fetchScore } from '../data/profiles.js';
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
@@ -119,6 +119,7 @@ document.addEventListener('click',e=>{
 
     case 'set-theme': state.theme=t.dataset.t; save(); applyTheme(); renderOverlay(); break;
     case 'save-profile': saveProfile(); break;
+    case 'drop-avatar': dropAvatar(); break;
     case 'toggle-premium':{ state.me.premium=!state.me.premium; save(); renderOverlay();
       toast(state.me.premium?'Premium unlocked ✦':'Premium turned off');
       const u=currentUser(); if(u) pushProfile(u.id,state.me).catch(err=>console.warn('premium sync failed',err));
@@ -167,6 +168,7 @@ function paintSearch(){
 document.addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='c-photo-cam'||id==='c-photo-lib'){ if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]); return; }
+  if(id==='sp-avatar'){ if(e.target.files&&e.target.files[0]) uploadAvatar(e.target.files[0]); return; }
   if(id==='c-mbrand'){ syncCreate(); ui.create.machineModel=''; renderOverlay(); return; }
   if(id==='c-bbrand'){ syncCreate(); ui.create.bean=ui.create.beanBrand===ADD_BEAN?ADD_BEAN:''; renderOverlay(); return; }
   if(id==='c-bean'){ syncCreate(); renderOverlay(); return; }
@@ -427,6 +429,77 @@ function handleUpload(file){
     img.onerror=()=>toast('Could not read that image'); img.src=ev.target.result;};
   reader.onerror=()=>toast('Could not read that file');
   reader.readAsDataURL(file);
+}
+
+/* ---------- profile photo ----------
+   Squared and shrunk to 512 before it leaves the device: an avatar is
+   never drawn bigger than 84px, and a 12MP portrait would cost the user
+   their data plan to upload something nobody will ever see at that size.
+   Cropped from the centre, because that is where faces are.
+
+   Unlike a post photo this is NOT optimistic. A post can go out with a
+   local data: URI and reconcile later; a profile row can only hold a key,
+   so there is nothing to show until R2 has the bytes. The sheet says
+   "Uploading…" and the avatar changes when it is real. */
+function squareCanvas(img, size=512){
+  const side=Math.min(img.width,img.height);
+  const sx=(img.width-side)/2, sy=(img.height-side)/2;
+  const cv=document.createElement('canvas'); cv.width=cv.height=Math.min(size,side);
+  cv.getContext('2d').drawImage(img,sx,sy,side,side,0,0,cv.width,cv.height);
+  return cv;
+}
+function uploadAvatar(file){
+  if(!file.type||!file.type.startsWith('image/')){ toast('That file isn\'t an image'); return; }
+  if(!currentUser()){ toast('Sign in to add a photo'); return; }
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const cv=squareCanvas(img);
+      /* keep whatever they've typed in the other fields across the repaint */
+      syncSettings(); ui.avatarBusy=true; renderOverlay();
+      cv.toBlob(async blob=>{
+        if(!blob){ ui.avatarBusy=false; renderOverlay(); return; }
+        const previous=state.me.avatar||'';
+        try{
+          const key=await uploadImage(blob,'image/jpeg');
+          const u=currentUser(); if(!u) throw new Error('Signed out');
+          await pushAvatar(u.id,key);
+          state.me.avatar=key; save(); applyMe();
+          ui.avatarBusy=false; renderOverlay(); renderView();
+          toast('Photo updated 📸');
+          /* only once the row points at the new one — an orphan in R2 is
+             cheap, a profile pointing at a deleted object is not */
+          if(previous) deleteImage(previous);
+        }catch(err){
+          console.warn('avatar upload failed',err);
+          ui.avatarBusy=false; renderOverlay();
+          toast(err&&/step-1\.13/.test(err.message||'') ? 'Profile photos aren\'t switched on yet' : 'Couldn\'t upload that photo — try again');
+        }
+      },'image/jpeg',0.85);
+    };
+    img.onerror=()=>toast('Could not read that image');
+    img.src=ev.target.result;
+  };
+  reader.onerror=()=>toast('Could not read that file');
+  reader.readAsDataURL(file);
+}
+async function dropAvatar(){
+  const previous=state.me.avatar||''; if(!previous) return;
+  syncSettings();
+  const u=currentUser(); if(!u){ toast('Sign in first'); return; }
+  ui.avatarBusy=true; renderOverlay();
+  try{
+    await pushAvatar(u.id,null);
+    state.me.avatar=''; save(); applyMe();
+    ui.avatarBusy=false; renderOverlay(); renderView();
+    toast('Back to your initials');
+    deleteImage(previous);
+  }catch(err){
+    console.warn('avatar removal failed',err);
+    ui.avatarBusy=false; renderOverlay();
+    toast('Couldn\'t remove that photo — try again');
+  }
 }
 
 /* Optimistic writes: mutate, repaint, then persist. If the network says

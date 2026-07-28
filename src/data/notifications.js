@@ -10,12 +10,15 @@
    this maps the table onto that shape, so overlayNotifs() is unchanged.
    ============================================================ */
 import { agoFrom } from '../core/util.js';
-import { rest } from './supabase.js';
+import { rest, optionalColumns } from './supabase.js';
 import { registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
 
-const SELECT = 'id,type,body,post_id,cafe_id,challenge_id,read,created_at,'
-             + 'profiles!notifications_actor_id_fkey(id,handle,name,city,avatar_color,level)';
+/* Added by step-1.13.sql, run by hand against a live app — see
+   optionalColumns() in data/supabase.js. */
+const opt = optionalColumns(['avatar_key']);
+const select = has => 'id,type,body,post_id,cafe_id,challenge_id,read,created_at,'
+             + `profiles!notifications_actor_id_fkey(id,handle,name,city,avatar_color,level${has('avatar_key')?',avatar_key':''})`;
 
 export function notificationOf(row){
   if(row.profiles) registerUser(rowToUser(row.profiles));
@@ -33,7 +36,7 @@ export function notificationOf(row){
 }
 
 export async function fetchNotifications(uid, { limit=50 }={}){
-  const rows = await rest(`notifications?select=${SELECT}&user_id=eq.${uid}&order=created_at.desc&limit=${limit}`);
+  const rows = await opt.run(has=>`notifications?select=${select(has)}&user_id=eq.${uid}&order=created_at.desc&limit=${limit}`);
   return (rows||[]).map(notificationOf);
 }
 

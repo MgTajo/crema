@@ -483,9 +483,10 @@ Found by asking "is this number real?" of the *media* path for the first time:
   (`https://mgtajo.github.io/crema`). Browsers send scheme+host only, so it can never match; it
   has to be `https://mgtajo.github.io`. Until then every photo still lands inline.
 - ⬜ Run `step-1.11.sql`, then `migrate-base64-images.mjs`, then validate the constraint.
-- ⬜ Run `step-1.12.sql` — until it does, "own post, same day, photo unchanged" is enforced only
-  in the client, and the `edited` marker doesn't survive a reload (the feed detects the missing
-  column once and stops selecting it, so nothing breaks in the meantime).
+- ✅ `step-1.12.sql` run — post editing is enforced in the database, not just the client.
+- ⬜ Run `step-1.13.sql` — until it does, Settings says profile photos aren't switched on yet.
+  Nothing else breaks: every query naming `avatar_key` gives that one column up on the first
+  error and retries without it, so avatars stay as initials.
 - ⬜ **Supabase → Auth → URL Configuration → Redirect URLs** must list `https://mgtajo.github.io/crema/**`
   (and `http://localhost:4599/**`), or Google sign-in completes and then lands on the Site URL with
   no `?code=`. The Google console side is already correct.

@@ -22,7 +22,10 @@
 
 /* ---------- people ---------- */
 export const USERS={
-  me:{id:'me',name:'You',handle:'@you',color:'#8a5a30',level:1,levelName:'First Sips',city:'',followerN:0,pourN:0,bio:''}
+  /* `avatar` is an R2 object key, empty for everyone who hasn't picked a
+     photo — and empty is not a missing value here, it is the initials-on-
+     a-colour default the app has always drawn. */
+  me:{id:'me',name:'You',handle:'@you',color:'#8a5a30',level:1,levelName:'First Sips',city:'',followerN:0,pourN:0,bio:'',avatar:''}
 };
 
 /* handle → user id (mutated by the store's applyMe when the user renames) */
@@ -33,7 +36,7 @@ export const handleToUid={ you:'me' };
    remote profile renders exactly like the local one. */
 export function registerUser(u){
   if(!u||!u.id) return null;
-  USERS[u.id]=Object.assign({followerN:0,pourN:0,bio:'',city:'',level:1},USERS[u.id],u);
+  USERS[u.id]=Object.assign({followerN:0,pourN:0,bio:'',city:'',level:1,avatar:''},USERS[u.id],u);
   if(u.handle) handleToUid[u.handle.replace(/^@/,'')]=u.id;
   return USERS[u.id];
 }
@@ -43,7 +46,7 @@ export function registerUser(u){
    know who it was. */
 export const userOf = uid => USERS[uid] || {
   id:uid, name:'Someone', handle:'@unknown', color:'#8d8378',
-  level:1, levelName:'First Sips', city:'', followerN:0, pourN:0, bio:''
+  level:1, levelName:'First Sips', city:'', followerN:0, pourN:0, bio:'', avatar:''
 };
 
 /* ---------- reference data, filled by data/remote.js ---------- */

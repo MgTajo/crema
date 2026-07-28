@@ -32,7 +32,7 @@ let persistence=makePersistence(null,KEY);
 export let session=null;
 
 export let state;
-export const ui={route:'home', filter:'foryou', ovStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null};
+export const ui={route:'home', filter:'foryou', ovStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
 
 /* A brand-new account: nothing invented, nothing borrowed. Everything
    visible after this comes from the user or from the backend. */
@@ -44,7 +44,7 @@ export function freshState(){
     challenges:{},
     challengeSubs:{}, customBeans:[],
     onboarded:false, theme:'auto',
-    me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:''},
+    me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:'',avatar:''},
     notifications:[]
   };
 }
@@ -221,6 +221,7 @@ export function applyMe(){
   USERS.me.name=state.me.name||'You';
   USERS.me.city=(state.me.city||'').trim();
   USERS.me.bio=state.me.bio||'';
+  USERS.me.avatar=state.me.avatar||'';
   /* level, points and counts all come from the server — nothing here
      is guessed or incremented locally */
   USERS.me.level=state.me.level||1;

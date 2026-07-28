@@ -17,38 +17,26 @@
    ============================================================ */
 import { FEED_PAGE } from '../config.js';
 import { agoFrom } from '../core/util.js';
-import { rest } from './supabase.js';
+import { rest, optionalColumns } from './supabase.js';
 import { CAFES, registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
 
-const COLS = 'id,user_id,drink,art,pattern,quality,image_key,caption,cafe_id,recipe,created_at,edited_at';
+const COLS = 'id,user_id,drink,art,pattern,quality,image_key,caption,cafe_id,recipe,created_at';
 /* The author embed MUST name the foreign key. posts↔profiles is reachable
    both directly (posts.user_id) and many-to-many via likes/saves/comments,
    so a bare `profiles(...)` is ambiguous and PostgREST answers 300. */
-const AUTHOR = 'profiles!posts_user_id_fkey(id,handle,name,city,bio,avatar_color,level)';
+const author = has => `profiles!posts_user_id_fkey(id,handle,name,city,bio,avatar_color,level${has('avatar_key')?',avatar_key':''})`;
 /* Counts come from PostgREST's aggregate embedding rather than counter
    columns — views/aggregates first, denormalize only if it measurably
    hurts. Which posts *you* liked or saved is a separate query, because
    it changes per viewer and would bust any shared cache. */
 const COUNTS = 'likes(count),comments(count)';
-const SELECT = `${COLS},${AUTHOR},${COUNTS}`;
-/* `edited_at` arrives with step-1.12.sql, which is run by hand — and the
-   app is live, so the deploy can land first. PostgREST answers 42703 for
-   a column that isn't there yet, which would take the whole feed down. So
-   the select degrades once, permanently for the session, and the edit
-   marker simply doesn't show until the migration runs. */
-const SELECT_BASE = SELECT.replace(',edited_at','');
-let hasEditedAt = true;
-const missingColumn = e => e && e.status===400 && /42703|edited_at/.test(e.message||'');
-async function q(build){
-  try{ return await rest(build(hasEditedAt?SELECT:SELECT_BASE)); }
-  catch(e){
-    if(!hasEditedAt || !missingColumn(e)) throw e;
-    console.warn('posts.edited_at is missing — run supabase/step-1.12.sql');
-    hasEditedAt = false;
-    return rest(build(SELECT_BASE));
-  }
-}
+/* Both optional columns are added by hand-run migrations (step-1.12 and
+   step-1.13), so the select has to survive their absence — see
+   optionalColumns() in data/supabase.js. */
+const opt = optionalColumns(['edited_at','avatar_key']);
+const select = has => `${COLS}${has('edited_at')?',edited_at':''},${author(has)},${COUNTS}`;
+const q = build => opt.run(has=>build(select(has)));
 
 const countOf = agg => (Array.isArray(agg) && agg.length ? (agg[0].count|0) : 0);
 

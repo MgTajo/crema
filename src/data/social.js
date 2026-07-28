@@ -12,9 +12,14 @@
    deletes nothing, and the local state stays authoritative.
    ============================================================ */
 import { agoFrom } from '../core/util.js';
-import { rest } from './supabase.js';
+import { rest, optionalColumns } from './supabase.js';
 import { registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
+
+/* Added by step-1.13.sql, run by hand against a live app — see
+   optionalColumns() in data/supabase.js. */
+const opt = optionalColumns(['avatar_key']);
+const withAvatar = has => has('avatar_key') ? ',avatar_key' : '';
 
 /* PostgREST needs a quoted, comma-joined list for in.(…) */
 const inList = ids => `(${ids.map(id=>`"${id}"`).join(',')})`;
@@ -43,16 +48,16 @@ export const unfollow = (uid,target) => rest(`follows?follower_id=eq.${uid}&foll
 
 /* The two follower lists, as profiles. Both sides of `follows` reach
    profiles, so each embed has to name its foreign key. */
-const F_CARD = 'id,handle,name,city,bio,avatar_color,level';
-async function followList(q, key){
-  const rows = await rest(q);
+const fCard = has => `id,handle,name,city,bio,avatar_color,level${withAvatar(has)}`;
+async function followList(build, key){
+  const rows = await opt.run(build);
   return (rows||[]).map(r=>r[key]).filter(Boolean).map(p=>registerUser(rowToUser(p)));
 }
 export const fetchFollowers = uid =>
-  followList(`follows?select=profiles!follows_follower_id_fkey(${F_CARD})&followee_id=eq.${uid}&limit=200`,
+  followList(has=>`follows?select=profiles!follows_follower_id_fkey(${fCard(has)})&followee_id=eq.${uid}&limit=200`,
              'profiles');
 export const fetchFollowing = uid =>
-  followList(`follows?select=profiles!follows_followee_id_fkey(${F_CARD})&follower_id=eq.${uid}&limit=200`,
+  followList(has=>`follows?select=profiles!follows_followee_id_fkey(${fCard(has)})&follower_id=eq.${uid}&limit=200`,
              'profiles');
 
 /* ---------- likes ---------- */
@@ -91,11 +96,11 @@ export const unfollowCafe = (uid,cafeId) => rest(`cafe_follows?user_id=eq.${uid}
 /* ---------- comments ---------- */
 /* Same foreign-key trap as posts: comments reaches profiles directly
    and again through comment_likes, so the embed must name the key. */
-const COMMENT_SELECT =
-  'id,body,created_at,user_id,profiles!comments_user_id_fkey(id,handle,name,avatar_color,level),comment_likes(count)';
+const commentSelect = has =>
+  `id,body,created_at,user_id,profiles!comments_user_id_fkey(id,handle,name,avatar_color,level${withAvatar(has)}),comment_likes(count)`;
 
 export async function fetchComments(postId){
-  return (await rest(`comments?select=${COMMENT_SELECT}&post_id=eq.${postId}&order=created_at.asc`)) || [];
+  return (await opt.run(has=>`comments?select=${commentSelect(has)}&post_id=eq.${postId}&order=created_at.asc`)) || [];
 }
 export async function addComment(uid, postId, body){
   const rows = await rest('comments',{ method:'POST', prefer:'return=representation',
