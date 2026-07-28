@@ -48,14 +48,14 @@ export function freshState(){
     lastVisibility:'public',
     cafeFollow:{},
     challenges:{},
-    challengeSubs:{}, customBeans:[],
+    challengeSubs:{}, customBeans:[], customDrinks:[],
     onboarded:false, theme:'auto',
     me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:'',avatar:''},
     notifications:[]
   };
 }
 export async function load(){try{const s=await persistence.read(); state=(s&&s.me)?s:freshState();
-  ['posts','customBeans','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
+  ['posts','customBeans','customDrinks','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
   ['follows','cafeFollow','challenges','challengeSubs','followPending'].forEach(k=>{if(!state[k])state[k]={};});
   if(state.lastVisibility!=='followers') state.lastVisibility='public';
   if(!state.me)state.me=freshState().me; if(!state.me.favMilk)state.me.favMilk='Whole milk';
@@ -270,7 +270,7 @@ export function applyMe(){
    The database enforces the same rule — see supabase/step-1.12.sql. */
 export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
 
-export function freshCreate(){return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',pattern:null,caption:'',img:null,source:'home',cafe:'',
+export function freshCreate(){return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',drinkCustom:'',pattern:null,caption:'',img:null,source:'home',cafe:'',
   bean:'',beanBrand:'',beanCustom:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 /* ---------- derived selectors (read-only views over state) ----------

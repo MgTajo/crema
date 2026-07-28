@@ -11,7 +11,7 @@
    view-model methods; the store calls it makes stay the same.
    ============================================================ */
 import { $, $$, fmt } from '../core/util.js';
-import { DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, MY_BEANS, beanCatalog, combineMachine, splitMachine } from '../data/catalog.js';
+import { DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, MY_BEANS, beanCatalog, combineMachine, splitMachine } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
@@ -384,8 +384,8 @@ async function openFlist(kind){
 
 function syncCreate(){ if(!ui.create) ui.create=freshCreate();
   const g=i=>{const el=$('#'+i); return el?el.value:undefined;}, c=ui.create;
-  ['caption','drink','cafe','bean','bbrand','bean-custom','milk','dose','yield','time','temp','mbrand'].forEach(f=>{
-    const v=g('c-'+f); if(v!==undefined) c[f==='bean-custom'?'beanCustom':f==='bbrand'?'beanBrand':f==='mbrand'?'machineBrand':f]=v;});
+  ['caption','drink','drink-custom','cafe','bean','bbrand','bean-custom','milk','dose','yield','time','temp','mbrand'].forEach(f=>{
+    const v=g('c-'+f); if(v!==undefined) c[f==='drink-custom'?'drinkCustom':f==='bean-custom'?'beanCustom':f==='bbrand'?'beanBrand':f==='mbrand'?'machineBrand':f]=v;});
   if(c.machineBrand==='Other'){const mo=g('c-mother'); if(mo!==undefined) c.machineModel=mo;}
   else{const mm=g('c-mmodel'); if(mm!==undefined) c.machineModel=mm;}}
 function syncOb(){ const g=i=>{const el=$('#'+i); return el?el.value:undefined;};
@@ -926,7 +926,9 @@ async function ensureUploaded(c){
    not the other is how an edit silently drops someone's recipe. */
 function composeFromSheet(c){
   const T=v=>(v||'').trim();
-  const drink=c.drink||'Cappuccino';
+  let drink=c.drink===ADD_DRINK?(state.me.premium?T(c.drinkCustom):''):T(c.drink);
+  if(c.drink===ADD_DRINK && state.me.premium && drink && !DRINKS.includes(drink) && !state.customDrinks.includes(drink)) state.customDrinks.push(drink);
+  if(!drink) drink='Cappuccino';
   /* A milk drink can take latte art, but only counts as art if the user
      actually tagged a pattern — otherwise it is just a cappuccino. */
   const hasArt=!!DRINK_ART[drink] && !!c.pattern;

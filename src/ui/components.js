@@ -6,7 +6,7 @@
    store selectors but never mutate state or touch the DOM directly.
    ============================================================ */
 import { esc, fmt, seedOf, initials } from '../core/util.js';
-import { MACHINES, MACHINE_BRANDS, BEANS, ADD_BEAN, MY_BEANS, beanBrands, beansByBrand, flag } from '../data/catalog.js';
+import { MACHINES, MACHINE_BRANDS, BEANS, ADD_BEAN, MY_BEANS, DRINKS, ADD_DRINK, beanBrands, beansByBrand, flag } from '../data/catalog.js';
 import { USERS, handleToUid, CAFES, userOf } from '../data/world.js';
 import { state, allPosts, findPost } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
@@ -73,6 +73,17 @@ export function beanPicker(pfx,brand,bean){
       ${beans.map(copt).join('')}
     </select></div>
   </div>`;
+}
+/* Drink-type dropdown: the built-in styles, plus this user's own custom
+   ones tacked on the end (state.customDrinks — visible only to them,
+   never to anyone else's picker), plus, for Premium, the option to add
+   another. Mirrors beanPicker's own-coffee gating, just flat since a
+   drink type has no brand step. */
+export function drinkOptions(current){
+  const list=DRINKS.concat(state.customDrinks.filter(d=>!DRINKS.includes(d)));
+  if(current&&current!==ADD_DRINK&&!list.includes(current)) list.push(current);
+  return list.map(d=>`<option${d===current?' selected':''}>${esc(d)}</option>`).join('')
+    +(state.me.premium?`<option value="${esc(ADD_DRINK)}"${current===ADD_DRINK?' selected':''}>${ADD_DRINK}</option>`:'');
 }
 /* ----- follow buttons -----
    A follow has three states since step-1.15: none → requested →

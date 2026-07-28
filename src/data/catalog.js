@@ -14,6 +14,12 @@ export const DRINK_ART=Object.fromEntries(DRINKS.map(d=>[d,MILK_DRINKS.has(d)]))
 export const HAS_MILK=new Set([...MILK_DRINKS,'Iced latte']);   // drinks where milk type matters
 export const MILK_LIST=['Whole milk','Semi-skimmed','Skimmed','Lactose-free','Oat','Barista oat','Almond','Soy','Coconut'];
 
+/* Sentinel for a Premium user's own drink type — same trick as
+   ADD_BEAN/MY_BEANS below: picking it swaps the dropdown for a text
+   field, and the name they type is remembered (state.customDrinks) so
+   it rejoins the dropdown as a normal choice next time, for them only. */
+export const ADD_DRINK='＋ Add your own drink…';
+
 /* ---------- machines: brand → model (pick brand first, then model) ---------- */
 export const MACHINES={
   'La Marzocco':['Linea Mini','Linea Micra','GS3 AV','GS3 MP','Linea PB'],

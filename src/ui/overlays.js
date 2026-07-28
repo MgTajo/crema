@@ -8,13 +8,13 @@
 import { $, esc, fmt, cap, initials, seedOf } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
-import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, BEANS, flag } from '../data/catalog.js';
+import { LEVELS, MILK_LIST, DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache,
          beanPassport, canEdit } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, lbRow, gcell, commentCount, joinedLabel, likeButton, editedMark, privateMark, followMini, followBtn } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, lbRow, gcell, commentCount, joinedLabel, likeButton, editedMark, privateMark, followMini, followBtn } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -500,7 +500,9 @@ function overlayCreate(){
         <label class="btn ghost sm"><input type="file" id="c-photo-cam" accept="image/*" capture="environment" hidden>${icon('cam',16)} ${c.img?'Retake':'Take photo'}</label>
         <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>🖼️ ${c.img?'Change':'Gallery'}</label>
       </div>`}
-      <div class="field sel"><label>Drink</label><select id="c-drink">${DRINKS.map(d=>`<option${d===c.drink?' selected':''}>${d}</option>`).join('')}</select></div>
+      <div class="field sel"><label>Drink</label><select id="c-drink">${drinkOptions(c.drink)}</select></div>
+      ${c.drink===ADD_DRINK?`<div class="field"><label>Your drink</label><input id="c-drink-custom" placeholder="e.g. Ristretto" value="${esc(c.drinkCustom)}"></div>`:''}
+      ${!state.me.premium?`<div style="font-size:11.5px;color:var(--muted);margin:-4px 2px 11px">🔒 Adding your own drink is a <b style="color:var(--crema-deep);cursor:pointer" data-action="open-settings">Premium</b> feature.</div>`:''}
       ${isArt?`<div class="field"><label>Latte art <span style="text-transform:none;letter-spacing:0;color:var(--muted)">· only if you poured one — tap to toggle</span></label>
         <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div>
         ${c.pattern?'':`<div style="font-size:11.5px;color:var(--muted);margin:6px 2px 0">No art? Leave these alone — your ${esc((c.drink||'coffee').toLowerCase())} posts without a pattern.</div>`}</div>`:''}
