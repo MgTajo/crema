@@ -7,7 +7,7 @@
    `activate` then purges every other cache. With code served
    network-first (below) a bump is no longer required for code changes —
    it is the lever for evicting a bad cache. */
-const C = 'crema-v13';
+const C = 'crema-v14';
 const ASSETS = ['./manifest.webmanifest','./styles.css',
   './src/app.js','./src/config.js','./src/core/util.js',
   './src/data/assets.js','./src/data/catalog.js','./src/data/world.js',

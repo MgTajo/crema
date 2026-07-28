@@ -22,7 +22,8 @@ import * as social from '../data/social.js';
 import * as chal from '../data/challenges.js';
 import { markAllRead } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
-         saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, entryCache, canEdit } from '../store/store.js';
+         saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, entryCache, canEdit,
+         feed } from '../store/store.js';
 import { commentRow, postLink, searchHTML } from './components.js';
 import { icon } from './icons.js';
 import { render, renderView, renderAppbar } from './views.js';
@@ -38,7 +39,7 @@ document.addEventListener('click',e=>{
          when you look at your own profile rather than only after posting */
       if(ui.route==='profile') refreshScore();
       break;}
-    case 'filter':{ if(ui.filter===t.dataset.f) break; ui.filter=t.dataset.f; renderView();
+    case 'filter':{ if(ui.filter===t.dataset.f) break; ui.filter=t.dataset.f; feed.cursor=null; feed.done=false; renderView();
       /* signed in the Following tab is a different server query, not a
          client-side filter over one page */
       if(currentUser()) loadFeed().then(()=>renderView());
@@ -74,6 +75,8 @@ document.addEventListener('click',e=>{
     case 'like': toggleLike(id); break;
     case 'save': toggleSave(id); break;
     case 'follow': toggleFollow(id); break;
+    case 'accept-follow': acceptFollow(id); break;
+    case 'decline-follow': declineFollow(id); break;
     case 'follow-cafe': toggleCafeFollow(id); break;
     case 'recipe':{const el=$('#rp-'+id); if(el){el.classList.toggle('open'); const o=el.classList.contains('open'); t.innerHTML=t.innerHTML.replace(o?'▾':'▴',o?'▴':'▾');} break;}
     case 'join': toggleJoin(id); break;
@@ -114,6 +117,9 @@ document.addEventListener('click',e=>{
     case 'cafe-filter': ui.cafeF[t.dataset.f]=!ui.cafeF[t.dataset.f]; renderView(); break;
     case 'cpat':{ syncCreate(); ui.create.pattern=(ui.create.pattern===t.dataset.p)?null:t.dataset.p; renderOverlay(); break;}
     case 'csource':{ syncCreate(); ui.create.source=t.dataset.s; if(t.dataset.s==='home')ui.create.cafe=''; renderOverlay(); break;}
+    /* Remembered here rather than at submit time, so it sticks even if
+       the sheet is abandoned — the choice was still made. */
+    case 'cvis':{ syncCreate(); ui.create.visibility=t.dataset.v; state.lastVisibility=t.dataset.v; save(); renderOverlay(); break;}
     case 'submit-post': submitPost(); break;
     case 'drop-photo':{ syncCreate(); ui.create.img=null; ui.create.uploadFailed=false; renderOverlay(); break;}
 
@@ -544,28 +550,88 @@ function toggleSave(id){
     save(); paintSave(p); toast('Couldn\'t update your collection');
   });
 }
-function paintFollow(id,on){
+/* Reads the state rather than being told it, because there are three
+   states now and every follow button in the DOM has to agree on which
+   one it is. */
+export function followLabel(id){
+  return state.follows[id] ? 'Following' : state.followPending[id] ? 'Requested' : 'Follow';
+}
+function paintFollow(id){
+  const label=followLabel(id), on=label!=='Follow';
   $$('[data-action="follow"][data-id="'+id+'"]').forEach(b=>{
     b.classList.toggle('on',on);
+    b.classList.toggle('pending',label==='Requested');
     if(b.classList.contains('btn')) b.classList.toggle('ghost',on);
-    b.textContent=on?'Following':'Follow';});
+    b.textContent=label;});
 }
+/* Three states, not two: not following → requested → following. The
+   middle one is new (step-1.15) and is why this can't just be a boolean
+   any more — tapping the button when you're already waiting withdraws
+   the request rather than following harder. */
 function toggleFollow(id){
-  const on=state.follows[id]=!state.follows[id]; save();
-  storeSocial.counts.following=Math.max(0,(storeSocial.counts.following|0)+(on?1:-1));
-  if(storeSocial.listsLoaded){
-    if(on){ const u=USERS[id]; if(u&&!storeSocial.following.some(x=>x.id===id)) storeSocial.following.push(u); }
-    else storeSocial.following=storeSocial.following.filter(x=>x.id!==id);
+  const wasFollowing=!!state.follows[id], wasPending=!!state.followPending[id];
+  const undo=wasFollowing||wasPending;
+  const who=(userOf(id).name||'').split(' ')[0]||'them';
+
+  if(undo){
+    state.follows[id]=false; state.followPending[id]=false;
+    if(wasFollowing){
+      storeSocial.counts.following=Math.max(0,(storeSocial.counts.following|0)-1);
+      if(storeSocial.listsLoaded) storeSocial.following=storeSocial.following.filter(x=>x.id!==id);
+    }
+  }else{
+    /* Pending, not following: the count only moves when they accept, and
+       the accepted list only gains them then too. */
+    state.followPending[id]=true;
   }
-  paintFollow(id,on);
-  const who=(userOf(id).name||'').split(' ')[0];
-  toast(on?('Following '+(who||'them')+' ☕'):'Unfollowed');
+  save(); paintFollow(id);
+  toast(undo ? (wasPending?'Request withdrawn':'Unfollowed') : `Follow request sent to ${who}`);
+
   const u=currentUser(); if(!u) return;
-  (on?social.follow(u.id,id):social.unfollow(u.id,id)).catch(err=>{
+  (undo?social.unfollow(u.id,id):social.follow(u.id,id)).catch(err=>{
     if(err.status===409) return;
     console.warn('follow failed',err);
-    state.follows[id]=!on; save(); paintFollow(id,!on); toast('Couldn\'t update that follow');
+    state.follows[id]=wasFollowing; state.followPending[id]=wasPending;
+    save(); paintFollow(id); toast('Couldn\'t update that follow');
   });
+}
+
+/* Letting someone in. The notification back to them is a trigger's job
+   (step-1.15.sql), not this function's — the client saying "they
+   accepted you" would be a client that could say it without accepting. */
+async function acceptFollow(id){
+  const u=currentUser(); if(!u) return;
+  const req=storeSocial.requests.find(r=>r.id===id); if(!req) return;
+  storeSocial.requests=storeSocial.requests.filter(r=>r.id!==id);
+  storeSocial.counts.followers=(storeSocial.counts.followers|0)+1;
+  if(storeSocial.listsLoaded && !storeSocial.followers.some(x=>x.id===id)) storeSocial.followers.push(req.user);
+  renderView(); renderAppbar();
+  toast(`${(req.user.name||'They').split(' ')[0]} can see your pours now`);
+  try{
+    await social.acceptFollow(u.id,id);
+    /* they can see followers-only pours from here on, so the feed they
+       are in is not the feed we already have */
+    if(await loadFeed()) renderView();
+  }catch(err){
+    console.warn('accept failed',err);
+    storeSocial.requests.unshift(req);
+    storeSocial.counts.followers=Math.max(0,(storeSocial.counts.followers|0)-1);
+    storeSocial.followers=storeSocial.followers.filter(x=>x.id!==id);
+    renderView(); toast('Couldn\'t accept that — try again');
+  }
+}
+
+async function declineFollow(id){
+  const u=currentUser(); if(!u) return;
+  const req=storeSocial.requests.find(r=>r.id===id); if(!req) return;
+  storeSocial.requests=storeSocial.requests.filter(r=>r.id!==id);
+  renderView(); renderAppbar(); toast('Request declined');
+  try{ await social.declineFollow(u.id,id); }
+  catch(err){
+    console.warn('decline failed',err);
+    storeSocial.requests.unshift(req); renderView();
+    toast('Couldn\'t decline that — try again');
+  }
 }
 /* Opening a post loads its thread. The feed only carries a count, so
    the comment bodies are fetched on demand rather than with every card. */
@@ -762,6 +828,8 @@ function editMyPost(id){
   const cafe=p.cafe?CAFES.find(x=>x.name===p.cafe):null;
   Object.assign(c,{
     editId:p.id, img:p.img,
+    /* the pour's own audience, not the remembered default */
+    visibility:p.visibility==='followers'?'followers':'public',
     drink:p.drink||c.drink, pattern:p.art?(p.pattern||null):null,
     caption:p.caption||'', source:cafe?'cafe':'home', cafe:cafe?cafe.id:'',
     bean:r.bean||'',
@@ -782,7 +850,7 @@ async function saveEdit(c){
   if(!p){ ui.ovStack=[]; render(); toast('That pour is gone'); return; }
   if(!canEdit(p)){ ui.ovStack=[]; render(); toast('Pours can only be edited on the day you posted them'); return; }
   const copies=postCopies(p.id);
-  const KEYS=['drink','art','pattern','cafe','caption','recipe','edited'];
+  const KEYS=['drink','art','pattern','cafe','caption','recipe','edited','visibility'];
   const before=copies.map(x=>{ const o={}; KEYS.forEach(k=>o[k]=x[k]); return o; });
   const next={ ...composeFromSheet(c), edited:true };
   copies.forEach(x=>Object.assign(x,next));
@@ -884,7 +952,8 @@ function composeFromSheet(c){
   }
   const hasRecipe=Object.keys(recipe).length>0;
   return { drink, art:hasArt, pattern:hasArt?c.pattern:null,
-           cafe:cafe?cafe.name:undefined, caption, recipe:hasRecipe?recipe:null };
+           cafe:cafe?cafe.name:undefined, caption, recipe:hasRecipe?recipe:null,
+           visibility: c.visibility==='followers' ? 'followers' : 'public' };
 }
 
 async function submitPost(){
@@ -902,11 +971,19 @@ async function submitPost(){
     createdAt:new Date().toISOString(),
     likes:0, likedByMe:false, saved:false, comments:[], commentN:0 };
   state.posts.unshift(np); mine.list.unshift(np); save();
-  ui.ovStack=[]; ui.route='home'; ui.filter='foryou'; render();
+  /* Land on the tab that will actually contain what you just posted: a
+     followers-only pour never appears in Today. */
+  ui.ovStack=[]; ui.route='home'; ui.filter=np.visibility==='followers'?'following':'today'; render();
   setTimeout(()=>toast(c.img?'Posted! Streak kept 🔥':'Posted ☕ (add a photo next time)'),120);
 
   /* Optimistic: the post is already on screen. Reconcile on failure. */
-  if(u) createPost(np,u.id).then(()=>refreshScore()).catch(err=>{
+  if(u) createPost(np,u.id).then(()=>{
+    refreshScore();
+    /* Both tabs are server-filtered now, and we may have just switched
+       to the other one — so let the server say what belongs there rather
+       than showing whichever list happened to be loaded. */
+    return loadFeed().then(ok=>{ if(ok) renderView(); });
+  }).catch(err=>{
     console.warn('post failed',err);
     const i=state.posts.indexOf(np); if(i>=0) state.posts.splice(i,1);
     const j=mine.list.indexOf(np); if(j>=0) mine.list.splice(j,1);

@@ -18,7 +18,7 @@ import { beanCatalog } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, handleToUid } from '../data/world.js';
 import { fetchFeed, fetchMine, fetchSavedPosts } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
-         fetchCafeFollowCounts } from '../data/social.js';
+         fetchCafeFollowCounts, fetchFollowRequests } from '../data/social.js';
 import { fetchMyJoins, fetchTopPosts, fetchJoinCounts } from '../data/challenges.js';
 import { fetchProfileCounts, fetchSuggestedProfiles } from '../data/profiles.js';
 import { fetchNotifications } from '../data/notifications.js';
@@ -32,7 +32,7 @@ let persistence=makePersistence(null,KEY);
 export let session=null;
 
 export let state;
-export const ui={route:'home', filter:'foryou', ovStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
+export const ui={route:'home', filter:'today', ovStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
 
 /* A brand-new account: nothing invented, nothing borrowed. Everything
    visible after this comes from the user or from the backend. */
@@ -40,6 +40,12 @@ export function freshState(){
   return {
     posts:[], myGallery:[],
     follows:{},
+    /* follows you've asked for but that haven't been accepted yet */
+    followPending:{},
+    /* Public or followers-only, remembered from the last pour you made:
+       most people post the same way every day, and asking again every
+       time is asking them to re-decide something they already decided. */
+    lastVisibility:'public',
     cafeFollow:{},
     challenges:{},
     challengeSubs:{}, customBeans:[],
@@ -50,7 +56,8 @@ export function freshState(){
 }
 export async function load(){try{const s=await persistence.read(); state=(s&&s.me)?s:freshState();
   ['posts','customBeans','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
-  ['follows','cafeFollow','challenges','challengeSubs'].forEach(k=>{if(!state[k])state[k]={};});
+  ['follows','cafeFollow','challenges','challengeSubs','followPending'].forEach(k=>{if(!state[k])state[k]={};});
+  if(state.lastVisibility!=='followers') state.lastVisibility='public';
   if(!state.me)state.me=freshState().me; if(!state.me.favMilk)state.me.favMilk='Whole milk';
  }catch(e){state=freshState();}}
 /* fire-and-forget: the UI has already repainted optimistically, so a failed
@@ -66,7 +73,9 @@ export const feed={ loading:false, done:false, cursor:null, loaded:false };
 /* Who you follow / block, from the server. `state.follows` stays the
    app-wide truth, keyed by auth uuid. */
 export const social={ blocks:[], loaded:false, listsLoaded:false, followers:[], following:[],
-                      counts:{followers:0,following:0,pours:0} };
+                      counts:{followers:0,following:0,pours:0},
+                      /* people waiting for you to let them in (step-1.15) */
+                      requests:[] };
 
 /* People to follow — the newest profiles that aren't you, filled by
    hydrateSocial(). Empty until the backend answers. */
@@ -104,11 +113,21 @@ export async function hydrateSocial(){
     const [follows,cafeFollows,blocks,joins]=await Promise.all([
       fetchMyFollows(uid), fetchMyCafeFollows(uid), fetchMyBlocks(uid), fetchMyJoins(uid)
     ]);
-    follows.forEach(id=>{ state.follows[id]=true; });
+    /* The server is the truth about who you follow — including the ones
+       that are still only requests. Rebuild rather than merge, or a
+       follow that was declined elsewhere lingers in this browser. */
+    state.follows={}; state.followPending={};
+    follows.accepted.forEach(id=>{ state.follows[id]=true; });
+    follows.pending.forEach(id=>{ state.followPending[id]=true; });
     cafeFollows.forEach(id=>{ state.cafeFollow[id]=true; });
     joins.forEach(id=>{ state.challenges[id]=true; });
     social.blocks=blocks; social.loaded=true;
   }catch(e){ console.warn('social state failed',e); }
+
+  /* Who is waiting on you. Its own try: a follow-request failure must
+     not cost you the rest of your world. */
+  try{ social.requests=await fetchFollowRequests(uid); }
+  catch(e){ console.warn('follow requests failed',e); }
 
   /* Independent of the above — a failure here must not cost you the feed. */
   try{ state.notifications=await fetchNotifications(uid); }
@@ -155,11 +174,21 @@ async function markMine(list){
   return list;
 }
 
-/* The Following tab filters server-side so pagination stays correct. */
+/* Both tabs filter server-side so pagination stays correct.
+
+   Following — everyone you've been accepted by, plus yourself, in plain
+   reverse-chronological order. Their followers-only pours belong here:
+   being followed is exactly what earns you those.
+
+   Today — every public pour since your own local midnight, from anyone,
+   followed or not. That is the whole point of it: it's where you meet
+   people you don't know yet. Followers-only pours never appear, not even
+   your own. */
+export const startOfToday = () => { const d=new Date(); d.setHours(0,0,0,0); return d.toISOString(); };
 function feedArgs(){
   const uid=session.user.id;
-  const authors = ui.filter==='following' ? [...followeeIds(),uid] : null;
-  return { myUid:uid, authors, blocked:social.blocks };
+  if(ui.filter==='following') return { myUid:uid, authors:[...followeeIds(),uid], blocked:social.blocks };
+  return { myUid:uid, authors:null, blocked:social.blocks, since:startOfToday(), publicOnly:true };
 }
 
 export async function loadFeed(){
@@ -241,7 +270,7 @@ export function applyMe(){
    The database enforces the same rule — see supabase/step-1.12.sql. */
 export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
 
-export function freshCreate(){return{editId:null,drink:state.me.favDrink||'Cappuccino',pattern:null,caption:'',img:null,source:'home',cafe:'',
+export function freshCreate(){return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',pattern:null,caption:'',img:null,source:'home',cafe:'',
   bean:'',beanBrand:'',beanCustom:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 /* ---------- derived selectors (read-only views over state) ----------

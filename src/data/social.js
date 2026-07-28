@@ -16,9 +16,12 @@ import { rest, optionalColumns } from './supabase.js';
 import { registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
 
-/* Added by step-1.13.sql, run by hand against a live app — see
-   optionalColumns() in data/supabase.js. */
+/* Added by hand-run migrations against a live app — see optionalColumns()
+   in data/supabase.js. `status` (step-1.15) is kept separate from the
+   profile columns because they sit on different tables and land in
+   different migrations. */
 const opt = optionalColumns(['avatar_key']);
+const optFollow = optionalColumns(['status','avatar_key']);
 const withAvatar = has => has('avatar_key') ? ',avatar_key' : '';
 
 /* PostgREST needs a quoted, comma-joined list for in.(…) */
@@ -38,13 +41,49 @@ export function commentOf(row, myUid){
   };
 }
 
-/* ---------- follows ---------- */
+/* ---------- follows ----------
+   A follow is a request until the other person accepts it (step-1.15),
+   so "who do I follow" is now two answers, and the UI needs both: an
+   accepted follow shows Following, a pending one shows Requested. */
 export async function fetchMyFollows(uid){
-  const rows = await rest(`follows?select=followee_id&follower_id=eq.${uid}`);
-  return (rows||[]).map(r=>r.followee_id);
+  return optFollow.run(has=>`follows?select=followee_id${has('status')?',status':''}&follower_id=eq.${uid}`)
+    .then(rows=>{
+      const accepted=[], pending=[];
+      (rows||[]).forEach(r=>{
+        /* no status column yet means every follow is a plain follow */
+        (r.status==='pending' ? pending : accepted).push(r.followee_id);
+      });
+      return { accepted, pending };
+    });
 }
-export const follow   = (uid,target) => rest('follows',{ method:'POST', body:{ follower_id:uid, followee_id:target } });
+
+/* People waiting on you, newest first, with enough of their profile to
+   render a row without a second round trip. */
+export async function fetchFollowRequests(uid){
+  if(!optFollow.has('status')) return [];
+  const rows = await optFollow.run(has=>
+    `follows?select=follower_id,created_at,profiles!follows_follower_id_fkey(${fCard(has)})`
+    + `&followee_id=eq.${uid}&status=eq.pending&order=created_at.desc&limit=100`);
+  return (rows||[]).map(r=>{
+    const u = r.profiles ? registerUser(rowToUser(r.profiles)) : null;
+    return u ? { id:u.id, user:u, ago:agoFrom(r.created_at) } : null;
+  }).filter(Boolean);
+}
+
+/* Asking. The database refuses anything but 'pending' here, so this is
+   the only shape a follow can start in. */
+export const follow = (uid,target) => optFollow.run(has=>({
+  path:'follows', method:'POST',
+  body: has('status') ? { follower_id:uid, followee_id:target, status:'pending' }
+                      : { follower_id:uid, followee_id:target } }));
+
+/* Covers unfollowing, withdrawing a request, and — from the other side —
+   declining one or removing a follower. One row, one delete. */
 export const unfollow = (uid,target) => rest(`follows?follower_id=eq.${uid}&followee_id=eq.${target}`,{ method:'DELETE' });
+export const acceptFollow  = (uid,follower) =>
+  rest(`follows?follower_id=eq.${follower}&followee_id=eq.${uid}`,{ method:'PATCH', body:{ status:'accepted' } });
+export const declineFollow = (uid,follower) =>
+  rest(`follows?follower_id=eq.${follower}&followee_id=eq.${uid}`,{ method:'DELETE' });
 
 /* The two follower lists, as profiles. Both sides of `follows` reach
    profiles, so each embed has to name its foreign key. */

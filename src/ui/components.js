@@ -74,6 +74,22 @@ export function beanPicker(pfx,brand,bean){
     </select></div>
   </div>`;
 }
+/* ----- follow buttons -----
+   A follow has three states since step-1.15: none → requested →
+   following. Every follow button in the app renders through here so they
+   can't drift apart, and the class names match what paintFollow() in
+   ui/actions.js toggles when one is tapped. */
+export const followState = uid => state.follows[uid] ? 'following' : state.followPending[uid] ? 'pending' : 'none';
+export const followText  = uid => ({following:'Following', pending:'Requested', none:'Follow'})[followState(uid)];
+export function followMini(uid){
+  const s=followState(uid);
+  return `<button class="followmini ${s!=='none'?'on':''} ${s==='pending'?'pending':''}" data-action="follow" data-id="${uid}">${followText(uid)}</button>`;
+}
+export function followBtn(uid, cls='sm', style=''){
+  const s=followState(uid), on=s!=='none';
+  return `<button class="btn ${cls} ${on?'ghost on':''} ${s==='pending'?'pending':''}"${style?` style="${style}"`:''} data-action="follow" data-id="${uid}">${followText(uid)}</button>`;
+}
+
 export const postLink=id=>location.href.split('#')[0]+'#p/'+id;
 
 /* Challenge participation, straight from challenge_joins. Zero is a real
@@ -116,14 +132,21 @@ export function likeButton(p,size=22){
    feel watched for fixing a typo. */
 export const editedMark = p => p.edited ? ' · <span class="edited">edited</span>' : '';
 
+/* A followers-only pour says so, to its author. Nobody else can see one
+   in the first place (RLS, step-1.15), so this is not a warning — it's a
+   reminder of a choice you made, in the same dimmed type as the rest of
+   the line. */
+export const privateMark = p => p.visibility==='followers'
+  ? ' · <span class="edited" title="Only people who follow you can see this">🔒 followers</span>' : '';
+
 export function postCard(p){
   const u=userOf(p.user), following=p.user==='me'||state.follows[p.user], r=p.recipe, top=p.comments[0];
   const rows=recipeRows(r), cn=commentCount(p);
   return `<div class="card" data-post="${p.id}">
     <div class="p-head">
       <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}${editedMark(p)}</span></div></div>
-      ${p.user==='me'?'':`<button class="followmini ${following?'on':''}" data-action="follow" data-id="${p.user}">${following?'Following':'Follow'}</button>`}
+        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${p.cafe}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}</span></div></div>
+      ${p.user==='me'?'':followMini(p.user)}
       <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
     <div class="media" data-action="open-post" data-id="${p.id}">
       ${art(imageUrl(p.img,'feed'),p.pattern,p.quality,seedOf(p.id),p.drink)}

@@ -31,12 +31,12 @@ const author = has => `profiles!posts_user_id_fkey(id,handle,name,city,bio,avata
    hurts. Which posts *you* liked or saved is a separate query, because
    it changes per viewer and would bust any shared cache. */
 const COUNTS = 'likes(count),comments(count)';
-/* Both optional columns are added by hand-run migrations (step-1.12 and
-   step-1.13), so the select has to survive their absence — see
+/* All three optional columns arrive with hand-run migrations (step-1.12,
+   1.13, 1.15), so the select has to survive their absence — see
    optionalColumns() in data/supabase.js. */
-const opt = optionalColumns(['edited_at','avatar_key']);
-const select = has => `${COLS}${has('edited_at')?',edited_at':''},${author(has)},${COUNTS}`;
-const q = build => opt.run(has=>build(select(has)));
+const opt = optionalColumns(['edited_at','avatar_key','visibility']);
+const select = has => `${COLS}${has('edited_at')?',edited_at':''}${has('visibility')?',visibility':''},${author(has)},${COUNTS}`;
+const q = build => opt.run(has=>build(select(has), has));
 
 const countOf = agg => (Array.isArray(agg) && agg.length ? (agg[0].count|0) : 0);
 
@@ -59,6 +59,9 @@ export function postOf(row, myUid){
     recipe: row.recipe || null,
     createdAt: row.created_at,
     edited: !!row.edited_at,           // the timestamp itself is never shown; see postCard()
+    /* 'public' or 'followers'. Absent means the column isn't there yet,
+       and everything predating it was posted as public — see rowOf(). */
+    visibility: row.visibility==='followers' ? 'followers' : 'public',
     ago: agoFrom(row.created_at),
     likes: countOf(row.likes),
     commentN: countOf(row.comments),   // the full thread loads when the post opens
@@ -66,9 +69,17 @@ export function postOf(row, myUid){
   };
 }
 
-/* ---------- the app's post shape → an insert row ---------- */
-export function rowOf(p, uid){
+/* ---------- the app's post shape → an insert row ----------
+   `withVisibility` is false only while step-1.15.sql is still unrun: the
+   column would be rejected outright, and a post that can't be written is
+   worse than a post that is public when the app has no way to store
+   anything else. */
+export function rowOf(p, uid, withVisibility=true){
   const cafe = p.cafe ? CAFES.find(c=>c.name===p.cafe) : null;
+  if(withVisibility) return { ...baseRow(p,uid,cafe), visibility: p.visibility==='followers' ? 'followers' : 'public' };
+  return baseRow(p,uid,cafe);
+}
+function baseRow(p, uid, cafe){
   return {
     id: p.id,                          // client-generated uuid: keeps ids stable
     user_id: uid,
@@ -91,14 +102,21 @@ export const newPostId = () =>
 /* ---------- reads ---------- */
 /* Newest first, keyset-paginated on created_at. `before` is the
    created_at of the last row you already have. */
-export async function fetchFeed({ before=null, limit=FEED_PAGE, myUid=null, authors=null, blocked=null }={}){
+export async function fetchFeed({ before=null, limit=FEED_PAGE, myUid=null, authors=null,
+                                  blocked=null, since=null, publicOnly=false }={}){
   const list = ids => `(${ids.map(id=>`"${id}"`).join(',')})`;
-  const rows = await q(sel=>{
+  const rows = await q((sel,has)=>{
     let p = `posts?select=${sel}&order=created_at.desc&limit=${limit}`;
     if(before) p += `&created_at=lt.${encodeURIComponent(before)}`;
+    /* Today is "since your local midnight", so the cut-off is computed
+       where the user's clock is and sent as an absolute instant. */
+    if(since) p += `&created_at=gte.${encodeURIComponent(since)}`;
     /* the Following tab filters server-side, so pagination stays correct */
     if(authors) p += `&user_id=in.${list(authors)}`;
     if(blocked && blocked.length) p += `&user_id=not.in.${list(blocked)}`;
+    /* Belt and braces: RLS already hides other people's private pours,
+       so this is about not showing YOUR private pours in a public feed. */
+    if(publicOnly && has('visibility')) p += `&visibility=eq.public`;
     return p;
   });
   return (rows||[]).map(r=>postOf(r,myUid));
@@ -131,7 +149,8 @@ export async function fetchPost(id, myUid=null){
 
 /* ---------- writes ---------- */
 export async function createPost(p, uid){
-  const rows = await rest('posts',{ method:'POST', prefer:'return=representation', body:rowOf(p,uid) });
+  const rows = await opt.run(has=>({ path:'posts', method:'POST',
+    prefer:'return=representation', body:rowOf(p,uid,has('visibility')) }));
   return rows && rows.length ? postOf(rows[0],uid) : null;
 }
 
@@ -139,14 +158,20 @@ export async function createPost(p, uid){
    photo (`image_key`), the author and the timestamp are deliberately not
    in this list, so a PATCH can't touch them even if the caller asks.
    `edited_at` is stamped by the database trigger, not by the client — a
-   client that sets its own marker is a client that can also unset it. */
-const EDITABLE = ['drink','art','pattern','cafe_id','caption','recipe'];
+   client that sets its own marker is a client that can also unset it.
+
+   `visibility` IS editable: who you meant to show a pour to is part of
+   what you said, and changing your mind the same day is the same kind of
+   fix as a typo. It can't unring the bell for anyone who already saw it,
+   but it stops it being shown again. */
+const EDITABLE = ['drink','art','pattern','cafe_id','caption','recipe','visibility'];
 export async function updatePost(id, p){
-  const full = rowOf(p, null);
-  const patch = {};
-  EDITABLE.forEach(k=>{ patch[k] = full[k]; });
-  const rows = await rest(`posts?id=eq.${id}`,{ method:'PATCH', prefer:'return=representation', body:patch });
-  return rows && rows.length ? rows[0] : null;
+  return opt.run(has=>{
+    const full = rowOf(p, null, has('visibility'));
+    const patch = {};
+    EDITABLE.forEach(k=>{ if(k in full) patch[k] = full[k]; });
+    return { path:`posts?id=eq.${id}`, method:'PATCH', body:patch };
+  });
 }
 
 export async function deletePost(id){

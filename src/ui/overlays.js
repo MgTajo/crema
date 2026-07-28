@@ -14,7 +14,7 @@ import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, e
          beanPassport, canEdit } from '../store/store.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, lbRow, gcell, commentCount, joinedLabel, likeButton, editedMark } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, lbRow, gcell, commentCount, joinedLabel, likeButton, editedMark, privateMark, followMini, followBtn } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -59,8 +59,8 @@ function overlayPost(id){
       <div class="media" data-action="none">${art(imageUrl(p.img,'hero'),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">
         <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${esc(p.cafe)}`:''} · ${p.ago}${editedMark(p)}</span></div></div>
-        ${p.user==='me'?'':`<button class="followmini ${state.follows[p.user]?'on':''}" data-action="follow" data-id="${p.user}">${state.follows[p.user]?'Following':'Follow'}</button>`}
+          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · at ${esc(p.cafe)}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}</span></div></div>
+        ${p.user==='me'?'':followMini(p.user)}
         <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
       <div class="p-body"><div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
         <div class="chips"><span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
@@ -129,7 +129,7 @@ function overlayUser(uid){
       <div style="padding:0 16px 20px">
         <div style="display:flex;align-items:flex-end;gap:12px;margin-top:-28px">
           <div class="avatar" style="width:74px;height:74px;font-size:26px;background:${u.color};border:3px solid var(--cream)">${initials(u.name)}</div>
-          <button class="btn ${f?'ghost':''} sm" style="margin-left:auto" data-action="follow" data-id="${uid}">${f?'Following':'Follow'}</button></div>
+          ${followBtn(uid,'sm','margin-left:auto')}</div>
         <div style="margin-top:10px"><b style="font-family:var(--serif);font-size:22px">${esc(u.name)}</b> <span class="lvlchip">Lv${u.level}</span>
           <div style="color:var(--muted);font-size:13px;margin:2px 0 8px">${esc(u.handle)}${u.city?` · 📍 ${esc(u.city)}`:''}</div>
           ${u.bio?`<p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:0 0 12px">${esc(u.bio)}</p>`:''}</div>
@@ -142,8 +142,14 @@ function overlayUser(uid){
 function overlayNotifs(){
   const rows=state.notifications.map((n,i)=>{
     const av=n.u?avatar(n.u):`<div class="avatar" style="background:var(--crema)">${n.type==='challenge'?'🏆':'☕'}</div>`;
-    return `<div class="nrow ${n.read?'':'unread'}" data-action="notif-go" data-idx="${i}">${av}
-      <div class="nb"><div class="nt">${n.u?`<b>${esc(userOf(n.u).name)}</b> `:''}${esc(n.text)}</div><span>${n.time} ago</span></div></div>`;}).join('');
+    /* A request is the one notification that is a question, so it keeps
+       its buttons here too — the row above the feed is the prominent
+       copy, this is the one you find when you come looking. */
+    const ask=n.type==='follow_request'&&n.u&&(social.requests||[]).some(r=>r.id===n.u)
+      ? `<div class="nact"><button class="btn sm" data-action="accept-follow" data-id="${n.u}">Accept</button>
+         <button class="btn ghost sm" data-action="decline-follow" data-id="${n.u}">Decline</button></div>` : '';
+    return `<div class="nrow ${n.read?'':'unread'}" ${ask?'':`data-action="notif-go" data-idx="${i}"`}>${av}
+      <div class="nb"><div class="nt">${n.u?`<b>${esc(userOf(n.u).name)}</b> `:''}${esc(n.text)}</div><span>${n.time} ago</span>${ask}</div></div>`;}).join('');
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Notifications">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Notifications</b></div>
     <div class="ov-body">${rows||`<div class="empty"><div class="big">🔔</div>All caught up.</div>`}</div></div>`;
@@ -281,7 +287,7 @@ function overlayFlist(kind){
     <div class="ov-body"><div style="padding:14px 16px 20px">
       ${list.length?`<div class="lb">${list.map(u=>`<div class="lb-row click" data-action="open-user" data-id="${u.id}">${avatar(u.id)}
         <div class="who" style="flex:1"><b>${esc(u.name)}</b><span>${esc(u.handle)}${u.city?' · '+esc(u.city):''}</span></div>
-        <button class="btn ${state.follows[u.id]?'ghost':''} sm" data-action="follow" data-id="${u.id}">${state.follows[u.id]?'Following':'Follow'}</button></div>`).join('')}</div>`
+        ${followBtn(u.id)}</div>`).join('')}</div>`
         :empty}
     </div></div></div>`;
 }
@@ -451,6 +457,22 @@ function overlayOnboard(){
   return `<div class="ov-back"></div><div class="sheet" role="dialog" aria-label="Welcome"><div class="ov-body" style="padding:26px 22px">${dots}${body}</div></div>`;
 }
 
+/* Who gets to see this pour. Two plain choices, phrased as who rather
+   than as a setting — "Followers only" says what happens; "Private"
+   would suggest nobody sees it. Whichever you pick becomes the default
+   for next time (state.lastVisibility), because people post the same way
+   most days and re-asking is re-litigating a decision already made. */
+function visibilityPicker(c){
+  const v=c.visibility==='followers'?'followers':'public';
+  return `<div class="rlabel">Who can see this</div>
+    <div class="seg" style="margin:-4px 0 4px">
+      <button class="${v==='public'?'on':''}" data-action="cvis" data-v="public">🌍 Everyone</button>
+      <button class="${v==='followers'?'on':''}" data-action="cvis" data-v="followers">🔒 Followers only</button></div>
+    <div style="font-size:11.5px;color:var(--muted);margin:0 2px 12px">${v==='public'
+      ? 'Appears in Today, where anyone can find it.'
+      : 'Only people you\'ve accepted as followers can see it — it never appears in Today.'}</div>`;
+}
+
 /* The same sheet does double duty: with `editId` set it edits that pour
    instead of starting a new one. Everything except the photo is the same
    form, so an edit looks and behaves exactly like the post did — the
@@ -489,6 +511,7 @@ function overlayCreate(){
       ${c.source==='cafe'?`<div class="field sel"><label>Café</label><select id="c-cafe"><option value=""${c.cafe?'':' selected'}>Choose a café…</option>${CAFES.map(cf=>`<option value="${cf.id}"${cf.id===c.cafe?' selected':''}>${cf.name} · ${cf.area}</option>`).join('')}</select></div>`:''}
       ${HAS_MILK.has(c.drink)?`<div class="field sel"><label>Milk</label><select id="c-milk">${sel(mkList(milkOpts,c.milk),c.milk,'Optional')}</select></div>`:''}
       <div class="field"><label>Caption</label><textarea id="c-caption" placeholder="Say something about this coffee…">${esc(c.caption)}</textarea></div>
+      ${visibilityPicker(c)}
       ${c.source==='cafe' ? (chosenCafe?`
       <div class="rlabel">${esc(chosenCafe.name)}'s setup <span>· what they're pouring</span></div>
       <div class="field sel"><label>Bean</label><select id="c-bean">${sel(chosenCafe.menu.beans,c.bean,'Which bean did you have?')}</select></div>

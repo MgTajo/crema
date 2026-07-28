@@ -18,6 +18,7 @@ Supabase dashboard → **SQL Editor** → paste and run:
 8. [`step-1.12.sql`](step-1.12.sql) — editing your own pour, on the day you poured it.
 9. [`step-1.13.sql`](step-1.13.sql) — optional profile photos (`profiles.avatar_key`).
 10. [`step-1.14.sql`](step-1.14.sql) — points for coffee: pours, likes, comments, exact recipes, new beans.
+11. [`step-1.15.sql`](step-1.15.sql) — public/followers-only pours, and follows you have to accept.
 
 All of them are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
@@ -187,3 +188,18 @@ python3 devserver.py
 
 Use this rather than `python3 -m http.server`: the latter sends no `Cache-Control`, so the
 browser serves stale ES modules and you end up debugging the previous version of a file.
+
+**`step-1.15.sql` is the one that has to run before people trust it.** It
+adds `posts.visibility` and `follows.status`, and — the part that matters
+— rewrites the select policy on `posts` so a followers-only pour is
+unreadable by a stranger *in the database*. Until it runs, the app is
+fully working but everything is public: the composer's Everyone/Followers
+switch has nowhere to store its answer, and follows are still immediate
+rather than requested. Both columns are given up on the first error and
+retried without, so nothing breaks in the meantime — but "private" is not
+true until this has run.
+
+Existing rows are grandfathered on purpose: every pour becomes `public`
+(they were posted under rules where everything was), and every existing
+follow becomes `accepted` (nobody wakes up to a queue of people they
+thought already followed them). Only new follows start as `pending`.

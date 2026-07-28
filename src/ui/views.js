@@ -14,7 +14,7 @@ import { state, ui, session, feed, discover, social, saved, streak,
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
-import { postCard, searchHTML, avatar, lbRow, gcell } from './components.js';
+import { postCard, searchHTML, avatar, lbRow, gcell, followBtn } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderOverlay } from './overlays.js';
 import { renderGate } from './gate.js';
@@ -36,13 +36,32 @@ export function renderHome(){
     ? `<div class="empty"><div class="big">☕</div>Loading your feed…</div>`
     : ui.filter==='following'
       ? `<div class="empty"><div class="big">👥</div>No pours from people you follow yet.<br>Find baristas on Explore.</div>`
-      : `<div class="empty"><div class="big">☕</div>No pours yet.<br>Tap ＋ to log the first one.</div>`;
+      : `<div class="empty"><div class="big">🌅</div>Nobody has poured today yet.<br>Tap ＋ and be the first.</div>`;
   return `<div class="pad">
+    ${followRequestsBlock()}
     <div class="seg">
-      <button class="${ui.filter==='foryou'?'on':''}" data-action="filter" data-f="foryou">For you</button>
+      <button class="${ui.filter==='today'?'on':''}" data-action="filter" data-f="today">Today</button>
       <button class="${ui.filter==='following'?'on':''}" data-action="filter" data-f="following">Following</button>
     </div>
     ${list.length?list.map(postCard).join(''):empty}
+  </div>`;
+}
+
+/* Follow requests sit above the feed, not behind the bell. Someone
+   waiting to be let in is the one thing here that needs an answer from
+   you, and a badge on an icon is easy to scroll past — so it takes the
+   full width, keeps its own colour, and carries the two buttons that
+   resolve it. It disappears the moment the queue is empty. */
+function followRequestsBlock(){
+  const reqs=social.requests||[]; if(!reqs.length) return '';
+  return `<div class="freq">
+    <div class="freq-h">${icon('bell',15)} ${reqs.length===1?'1 follow request':`${reqs.length} follow requests`}</div>
+    ${reqs.map(r=>`<div class="freq-row">
+      <div class="idwrap" data-action="open-user" data-id="${r.id}">${avatar(r.id)}
+        <div class="who"><b>${esc(r.user.name)}</b><span>${esc(r.user.handle)} · ${r.ago}</span></div></div>
+      <button class="btn sm" data-action="accept-follow" data-id="${r.id}">Accept</button>
+      <button class="btn ghost sm" data-action="decline-follow" data-id="${r.id}">Decline</button>
+    </div>`).join('')}
   </div>`;
 }
 
@@ -56,7 +75,7 @@ export function renderExplore(){
     ? `<div class="empty" style="padding:20px">👋<br>No one else to follow yet — you're early.</div>`
     : sugg.length
       ? `<div class="hscroll">${sugg.map(u=>`<div class="ucard"><div data-action="open-user" data-id="${u.id}" style="cursor:pointer">${avatar(u.id,'big')}<b>${esc(u.name)}</b><span>${u.city?esc(u.city):u.levelName}</span></div>
-        <button class="btn sm block" data-action="follow" data-id="${u.id}">Follow</button></div>`).join('')}</div>`
+        ${followBtn(u.id,'sm block')}</div>`).join('')}</div>`
       : '';
   return `<div class="pad">
     <div class="search"><span style="color:var(--muted)">${icon('search',20)}</span><input id="search-input" placeholder="Search people, beans, cafés, pours…" value="${esc(ui.searchQ)}" autocomplete="off" aria-label="Search"></div>
