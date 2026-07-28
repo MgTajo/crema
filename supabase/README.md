@@ -158,8 +158,13 @@ Needed so the browser's direct `PUT` to R2 doesn't die at preflight. **R2 → `c
 Settings → CORS Policy:**
 
 ```json
-[{"AllowedOrigins":["http://localhost:4599","https://<your-github-pages-url>"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["content-type"],"MaxAgeSeconds":3600}]
+[{"AllowedOrigins":["https://crema-app.com","https://www.crema-app.com","https://mgtajo.github.io","http://localhost:4599"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["content-type"],"MaxAgeSeconds":3600}]
 ```
+
+Every origin is **scheme + host only** — a browser never sends a path in `Origin`, so
+`https://mgtajo.github.io/crema` matches nothing. Any new domain the app is served from needs
+its own entry here, or photos silently fall back to inline: the presign call still succeeds
+(the Edge Function answers `*`), and only the direct PUT is blocked.
 
 ### What's still open in 1.6
 

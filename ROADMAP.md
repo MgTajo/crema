@@ -479,9 +479,15 @@ Found by asking "is this number real?" of the *media* path for the first time:
 **Operational, needs a human at a dashboard:**
 - ✅ `step-1.9.sql` and `step-1.10.sql` run (points live, cafés emptied, test accounts gone).
 - ✅ Email confirmation enabled.
-- ⬜ **R2 bucket CORS** — the allowed origin currently carries a path
-  (`https://mgtajo.github.io/crema`). Browsers send scheme+host only, so it can never match; it
-  has to be `https://mgtajo.github.io`. Until then every photo still lands inline.
+- ✅ **R2 bucket CORS** (fixed 2026-07-28) — the allowed origin used to carry a path
+  (`https://mgtajo.github.io/crema`); browsers send scheme+host only, so it could never match,
+  and the move to the custom domain added a second origin the list didn't know about. Every
+  photo landed inline until the policy listed `https://crema-app.com`,
+  `https://www.crema-app.com`, `https://mgtajo.github.io` and `http://localhost:4599` as bare
+  scheme+host. Symptom of a miss: the create sheet's "Upload failed" state, with a
+  `TypeError: Failed to fetch` from the direct PUT in `data/media.js` — the presign call
+  succeeds, because the Edge Function answers `Access-Control-Allow-Origin: *` and the bucket
+  does not.
 - ⬜ Run `step-1.11.sql`, then `migrate-base64-images.mjs`, then validate the constraint.
 - ✅ `step-1.12.sql` run — post editing is enforced in the database, not just the client.
 - ⬜ Run `step-1.13.sql` — until it does, Settings says profile photos aren't switched on yet.
