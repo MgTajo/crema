@@ -565,10 +565,15 @@ So push is a bonus channel, never the only one: every nudge it carries is also v
 app itself. `iosNeedsInstall()` detects the iPhone-in-a-tab case and asks for the Home Screen
 rather than showing a toggle that cannot work.
 
+**Email is deliberately not the fallback** (decided 2026-07-29). The install prompt is the
+answer for iOS: it costs the user two taps, and it converts them into someone who has Crema on
+their Home Screen — which is worth more than a channel that lands in a promotions tab. Adding
+email would also mean a transactional-email vendor, a deliverability problem and an
+unsubscribe flow, for the audience least likely to read it.
+
 **Not done:** deploy. `supabase/README.md` §5 has the steps — generate nothing (the public key
 is already in `config.js`), set the private key and hook secret, deploy `send-push`
-`--no-verify-jwt`, then run `step-1.16.sql`. Email as a fallback channel for iOS-tab users is
-still unbuilt and is the obvious follow-up.
+`--no-verify-jwt`, then run `step-1.16.sql`.
 
 ---
 
