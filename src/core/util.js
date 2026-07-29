@@ -28,7 +28,9 @@ export const initials=n=>n.split(' ').map(w=>w[0]).slice(0,2).join('');
    inputs, so "18" becomes "18g" as you type and stays that way however
    the value got there (typed, pasted, or loaded from an old post). */
 export function withUnit(raw,unit){
-  let n=(''+(raw==null?'':raw)).replace(/[^0-9.]/g,'');
+  /* Comma is the decimal separator on a German keyboard, so it has to
+     work here even though the stored value always uses a dot. */
+  let n=(''+(raw==null?'':raw)).replace(/,/g,'.').replace(/[^0-9.]/g,'');
   const dot=n.indexOf('.');
   if(dot!==-1) n=n.slice(0,dot+1)+n.slice(dot+1).replace(/\./g,'');
   return n?n+unit:'';

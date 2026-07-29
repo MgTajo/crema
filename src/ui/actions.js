@@ -159,7 +159,7 @@ document.addEventListener('keydown',e=>{ if(e.key!=='Enter') return;
 const RECIPE_UNITS={'c-dose':'g','c-yield':'g','c-time':'s','c-temp':'°'};
 function maskRecipeInput(el,unit){
   const raw=el.value, caret=el.selectionStart;
-  const digitsBefore=raw.slice(0,caret).replace(/[^0-9.]/g,'').length;
+  const digitsBefore=raw.slice(0,caret).replace(/[^0-9.,]/g,'').length;
   const next=withUnit(raw,unit);
   el.value=next;
   const numLen=Math.max(0,next.length-unit.length);
