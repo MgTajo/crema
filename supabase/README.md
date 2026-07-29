@@ -20,7 +20,8 @@ Supabase dashboard → **SQL Editor** → paste and run:
 10. [`step-1.14.sql`](step-1.14.sql) — points for coffee: pours, likes, comments, exact recipes, new beans.
 11. [`step-1.15.sql`](step-1.15.sql) — public/followers-only pours, and follows you have to accept.
 12. [`step-1.16.sql`](step-1.16.sql) — push subscriptions, notification switches, streak reminder and weekly digest.
-    **Needs [section 5](#5-deploy-the-push-function-step-116) done first**, or the cron jobs fire into nothing.
+    Run it **as part of [section 5](#5-deploy-the-push-function-step-116)** — the Edge Function must be
+    deployed before it, and the Vault settings go in after it.
 
 All of them are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
@@ -182,8 +183,9 @@ its own entry here, or photos silently fall back to inline: the presign call sti
 Reminders and the weekly digest go out as Web Push. Postgres builds the batch and hands it
 to one Edge Function, which does the RFC 8291 encryption and the RFC 8292 VAPID signing.
 
-**Do this before running `step-1.16.sql`** — that file schedules the cron jobs, and a job
-whose endpoint is missing fails quietly.
+`step-1.16.sql` is run in the middle of this section: deploy the function first, then the SQL,
+then the Vault settings. The cron jobs the SQL schedules no-op with a notice until those
+settings exist, so nothing breaks in between.
 
 ### Generate the VAPID keypair
 
@@ -215,16 +217,29 @@ supabase secrets set \
   PUSH_HOOK_SECRET=<a long random string>
 ```
 
-Then tell Postgres where to find it, as the `postgres` role in the SQL editor. These two
-settings are read by `push_send()` and cannot be inferred from the environment:
+### Then run `step-1.16.sql`, and tell Postgres where the function is
+
+Run [`step-1.16.sql`](step-1.16.sql) first — it defines the helper used below. The cron jobs it
+schedules no-op with a notice until the two settings exist, so this order is safe.
+
+Then, in the SQL editor as the `postgres` role:
 
 ```sql
-alter database postgres set app.push_endpoint =
-  'https://diabtvahplwoipvrprvb.supabase.co/functions/v1/send-push';
-alter database postgres set app.push_secret = '<the same PUSH_HOOK_SECRET>';
+select push_set_config('push_endpoint', 'https://diabtvahplwoipvrprvb.supabase.co/functions/v1/send-push');
+select push_set_config('push_secret',   '<the same PUSH_HOOK_SECRET>');
 ```
 
-New connections pick these up, so reconnect (or wait) before testing.
+These go into **Supabase Vault**, which encrypts them at rest. Not `alter database postgres set
+app.…` — the hosted `postgres` role is not a superuser, and that statement fails with
+`42501: permission denied to set parameter`. `push_config()` still falls back to
+`current_setting()` so the same file works on a local or self-hosted Postgres.
+
+Check they took:
+
+```sql
+select name, left(decrypted_secret, 24) || '…' from vault.decrypted_secrets
+ where name in ('push_endpoint','push_secret');
+```
 
 ### Verify
 

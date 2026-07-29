@@ -25,14 +25,20 @@
 -- says so.
 --
 -- IMPORTANT — two settings this file cannot read from the environment.
--- Set them once, as the postgres role, before the cron jobs matter:
+-- Run these AFTER this file (they use a helper it defines), as the
+-- postgres role. Until they are set, every job here no-ops with a
+-- notice rather than failing:
 --
---   alter database postgres set app.push_endpoint =
---     'https://diabtvahplwoipvrprvb.supabase.co/functions/v1/send-push';
---   alter database postgres set app.push_secret = '<PUSH_HOOK_SECRET>';
+--   select push_set_config('push_endpoint',
+--     'https://diabtvahplwoipvrprvb.supabase.co/functions/v1/send-push');
+--   select push_set_config('push_secret', '<PUSH_HOOK_SECRET>');
 --
--- app.push_secret must equal the PUSH_HOOK_SECRET secret set on the
--- function. It is what stops anyone on the internet POSTing to the
+-- They go into Supabase Vault, not into `alter database … set`: the
+-- hosted `postgres` role is not a superuser and that statement fails
+-- with 42501 "permission denied to set parameter".
+--
+-- push_secret must equal the PUSH_HOOK_SECRET secret set on the Edge
+-- Function. It is what stops anyone on the internet POSTing to the
 -- function and sending notifications as Crema — the function is
 -- deployed with --no-verify-jwt precisely so Postgres can call it, so
 -- this shared secret is the only thing guarding it.
@@ -99,6 +105,42 @@ alter table profiles add column if not exists notify_social bool not null defaul
 alter table profiles add column if not exists notify_streak bool not null default false;
 alter table profiles add column if not exists notify_digest bool not null default false;
 
+-- ---------- where the endpoint and the hook secret live ----------
+-- Supabase's hosted `postgres` role is not a superuser, so
+-- `alter database postgres set app.push_endpoint = …` is refused with
+-- 42501. Secrets for database-side use belong in Supabase Vault, which
+-- encrypts them at rest and is readable by the roles that need them.
+--
+-- current_setting() is still consulted as a fallback so this works
+-- unchanged on a self-hosted or local Postgres where the GUCs *can* be
+-- set. Vault wins when both are present.
+create or replace function push_config(k text)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare v text;
+begin
+  begin
+    select decrypted_secret into v
+      from vault.decrypted_secrets where name = k limit 1;
+    if v is not null and v <> '' then return v; end if;
+  exception when others then
+    -- No vault extension, or no permission: fall through to the GUC.
+    null;
+  end;
+  return nullif(current_setting('app.' || k, true), '');
+end $$;
+
+-- Store one of them. Re-runnable: the same name is updated rather than
+-- rejected as a duplicate.
+create or replace function push_set_config(k text, v text)
+returns void language plpgsql security definer set search_path = public as $$
+declare sid uuid;
+begin
+  select id into sid from vault.secrets where name = k;
+  if sid is null then perform vault.create_secret(v, k, 'Crema push configuration');
+  else                perform vault.update_secret(sid, v);
+  end if;
+end $$;
+
 -- ---------- the sender ----------
 -- One place that knows how to hand a job to the Edge Function. Payload
 -- shape: { rows: [{ endpoint, p256dh, auth, title, body, url, tag }] }.
@@ -106,10 +148,10 @@ create or replace function push_send(payload jsonb)
 returns void language plpgsql security definer set search_path = public as $$
 declare url text; secret text;
 begin
-  url    := current_setting('app.push_endpoint', true);
-  secret := current_setting('app.push_secret',   true);
+  url    := push_config('push_endpoint');
+  secret := push_config('push_secret');
   if url is null or url = '' then
-    raise notice 'app.push_endpoint unset — skipping push';
+    raise notice 'push_endpoint unset — skipping push (see supabase/README.md §5)';
     return;
   end if;
   if jsonb_array_length(coalesce(payload->'rows','[]'::jsonb)) = 0 then return; end if;
@@ -327,6 +369,28 @@ begin
   if n > 0 then perform push_send(jsonb_build_object('rows', rows)); end if;
   raise notice 'weekly digest: % device(s)', n;
 end $$;
+
+-- ---------- nothing here is a client API ----------
+-- Postgres grants EXECUTE on a new function to PUBLIC by default, and
+-- PostgREST publishes every function in the `public` schema as an RPC
+-- endpoint. Without these revokes, `POST /rest/v1/rpc/push_send` would
+-- let anyone with the publishable key send arbitrary notifications
+-- signed with Crema's VAPID key, and `rpc/push_config` would hand out
+-- the hook secret to any signed-in user. Both are SECURITY DEFINER, so
+-- RLS would not have saved us.
+--
+-- Every caller that matters is either a trigger or a cron job, and
+-- neither needs a grant: the privilege on a trigger function is checked
+-- when the trigger is created, and cron runs as postgres.
+revoke all on function push_config(text)            from public, anon, authenticated;
+revoke all on function push_set_config(text, text)  from public, anon, authenticated;
+revoke all on function push_send(jsonb)             from public, anon, authenticated;
+revoke all on function push_on_notification()       from public, anon, authenticated;
+revoke all on function push_streak_reminders()      from public, anon, authenticated;
+revoke all on function push_weekly_digest()         from public, anon, authenticated;
+revoke all on function streak_at_risk(uuid, int)    from public, anon, authenticated;
+revoke all on function streak_run(int[], int)       from public, anon, authenticated;
+revoke all on function crema_rest_after()           from public, anon, authenticated;
 
 -- ---------- schedules ----------
 -- Both run hourly and filter on the recipient's local hour inside the
