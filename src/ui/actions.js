@@ -21,7 +21,7 @@ import { enablePush, disablePush, pushEnabled, syncPush, pushSupported } from '.
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
-import { markAllRead } from '../data/notifications.js';
+import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, loadChallenges, canEdit,
          feed } from '../store/store.js';
@@ -212,6 +212,56 @@ document.addEventListener('change',e=>{
     loadMoreFeed().then(grew=>{ if(grew) renderView(); });
   },{passive:true});
 })();
+
+/* ---------- coming back to the app ----------
+   Crema has no realtime channel: the feed, the bell and the challenges
+   are fetched when something asks for them and are otherwise as old as
+   the last fetch. Sitting on a backgrounded tab all morning and finding
+   the same six pours is the moment that reads as broken, so returning to
+   the app is treated as a reason to re-ask.
+
+   Only on the way IN. `visibilitychange` fires on hide too, and
+   refreshing something nobody is looking at spends a request to move
+   pixels on a screen that is off. */
+const RETURN_REFRESH_MS = 45000;
+/* Seeded at boot, which has just loaded everything — so flicking away
+   and straight back doesn't refetch what arrived seconds ago. */
+let lastReturnRefresh = Date.now();
+
+async function refreshOnReturn(){
+  const u=currentUser(); if(!u) return;
+  if(Date.now()-lastReturnRefresh < RETURN_REFRESH_MS) return;
+  lastReturnRefresh=Date.now();
+
+  /* The bell first. It is on screen on every tab, costs one request, and
+     updating it moves nothing else on the page — so it is the one thing
+     worth doing unconditionally. */
+  try{
+    state.notifications=await fetchNotifications(u.id);
+    renderAppbar();
+  }catch(e){ console.warn('notification refresh failed',e); }
+
+  /* Repainting a list is only safe at the top of it, with no overlay in
+     the way. Replacing innerHTML does keep scrollTop — but loadFeed()
+     throws away every page after the first, so someone who had scrolled
+     through three pages would land in a list that no longer reaches that
+     far; and new pours arrive at the *top*, which shifts everything
+     below the same offset onto different content. Deep in the feed,
+     stale is the better failure: the fresh page is one tab-switch or
+     pull away, and nothing has moved under their thumb. */
+  const v=$('#view');
+  if(ui.ovStack.length || !v || v.scrollTop>=200) return;
+
+  if(ui.route==='home'){ if(await loadFeed()) renderView(); }
+  else if(ui.route==='explore'){ if(await loadChallenges()) renderView(); }
+}
+
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible') refreshOnReturn();
+});
+/* Coming back onto the network is the same event seen from the other
+   side — the app was open the whole time, but its data is just as old. */
+window.addEventListener('online',refreshOnReturn);
 
 /* activity-bar tooltip */
 document.addEventListener('mouseover',e=>{const ab=e.target.closest('.actbars .ab'); if(!ab)return; const tip=ab.parentElement.querySelector('.bartip'); if(!tip)return;

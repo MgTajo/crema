@@ -797,6 +797,32 @@ own weekly job and fills the current week as it goes.
 
 ---
 
+## Refresh on return (2026-07-29)
+
+Crema has no realtime channel — the hand-rolled `data/supabase.js` is GoTrue + PostgREST, no
+WebSocket — so the feed, the bell and the challenges were only ever as fresh as the last
+fetch, and the only refresh gesture was tapping the logo for a full `location.reload()`.
+
+`refreshOnReturn()` in `ui/actions.js` treats coming back to the app as a reason to re-ask:
+`visibilitychange` (guarded to the visible direction — refreshing a screen that is off spends a
+request to move nothing) and `online`. Debounced to 45s and seeded at boot, so flicking away
+and back doesn't refetch what just arrived.
+
+**It repaints conservatively, and that is the whole design.** The bell always refreshes: one
+request, always on screen, and changing it moves nothing else. The feed only refreshes at the
+top of an un-overlaid list, because `loadFeed()` discards every page after the first — someone
+who had scrolled three pages deep would land in a list that no longer reaches that far — and
+because new pours arrive at the *top*, shifting everything below the same scroll offset onto
+different content. Deep in the feed, stale is the better failure.
+
+(Verified while building it: replacing `innerHTML` *does* preserve `scrollTop`, so infinite
+scroll was never the bug it looked like it might be.)
+
+Supabase Realtime on `posts` and `notifications` is the full version — a WebSocket, reconnect
+handling and RLS-aware channel filters. This is the cheap 90%.
+
+---
+
 ## What comes after
 
 - Analytics (PostHog / Amplitude) — you'll want funnel data before optimizing anything.
