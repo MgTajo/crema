@@ -53,7 +53,7 @@ export const userOf = uid => USERS[uid] || {
 export const CAFES=[];
 export const CHALLENGES=[];
 
-/* ---------- today's podium: at most three pours, the most-liked of the
+/* ---------- today's podium: at most three pours, the most-engaged of the
    current day, filled by data/challenges.js fetchPodium(). Holds posts,
    not people, and empties every night — see supabase/step-1.18.sql. ---- */
 export const PODIUM=[];

@@ -61,7 +61,7 @@ export async function fetchChallengeWins(uid){
   }));
 }
 
-/* ---------- today's podium: the three most-liked pours of the day ------ */
+/* ---------- today's podium: the three most-engaged pours of the day ------ */
 /* Live, not a scheduled snapshot: a like moves the podium on the next
    load. The `podium_today` view (step-1.18.sql) carries the author's
    columns inline, so this is one round trip with no embed to disambiguate.
@@ -79,8 +79,13 @@ export async function fetchPodium(myUid=null, { limit=3, blocked=[] }={}){
      not to the slots. */
   let q = `podium_today?select=*&order=place.asc&limit=${limit}`;
   if(blocked.length) q += `&user_id=not.in.(${blocked.map(id=>`"${id}"`).join(',')})`;
+  /* No client-side "did this earn its place" filter: podium_top() (step-
+     1.18.sql) already only returns pours with positive engagement, and
+     engagement now counts comments as well as likes. A pour that reached
+     the podium on comments with zero likes is real and must not be
+     dropped by a filter that only ever checked like_count. */
   const rows = await rest(q);
-  return (rows||[]).filter(r=>(r.like_count|0)>0).map(r=>{
+  return (rows||[]).map(r=>{
     registerUser(rowToUser({ id:r.user_id, handle:r.handle, name:r.name, city:r.city,
                              avatar_color:r.avatar_color, level:r.level }));
     return {

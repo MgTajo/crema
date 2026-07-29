@@ -138,7 +138,7 @@ export function renderExplore(){
   const podium=PODIUM.slice(0,3);
   const board=podium.length
     ? `<div class="rlist">${podium.map(podiumRow).join('')}</div>`
-    : `<div class="empty" style="padding:22px">🏆<br>No pours on today's podium yet.<br>Post one — the day's three most-liked coffees land here.</div>`;
+    : `<div class="empty" style="padding:22px">🏆<br>No pours on today's podium yet.<br>Post one — the day's three most-loved coffees land here.</div>`;
   const people=discover.loaded&&!sugg.length
     ? `<div class="empty" style="padding:20px">👋<br>No one else to follow yet — you're early.</div>`
     : sugg.length
@@ -155,7 +155,7 @@ export function renderExplore(){
     <div class="section-h"><h2>Today's podium</h2></div>
     ${board}
     <div style="font-size:12px;color:var(--muted);text-align:center;margin:8px 2px 0">
-      The three most-liked pours of the day. It clears at midnight — everyone starts level tomorrow.</div>
+      The three most-loved pours of the day — likes and comments both count. It clears at midnight — everyone starts level tomorrow.</div>
     <div class="section-h"><h2>Trending patterns</h2></div>
     <div class="chips" style="margin-bottom:8px">${['rosetta','swan','tulip','heart','abstract','wave','phoenix'].map(t=>`<span class="chip tag" data-action="open-tag" data-id="${t}">#${t}</span>`).join('')}</div>
     </div>

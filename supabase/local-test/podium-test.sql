@@ -184,4 +184,70 @@ begin
 end $$;
 \echo 'T10 PASS'
 
+\echo '--- T11: comments count toward the podium, weighted like POINT_RULES ---'
+-- Fresh fixtures for the weighting tests: comment=3, like=2 (domain/scoring.js).
+delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places;
+insert into posts (id, user_id, drink, caption, visibility, created_at) values
+  ('11110000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','Latte','Few likes, lots of talk','public', now()),
+  ('22220000-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222222','Latte','Many likes, no comments','public', now()),
+  ('33330000-0000-0000-0000-000000000003','33333333-3333-3333-3333-333333333333','Latte','Nothing at all',        'public', now());
+
+-- Ann: 1 like (2) + 3 comments from others (9) = 11
+insert into likes (post_id, user_id) values ('11110000-0000-0000-0000-000000000001','44444444-4444-4444-4444-444444444444');
+insert into comments (post_id, user_id, body) values
+  ('11110000-0000-0000-0000-000000000001','22222222-2222-2222-2222-222222222222','nice'),
+  ('11110000-0000-0000-0000-000000000001','33333333-3333-3333-3333-333333333333','wow'),
+  ('11110000-0000-0000-0000-000000000001','44444444-4444-4444-4444-444444444444','love it');
+-- Bo: 5 likes (10), no comments = 10
+insert into likes (post_id, user_id)
+select '22220000-0000-0000-0000-000000000002', id from profiles
+ where id in ('11111111-1111-1111-1111-111111111111','33333333-3333-3333-3333-333333333333',
+              '44444444-4444-4444-4444-444444444444','55555555-5555-5555-5555-555555555555',
+              '66666666-6666-6666-6666-666666666666');
+
+select place, caption, like_count, comment_count from podium_today order by place;
+
+do $$
+begin
+  -- 11 > 10: Ann's comment-heavy pour outranks Bo's like-heavy one despite fewer likes.
+  assert (select caption from podium_today where place=1) = 'Few likes, lots of talk',
+         'comments did not outweigh likes at the documented 3-vs-2 weight';
+  assert (select caption from podium_today where place=2) = 'Many likes, no comments',
+         'like-only pour did not take 2nd';
+  assert (select comment_count from podium_today where place=1) = 3,
+         'comment_count on the podium row must be the true total, not the self-excluded scoring count';
+  assert not exists (select 1 from podium_today where caption='Nothing at all'),
+         'a pour with zero engagement reached the podium';
+end $$;
+\echo 'T11 PASS'
+
+\echo '--- T12: a pour can reach the podium on comments alone, zero likes ---'
+delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places;
+insert into posts (id, user_id, drink, caption, visibility, created_at) values
+  ('55550000-0000-0000-0000-000000000005','55555555-5555-5555-5555-555555555555','Filter','Zero likes, one comment','public', now());
+insert into comments (post_id, user_id, body) values
+  ('55550000-0000-0000-0000-000000000005','66666666-6666-6666-6666-666666666666','first!');
+
+select place, caption, like_count, comment_count from podium_today order by place;
+do $$
+begin
+  assert (select count(*) from podium_today) = 1, 'a comment-only pour did not reach the podium';
+  assert (select like_count from podium_today limit 1) = 0, 'fixture drifted: expected zero likes';
+end $$;
+\echo 'T12 PASS'
+
+\echo '--- T13: commenting on your own pour does not buy a place ---'
+delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places;
+insert into posts (id, user_id, drink, caption, visibility, created_at) values
+  ('66660000-0000-0000-0000-000000000006','66666666-6666-6666-6666-666666666666','Filter','Self-talk','public', now());
+insert into comments (post_id, user_id, body) values
+  ('66660000-0000-0000-0000-000000000006','66666666-6666-6666-6666-666666666666','talking to myself'),
+  ('66660000-0000-0000-0000-000000000006','66666666-6666-6666-6666-666666666666','still here');
+do $$
+begin
+  assert (select count(*) from podium_today) = 0,
+         'a pour reached the podium on the author''s own comments — self-comments must not score';
+end $$;
+\echo 'T13 PASS'
+
 \echo 'ALL PODIUM TESTS PASSED'

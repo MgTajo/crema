@@ -205,7 +205,7 @@ export function searchHTML(q){
   return h;
 }
 
-/* A podium row is one of today's three most-liked pours — tapping it
+/* A podium row is one of today's three most-engaged pours — tapping it
    opens the post, not the person.
 
    The medal comes from `p.place`, which Postgres decided and already told
@@ -216,7 +216,12 @@ export function searchHTML(q){
 
    `.rlist-row` is the shared row-list style (follower lists, search
    results, the scoring table, the bean passport all use it); only the
-   medal and the pour thumbnail are the podium's own. */
+   medal and the pour thumbnail are the podium's own.
+
+   The place is decided by likes AND comments (step-1.18.sql, weighted the
+   way POINT_RULES already weights them), so the row shows both counts —
+   otherwise a pour with fewer hearts outranking one with more looks like
+   a bug instead of the comments it earned. */
 export function podiumRow(p){
   if(!p) return '';
   const u=userOf(p.user);
@@ -228,7 +233,7 @@ export function podiumRow(p){
   <div class="pod-thumb">${art(imageUrl(p.img,'thumb'),p.pattern,p.quality,seedOf(p.id),p.drink)}</div>
   <div class="who" style="flex:1;min-width:0"><b>${esc(u.name)}${p.user==='me'?' (you)':''}</b>
     <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(line)}</span></div>
-  <div class="rlist-val">${icon('heartF',13)} ${fmt(p.likes)}</div></div>`;}
+  <div class="rlist-val" style="text-align:right">${icon('heartF',13)} ${fmt(p.likes)}${p.commentN?`<br><span style="font-size:11px;font-weight:600;color:var(--muted)">${icon('chat',11)} ${fmt(p.commentN)}</span>`:''}</div></div>`;}
 
 export function cafeCard(c){
   return `<div class="cafe-card" data-action="open-cafe" data-id="${c.id}">${cafeThumb(c)}

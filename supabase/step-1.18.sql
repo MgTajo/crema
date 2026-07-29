@@ -9,9 +9,11 @@
 --     That is a hall of fame, and a hall of fame is decided once: the
 --     same pours sat on top of it for as long as the app existed, so
 --     there was nothing to come back for and nothing a new account could
---     ever reach. It is now **today's podium** — the three most-liked
---     pours of the current day, and only three. It empties every night,
---     which is the whole point: everybody starts the day level.
+--     ever reach. It is now **today's podium** — the three most-engaged
+--     pours of the current day (likes and comments both count, weighted
+--     the way the Levels screen already weights them), and only three.
+--     It empties every night, which is the whole point: everybody starts
+--     the day level.
 --
 --   * Nobody was ever told they were on it. Standing on a podium you
 --     can't see is not a reward. Every pour that holds a place now gets
@@ -34,9 +36,23 @@ language sql stable as $$
 $$;
 
 -- ---------- 2. the three ----------
+-- Ranked by engagement, not raw likes: a pour with fewer likes but a real
+-- conversation under it can outrank one that only got tapped. The weights
+-- are not invented for this — they are the ones already on the Levels
+-- screen (POINT_RULES in domain/scoring.js: a comment is worth 3, a like
+-- worth 2) and already scored that way in user_points() (step-1.17). The
+-- podium reusing them means "what counts" is one answer, not two.
+--
+-- Comments exclude the author's own, same as user_points() — otherwise
+-- commenting on your own pour a few times is a free way onto the board.
+-- Likes do not exclude self-likes, also matching user_points(): there is
+-- no constraint stopping a self-like today, so being stricter here than
+-- the score itself would be a rule that only exists on the podium.
+--
 -- row_number(), not rank(): the places must be exactly 1, 2 and 3 with no
 -- gaps and no shared steps, because each one is announced as an ordinal.
--- Ties break toward the earlier pour — first to earn the like keeps it.
+-- Ties break toward the earlier pour — first to earn the engagement keeps
+-- it.
 --
 -- `visibility = 'public'` is not redundant with RLS. This is security
 -- definer, so RLS does not apply inside it; without the filter a
@@ -46,17 +62,19 @@ returns table(post_id uuid, user_id uuid, place int, likes bigint)
 language sql stable security definer set search_path = public as $$
   with day_posts as (
     select p.id, p.user_id, p.created_at,
-           (select count(*) from likes l where l.post_id = p.id) as likes
+           (select count(*) from likes l where l.post_id = p.id) as likes,
+           (select count(*) from comments c
+             where c.post_id = p.id and c.user_id is distinct from p.user_id) as comments
       from posts p
      where p.visibility = 'public'
        and (p.created_at at time zone 'Europe/Berlin')::date = coalesce(d, podium_day())
   )
   select id, user_id,
-         (row_number() over (order by likes desc, created_at asc))::int,
+         (row_number() over (order by likes*2 + comments*3 desc, created_at asc))::int,
          likes
     from day_posts
-   where likes > 0
-   order by likes desc, created_at asc
+   where likes*2 + comments*3 > 0
+   order by likes*2 + comments*3 desc, created_at asc
    limit 3;
 $$;
 
