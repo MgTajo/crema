@@ -196,7 +196,7 @@ export function searchHTML(q){
   const cafes=CAFES.filter(c=>(c.name+' '+c.area+' '+c.spec).toLowerCase().includes(ql));
   const posts=allPosts().filter(p=>((p.caption||'')+' '+(p.drink||'')+' '+(p.pattern||'')+' '+((p.recipe&&p.recipe.bean)||'')).toLowerCase().includes(ql));
   let h=`<div class="section-h" style="margin-top:10px"><h2>Results for “${esc(q)}”</h2><a data-action="clear-search">Clear</a></div>`;
-  if(users.length) h+=`<div class="lb" style="margin-bottom:14px">${users.map(u=>`<div class="lb-row click" data-action="open-user" data-id="${u.id}">${avatar(u.id)}
+  if(users.length) h+=`<div class="rlist" style="margin-bottom:14px">${users.map(u=>`<div class="rlist-row click" data-action="open-user" data-id="${u.id}">${avatar(u.id)}
     <div class="who" style="flex:1"><b>${esc(u.name)}</b><span>${esc(u.handle)}${u.city?' · '+esc(u.city):''}</span></div><span class="lvlchip">Lv${u.level}</span></div>`).join('')}</div>`;
   if(beans.length||cbeans.length) h+=`<div class="chips" style="margin-bottom:14px">${beans.map(b=>`<span class="chip tag" data-action="open-bean" data-id="${esc(b.n)}">${flag[b.c]||'🫘'} ${b.n}</span>`).join('')}${cbeans.map(n=>`<span class="chip">🫘 ${esc(n)} <small style="color:var(--muted)">yours</small></span>`).join('')}</div>`;
   if(cafes.length) h+=cafes.map(cafeCard).join('');
@@ -205,18 +205,30 @@ export function searchHTML(q){
   return h;
 }
 
-/* A board row is a pour, ranked by the likes it earned — tapping it
-   opens the post, not the person. */
-export function lbRow(p,i){
+/* A podium row is one of today's three most-liked pours — tapping it
+   opens the post, not the person.
+
+   The medal comes from `p.place`, which Postgres decided and already told
+   the author about in a notification, rather than from this row's position
+   in the array. Blocking someone can leave a gap in what you personally
+   see, and a silver medal must not turn into a gold one just because the
+   pour above it is hidden from you.
+
+   `.rlist-row` is the shared row-list style (follower lists, search
+   results, the scoring table, the bean passport all use it); only the
+   medal and the pour thumbnail are the podium's own. */
+export function podiumRow(p){
   if(!p) return '';
   const u=userOf(p.user);
   const line=(p.caption||'').trim()||p.drink||'Coffee';
-  return `<div class="lb-row click ${p.user==='me'?'me':''}" data-action="open-post" data-id="${p.id}">
-  <div class="lb-rank ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
-  <div class="lb-thumb">${art(imageUrl(p.img,'thumb'),p.pattern,p.quality,seedOf(p.id),p.drink)}</div>
+  const place=p.place|0;
+  const medal=place===1?'🥇':place===2?'🥈':place===3?'🥉':place;
+  return `<div class="rlist-row click ${p.user==='me'?'me':''}" data-action="open-post" data-id="${p.id}">
+  <div class="pod-rank top">${medal}</div>
+  <div class="pod-thumb">${art(imageUrl(p.img,'thumb'),p.pattern,p.quality,seedOf(p.id),p.drink)}</div>
   <div class="who" style="flex:1;min-width:0"><b>${esc(u.name)}${p.user==='me'?' (you)':''}</b>
     <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(line)}</span></div>
-  <div class="lb-pts">${icon('heartF',13)} ${fmt(p.likes)}</div></div>`;}
+  <div class="rlist-val">${icon('heartF',13)} ${fmt(p.likes)}</div></div>`;}
 
 export function cafeCard(c){
   return `<div class="cafe-card" data-action="open-cafe" data-id="${c.id}">${cafeThumb(c)}

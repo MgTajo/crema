@@ -9,14 +9,14 @@ import { $, esc, fmt, cap, initials, seedOf, withUnit, daysAgo } from '../core/u
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, flag } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, TOP_POSTS, userOf } from '../data/world.js';
+import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, challenges,
          beanPassport, canEdit, streakInfo } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
 import { pushSupported, iosNeedsInstall, pushPermission } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, lbRow, gcell, commentCount, likeButton, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, gcell, commentCount, likeButton, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -39,7 +39,6 @@ export function renderOverlay(){
     T==='tag'?overlayTag(top.id):
     T==='challenge'?overlayChallenge(top.id):
     T==='challenges'?overlayChallenges():
-    T==='board'?overlayBoard():
     T==='flist'?overlayFlist(top.id):
     T==='scoring'?overlayScoring():
     T==='streak'?overlayStreak():
@@ -163,7 +162,10 @@ function overlayUser(uid){
 
 function overlayNotifs(){
   const rows=state.notifications.map((n,i)=>{
-    const av=n.u?avatar(n.u):`<div class="avatar" style="background:var(--crema)">${n.type==='challenge'?'🏆':'☕'}</div>`;
+    /* Podium and challenge rows have no actor — nobody *did* this to you,
+       the standing did — so they get a symbol where a face would go. */
+    const noFace=n.type==='challenge'?'🏆':n.type==='podium'?'🏅':'☕';
+    const av=n.u?avatar(n.u):`<div class="avatar" style="background:var(--crema)">${noFace}</div>`;
     /* A request is the one notification that is a question, so it keeps
        its buttons here too — the row above the feed is the prominent
        copy, this is the one you find when you come looking. */
@@ -339,14 +341,11 @@ function overlayChallenges(){
         Three challenges a week, one of each kind. They start every Monday and score themselves from the coffee you log.</div>
     </div></div></div>`;
 }
-function overlayBoard(){
-  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Leaderboard">
-    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Most-loved pours</b></div>
-    <div class="ov-body"><div style="padding:14px 16px 20px">
-      ${TOP_POSTS.length?`<div class="lb">${TOP_POSTS.map((r,i)=>lbRow(r,i)).join('')}</div>`
-        :`<div class="empty"><div class="big">🏆</div>No liked pours yet.<br>Be the first to earn one.</div>`}
-      <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">Every pour ever posted, ranked by the likes it earned.</div></div></div></div>`;
-}
+/* The board used to have a sheet of its own, because it was fifty rows
+   deep and Explore could only show the first five. Today's podium is
+   three rows total, so Explore shows all of it and a sheet behind a "Full
+   list" link would open on the very same three pours. Removed rather than
+   left as a second way to see one thing. */
 /* Real rows from `follows`, loaded when the sheet opens. `social.loaded`
    distinguishes "nobody follows you" from "we haven't asked yet". */
 function overlayFlist(kind){
@@ -361,7 +360,7 @@ function overlayFlist(kind){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${title}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${title}</b></div>
     <div class="ov-body"><div style="padding:14px 16px 20px">
-      ${list.length?`<div class="lb">${list.map(u=>`<div class="lb-row click" data-action="open-user" data-id="${u.id}">${avatar(u.id)}
+      ${list.length?`<div class="rlist">${list.map(u=>`<div class="rlist-row click" data-action="open-user" data-id="${u.id}">${avatar(u.id)}
         <div class="who" style="flex:1"><b>${esc(u.name)}</b><span>${esc(u.handle)}${u.city?' · '+esc(u.city):''}</span></div>
         ${followBtn(u.id)}</div>`).join('')}</div>`
         :empty}
@@ -381,8 +380,8 @@ function overlayScoring(){
           : 'Top of the ladder — nothing left to climb.'}</div>
       </div>
       <div class="rlabel" style="margin-top:18px">How points are earned</div>
-      <div class="lb" style="margin-bottom:4px">${POINT_RULES.map(r=>`<div class="lb-row">
-        <div style="flex:1"><b style="font-size:14px">${r[0]}</b></div><div class="lb-pts">${r[1]}</div></div>`).join('')}</div>
+      <div class="rlist" style="margin-bottom:4px">${POINT_RULES.map(r=>`<div class="rlist-row">
+        <div style="flex:1"><b style="font-size:14px">${r[0]}</b></div><div class="rlist-val">${r[1]}</div></div>`).join('')}</div>
       <div class="rlabel" style="margin-top:18px">The ladder</div>
       <div style="display:flex;flex-direction:column;gap:4px">
         ${LEVELS.map(l=>`<div class="lvlrow ${l[0]===cur[0]?'now':''}"><div class="ln">${l[0]}</div><b>${l[1]}</b>
@@ -487,11 +486,11 @@ function overlayPassport(){
   const row=b=>{
     const known=!!b.cat;
     const sub=[b.cat&&b.cat.origin, b.cat&&b.cat.roast].filter(Boolean).join(' · ');
-    return `<div class="lb-row ${known?'click':''}"${known?` data-action="open-bean" data-id="${esc(b.name)}"`:''}>
+    return `<div class="rlist-row ${known?'click':''}"${known?` data-action="open-bean" data-id="${esc(b.name)}"`:''}>
       <div class="bean-fl">${(b.cat&&flag[b.cat.c])||'🫘'}</div>
       <div class="who" style="flex:1;min-width:0"><b>${esc(b.name)}</b>
         <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sub?esc(sub):'Your own coffee'}</span></div>
-      <div class="lb-pts">${b.pours?`${b.pours} <small>pour${b.pours===1?'':'s'}</small>`:'<small>not logged yet</small>'}</div>
+      <div class="rlist-val">${b.pours?`${b.pours} <small>pour${b.pours===1?'':'s'}</small>`:'<small>not logged yet</small>'}</div>
     </div>`;
   };
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Bean passport">
@@ -503,7 +502,7 @@ function overlayPassport(){
       <div style="padding:16px">
         ${origins.length?`<div class="chips" style="margin:0 0 14px">${origins.map(c=>`<span class="chip">${flag[c]||'🫘'} ${esc(c)}</span>`).join('')}</div>`:''}
         ${beans.length
-          ? `<div class="lb">${beans.map(row).join('')}</div>
+          ? `<div class="rlist">${beans.map(row).join('')}</div>
              <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">Every coffee you have logged, most-poured first.</div>`
           : `<div class="empty"><div class="big">🫘</div>No beans yet.<br>Add the coffee you used when you log a pour and it lands here.<br><br>
              <button class="btn sm" data-action="open-create">Log a coffee</button></div>`}

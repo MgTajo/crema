@@ -43,6 +43,32 @@ the first error and retries without it (`optionalColumns()` in
 in Settings says it isn't switched on yet, because there is nowhere to
 store the key.
 
+**`step-1.18.sql` is required by the current app** — without it Explore's
+podium section stays empty and logs a 404, because `podium_today` does not
+exist yet. It replaces the all-time board with **today's podium**: the
+three most-liked pours of the current day, and it drops the now-unused
+`top_posts` view.
+
+Two things to know before running it:
+
+1. **It notifies people on the first run.** The last statement is
+   `select podium_check();`, which announces the current top three to
+   their authors — and because step-1.16 put push on the `notifications`
+   table itself, those go to phones. That is the intended introduction to
+   the feature, but it does mean up to three people get a push the moment
+   you run it. Comment out the last line if you'd rather it start quiet.
+2. **The day boundary is `Europe/Berlin`, not per-user and not UTC.** The
+   podium is one global board showing the same three pours to everybody,
+   so "today" has to mean one thing for everybody. Per-user local days
+   (`user_tz()`, step-1.17) are still right for streaks and challenges,
+   which are private to one person.
+
+It was tested against a local Postgres 17 before it ran anywhere — see
+"Testing a migration locally" below — which is how the `revoke` on
+`podium_top()` was caught: `podium_today` is `security_invoker`, so the
+caller's rights are checked when the view calls the function, and revoking
+EXECUTE made the board unreadable for every signed-in client.
+
 **`step-1.14.sql` restates every score**, so run it when you're happy for
 scores to move — they will, both ways. Challenge entries and votes stop
 paying (step-1.17 later retires entries and votes altogether), and
@@ -298,6 +324,45 @@ returns **300 Multiple Choices**, not rows.
 
 Every embed in `src/data/` therefore names its foreign key explicitly, e.g.
 `profiles!posts_user_id_fkey(...)`. If you add a query and get a 300, this is why.
+
+## Testing a migration locally
+
+Everything in this directory is applied to production by hand, so without
+this a migration's first execution anywhere is the real one. It doesn't
+have to be:
+
+```bash
+./supabase/local-test/run.sh podium-test.sql
+```
+
+That builds a throwaway Postgres 17 cluster (Homebrew, no Docker), loads
+`local-test/stub.sql` for the Supabase-only pieces — `auth.users` +
+`auth.uid()`, the `anon`/`authenticated`/`service_role` roles, and
+table-backed fakes for `cron.schedule`, `net.http_post` and `vault` — then
+runs `schema.sql` and every `step-*.sql` in order, then the test files you
+name.
+
+Things it is deliberately picky about, each of which cost an afternoon
+once:
+
+- **The session timezone is `Europe/Berlin`, not UTC.** Supabase runs UTC,
+  which hides every bug where a `timestamptz` is cast in the session's zone
+  rather than the one the query meant. This is what exposed the
+  double-applied offset in step-1.17.
+- **Supabase's default grants are applied before the tests run.** Without
+  `grant all on all tables ... to authenticated`, a `security_invoker` view
+  fails on table permissions and RLS never gets to be the thing that
+  denies — so a policy bug reads as a pass.
+- `pg_cron` and `pg_net` cannot be installed here, so the `create extension`
+  lines are commented out on the way in and the stub stands in. A guard
+  like `if exists (select 1 from pg_extension where extname = 'pg_cron')`
+  will therefore take its "not installed" branch locally; that is the stub,
+  not your migration.
+
+`local-test/podium-test.sql` is worth reading as a model: ten assertions
+covering places and ordinals, idempotency, overtaking, falling off and
+climbing back, deletes, a pour turning private, and the two things that
+must stay unreachable from a client.
 
 ## Local development
 

@@ -15,11 +15,11 @@
 import { daysAgo, isToday } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
 import { beanCatalog, MY_BEANS } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, TOP_POSTS, handleToUid } from '../data/world.js';
+import { USERS, CAFES, CHALLENGES, PODIUM, handleToUid } from '../data/world.js';
 import { fetchFeed, fetchMine, fetchSavedPosts } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
          fetchCafeFollowCounts, fetchFollowRequests } from '../data/social.js';
-import { fetchChallenges, fetchChallengeWins, fetchTopPosts } from '../data/challenges.js';
+import { fetchChallenges, fetchChallengeWins, fetchPodium } from '../data/challenges.js';
 import { fetchProfileCounts, fetchSuggestedProfiles } from '../data/profiles.js';
 import { fetchNotifications } from '../data/notifications.js';
 import { streakFrom, bestStreakFrom } from '../domain/streak.js';
@@ -166,13 +166,13 @@ export async function hydrateSocial(){
   try{ state.notifications=await fetchNotifications(uid); }
   catch(e){ console.warn('notifications failed',e); }
 
-  /* Top pours by likes. Empty is a real answer — nobody has been liked
-     yet — and the UI says so rather than inventing a board. */
+  /* Today's podium. Empty is a real answer — nothing has been liked yet
+     today — and the UI says so rather than inventing a board. */
   try{
-    const board=await fetchTopPosts(uid,{ blocked:social.blocks });
-    TOP_POSTS.length=0; TOP_POSTS.push(...board);
+    const board=await fetchPodium(uid,{ blocked:social.blocks });
+    PODIUM.length=0; PODIUM.push(...board);
     cachePosts(board);
-  }catch(e){ console.warn('top pours failed',e); }
+  }catch(e){ console.warn('podium failed',e); }
 
   try{
     mine.list=await fetchMine(uid,{ limit:200, myUid:uid });

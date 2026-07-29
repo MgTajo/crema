@@ -1,7 +1,7 @@
 "use strict";
 /* ============================================================
-   data/world — the shared world: people, cafés, challenges and the
-   weekly leaderboard.
+   data/world — the shared world: people, cafés, challenges and today's
+   podium.
 
    Nothing in here is invented. Every array starts EMPTY and is filled
    from Postgres:
@@ -9,7 +9,7 @@
      USERS       ← profiles rows, via registerUser() (see data/profiles)
      CAFES       ← cafes table        (data/remote)
      CHALLENGES  ← challenges table   (data/remote)
-     LEADERBOARD ← leaderboard_weekly (data/challenges)
+     PODIUM      ← podium_today view  (data/challenges)
 
    The arrays are exported as live bindings and refilled IN PLACE, so
    every module that already did `import { CAFES }` keeps working — the
@@ -53,6 +53,7 @@ export const userOf = uid => USERS[uid] || {
 export const CAFES=[];
 export const CHALLENGES=[];
 
-/* ---------- the board: pours ranked by likes, filled by
-   data/challenges.js fetchTopPosts(). Holds posts, not people. ---------- */
-export const TOP_POSTS=[];
+/* ---------- today's podium: at most three pours, the most-liked of the
+   current day, filled by data/challenges.js fetchPodium(). Holds posts,
+   not people, and empties every night — see supabase/step-1.18.sql. ---- */
+export const PODIUM=[];

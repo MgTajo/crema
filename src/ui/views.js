@@ -8,13 +8,13 @@
 import { $, esc, fmt, cap, initials, seedOf, daysAgo, agoLabel } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
-import { USERS, TOP_POSTS, CHALLENGES } from '../data/world.js';
+import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
          myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
-import { postCard, searchHTML, avatar, lbRow, gcell, followBtn } from './components.js';
+import { postCard, searchHTML, avatar, podiumRow, gcell, followBtn } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderOverlay, challengeCard } from './overlays.js';
 import { renderGate } from './gate.js';
@@ -132,10 +132,13 @@ function streakBlock(){
 
 export function renderExplore(){
   const sugg=discover.list.filter(u=>u&&!state.follows[u.id]).slice(0,8);
-  const lbPrev=TOP_POSTS.slice(0,5);
-  const board=lbPrev.length
-    ? `<div class="lb">${lbPrev.map((r,i)=>lbRow(r,i)).join('')}</div>`
-    : `<div class="empty" style="padding:22px">🏆<br>No liked pours yet.<br>Post one — the most-liked coffees land here.</div>`;
+  /* Three, never more. PODIUM already arrives capped at three from the
+     server; the slice is belt-and-braces so a future caller asking for a
+     wider window can't quietly widen the podium too. */
+  const podium=PODIUM.slice(0,3);
+  const board=podium.length
+    ? `<div class="rlist">${podium.map(podiumRow).join('')}</div>`
+    : `<div class="empty" style="padding:22px">🏆<br>No pours on today's podium yet.<br>Post one — the day's three most-liked coffees land here.</div>`;
   const people=discover.loaded&&!sugg.length
     ? `<div class="empty" style="padding:20px">👋<br>No one else to follow yet — you're early.</div>`
     : sugg.length
@@ -149,8 +152,10 @@ export function renderExplore(){
     ${people?`<div class="section-h"><h2>People to follow</h2></div>${people}`:''}
     <div class="section-h"><h2>This week's challenges</h2>${CHALLENGES.length?'<a data-action="open-challenges">All three</a>':''}</div>
     ${challengeBlock()}
-    <div class="section-h"><h2>Most-loved pours</h2>${lbPrev.length?'<a data-action="open-board">Full list</a>':''}</div>
+    <div class="section-h"><h2>Today's podium</h2></div>
     ${board}
+    <div style="font-size:12px;color:var(--muted);text-align:center;margin:8px 2px 0">
+      The three most-liked pours of the day. It clears at midnight — everyone starts level tomorrow.</div>
     <div class="section-h"><h2>Trending patterns</h2></div>
     <div class="chips" style="margin-bottom:8px">${['rosetta','swan','tulip','heart','abstract','wave','phoenix'].map(t=>`<span class="chip tag" data-action="open-tag" data-id="${t}">#${t}</span>`).join('')}</div>
     </div>
@@ -250,7 +255,7 @@ export function renderStats(){
     ['Total pours',''+mine.length,''],
     ['Points',fmt(state.me.points|0),`Level ${levelOf(state.me.points|0)[0]}`]
   ];
-  return `<div class="lb" style="margin-top:2px">${rows.map(r=>`<div class="lb-row"><div style="flex:1"><b style="font-size:14px">${r[0]}</b></div><div style="text-align:right"><b style="font-family:var(--serif);font-size:16px">${esc(r[1])}</b>${r[2]?`<div style="font-size:11px;color:var(--green);font-weight:700">${esc(r[2])}</div>`:''}</div></div>`).join('')}</div>`;
+  return `<div class="rlist" style="margin-top:2px">${rows.map(r=>`<div class="rlist-row"><div style="flex:1"><b style="font-size:14px">${r[0]}</b></div><div style="text-align:right"><b style="font-family:var(--serif);font-size:16px">${esc(r[1])}</b>${r[2]?`<div style="font-size:11px;color:var(--green);font-weight:700">${esc(r[2])}</div>`:''}</div></div>`).join('')}</div>`;
 }
 export function renderBadges(){
   const b=computeBadges(), earned=b.filter(x=>x.e).length;
