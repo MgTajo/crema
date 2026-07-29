@@ -1,0 +1,32 @@
+# Supabase project config.
+#
+# This file exists for ONE reason: `verify_jwt` on send-push. It was set
+# by passing --no-verify-jwt at deploy time, which is not durable — a
+# later `supabase functions deploy send-push` without the flag turns JWT
+# verification back on, and then every push fails silently.
+#
+# Silently is the important word. Postgres calls the function through
+# pg_net, which is asynchronous and fire-and-forget: a 401 never reaches
+# the trigger, never rolls back the notification row, and never appears
+# anywhere the app can see. The in-app inbox keeps working perfectly
+# while no phone ever buzzes. Run supabase/push-doctor.sql to see the
+# status codes pg_net got back.
+
+project_id = "diabtvahplwoipvrprvb"
+
+[functions.send-push]
+# Postgres is the caller and it has no user session to present. The
+# X-Push-Secret header is what guards this function instead — see the
+# header check in functions/send-push/index.ts, which is the only thing
+# between it and the open internet.
+verify_jwt = false
+
+# The media functions are the opposite case: the browser calls them with
+# its own session, and they derive the R2 object key from the verified
+# JWT rather than from anything the client sends. JWT verification stays
+# on for both.
+[functions.upload-url]
+verify_jwt = true
+
+[functions.delete-image]
+verify_jwt = true
