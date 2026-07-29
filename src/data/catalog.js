@@ -60,10 +60,17 @@ export const MACHINES={
   'Kalita':['Wave 155','Wave 185'],
   'Origami':['Dripper S','Dripper M'],
   'Moccamaster':['KBGV Select','KBG','Cup-One'],
-  'Bialetti':['Moka Express','Brikka','Venus'],
-  'Bodum':['Chambord French Press','Pour Over'],
+  'Bialetti':['Moka Express','Brikka','Venus','Moka Induction','New Venus Induction','Kitty'],
+  'Grosche':['Milano Moka Pot','Genova Moka Pot','Zurich French Press'],
+  'Cilio':['Classico Espresso Maker','Roma Espresso Maker'],
+  'Bugatti':['Diva Moka Pot'],
+  'Bodum':['Chambord French Press','Pour Over','Brazil French Press'],
   'Espro':['P3 Press','Bloom Pour Over'],
   'Timemore':['French Press','U Pour Over'],
+  'Krups':['Evidence','Essential','Intuition Preference'],
+  'Bosch':['VeroCafe','VeroCup','VeroAroma'],
+  'WMF':['Perfection 890L','Kitchenminis Aroma'],
+  'Gastroback':['Design Espresso Advanced','Design Espresso Barista Pro'],
   'Other':[]
 };
 export const MACHINE_BRANDS=Object.keys(MACHINES);
@@ -98,41 +105,88 @@ export const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Ken
    c = country the coffee comes from (for the flag); loc: 'DE' local,
    'INT' international. `roaster` drives the brand step of the picker
    (beanBrands/beansByBrand below) — pick the brand off the shelf first,
-   then which of their coffees, the way you actually buy beans. */
+   then which of their coffees, the way you actually buy beans.
+
+   2026-07-29 — reweighted to ~95% supermarket-shelf beans (Rewe/Edeka/Aldi/
+   Lidl/Kaufland and the big roasters that stock them), since that's what
+   most users actually buy; specialty roasteries kept to a handful. */
 export const BEANS=[
-  // ---- Local · roasted in Germany ----
-  {n:'Bumblebee Espresso',roaster:'The Barn',c:'Germany',loc:'DE',origin:'Colombia · Ethiopia blend',roast:'Medium',notes:['Milk chocolate','Red berry','Caramel']},
-  {n:'Espresso Anniversario',roaster:'The Barn',c:'Germany',loc:'DE',origin:'Seasonal blend',roast:'Medium',notes:['Cocoa','Orange','Brown sugar']},
-  {n:'Dark Horse Espresso',roaster:'Bonanza',c:'Germany',loc:'DE',origin:'Seasonal blend',roast:'Medium-dark',notes:['Dark chocolate','Hazelnut','Cherry']},
-  {n:'Espresso Blend',roaster:'Five Elephant',c:'Germany',loc:'DE',origin:'Brazil · Ethiopia',roast:'Medium',notes:['Chocolate','Almond','Orange']},
-  {n:'Buna Dimaa',roaster:'Coffee Circle',c:'Germany',loc:'DE',origin:'Ethiopia · Sidama',roast:'Light-medium',notes:['Jasmine','Blueberry','Honey']},
-  {n:'Bright Eyes Espresso',roaster:'19grams',c:'Germany',loc:'DE',origin:'Seasonal blend',roast:'Medium',notes:['Caramel','Stone fruit','Cocoa']},
-  {n:'Espresso No.1',roaster:'Elbgold',c:'Germany',loc:'DE',origin:'Brazil · Guatemala',roast:'Medium',notes:['Chocolate','Nut','Brown sugar']},
-  {n:'Fair Play Espresso',roaster:'Quijote Kaffee',c:'Germany',loc:'DE',origin:'Direct-trade blend',roast:'Medium',notes:['Cocoa','Nougat','Citrus']},
-  {n:'Hafencity Espresso',roaster:'Speicherstadt',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Dark chocolate','Toffee','Low acidity']},
-  {n:'Bel Canto Espresso',roaster:'Supremo',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Chocolate','Marzipan','Cherry']},
-  {n:'Espresso Crema Classico',roaster:'Dinzler',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Nut','Caramel','Mild']},
-  {n:'MVSM Espresso',roaster:'Man Versus Machine',c:'Germany',loc:'DE',origin:'Seasonal blend',roast:'Medium',notes:['Berry','Chocolate','Caramel']},
-  {n:'Rocket Man Espresso',roaster:'JB Kaffee',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Cocoa','Red apple','Nut']},
+  // ---- Jacobs ----
+  {n:'Espresso',roaster:'Jacobs',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Bold','Chocolate','Low acidity']},
+  {n:'Crema Intenso',roaster:'Jacobs',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Nutty','Balanced','Mild']},
+  {n:'Barista Editions Crema',roaster:'Jacobs',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Caramel','Smooth','Creamy']},
+  {n:'Barista Editions Espresso',roaster:'Jacobs',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Cocoa','Roasted nut','Bold']},
+  {n:'Krönung',roaster:'Jacobs',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Mild','Classic','Balanced']},
+  {n:'Meisterröstung',roaster:'Jacobs',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Full-bodied','Mild acidity','Nutty']},
+  // ---- Tchibo ----
+  {n:'Espresso Sizilianisch Kräftig',roaster:'Tchibo',c:'Germany',loc:'DE',origin:'Blend',roast:'Dark',notes:['Intense','Dark chocolate','Bold']},
+  {n:'Barista Caffè Crema',roaster:'Tchibo',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Fruity','Mild','Smooth']},
+  {n:'Barista Espresso',roaster:'Tchibo',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Chocolate','Full-bodied','Balanced']},
+  {n:'Feine Milde',roaster:'Tchibo',c:'Germany',loc:'DE',origin:'Blend',roast:'Light-medium',notes:['Mild','Nutty','Smooth']},
+  {n:'Vollmundig',roaster:'Tchibo',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Full-bodied','Low acidity','Rich']},
+  {n:'Wunderbar Mild',roaster:'Tchibo',c:'Germany',loc:'DE',origin:'Blend',roast:'Light-medium',notes:['Mild','Fruity','Light']},
+  // ---- Dallmayr ----
   {n:'Prodomo',roaster:'Dallmayr',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Mild','Balanced','Low acidity']},
   {n:'Crema d\'Oro Intensa',roaster:'Dallmayr',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Creamy','Chocolate','Nut']},
+  {n:'Löwengold',roaster:'Dallmayr',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Classic','Mild','Aromatic']},
+  {n:'Espresso Intenso',roaster:'Dallmayr',c:'Germany',loc:'DE',origin:'Blend',roast:'Dark',notes:['Bold','Roasted','Chocolate']},
+  // ---- Melitta ----
   {n:'BellaCrema LaCrema',roaster:'Melitta',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Smooth','Nutty','Chocolate']},
-  // ---- Baden-Württemberg · near Tübingen ----
-  {n:'Meisterwerk Espresso',roaster:'Meisterwerk Kaffee',c:'Germany',loc:'DE',origin:'Tübingen roast · blend',roast:'Medium',notes:['Chocolate','Hazelnut','Caramel']},
-  {n:'Meisterwerk Hausmischung',roaster:'Meisterwerk Kaffee',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Cocoa','Nut','Dark sugar']},
-  {n:'Herr Lutz Espresso',roaster:'Herr Lutz',c:'Germany',loc:'DE',origin:'Stuttgart roast · blend',roast:'Medium',notes:['Caramel','Berry','Chocolate']},
-  {n:'Mókuska Espresso',roaster:'Mókuska Caffè',c:'Germany',loc:'DE',origin:'Stuttgart roast · blend',roast:'Medium',notes:['Chocolate','Almond','Citrus']},
-  // ---- International · available in Germany ----
+  {n:'BellaCrema Bar',roaster:'Melitta',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Intense','Cocoa','Bold']},
+  {n:'BellaCrema Café Crema',roaster:'Melitta',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Fruity','Mild','Aromatic']},
+  {n:'Auslese',roaster:'Melitta',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Full-bodied','Balanced','Classic']},
+  // ---- Eduscho / Onko (J.J. Darboven brands) ----
+  {n:'Gala Nr.1',roaster:'Eduscho',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Mild','Classic','Smooth']},
+  {n:'Feinschmecker Mild',roaster:'Onko',c:'Germany',loc:'DE',origin:'Blend',roast:'Light-medium',notes:['Mild','Nutty','Light']},
+  {n:'Café Intención Bio',roaster:'Onko',c:'Germany',loc:'DE',origin:'Fairtrade blend',roast:'Medium',notes:['Balanced','Cocoa','Mild']},
+  {n:'Idee Kaffee Classic',roaster:'Idee Kaffee',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Mild','Traditional','Smooth']},
+  {n:'Idee Kaffee Caffè Crema',roaster:'Idee Kaffee',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Fruity','Light','Aromatic']},
+  // ---- Mövenpick ----
+  {n:'Der Himmlische',roaster:'Mövenpick',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Aromatic','Balanced','Smooth']},
+  {n:'Caffè Crema',roaster:'Mövenpick',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Fruity','Mild','Light']},
+  {n:'El Espresso',roaster:'Mövenpick',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Bold','Chocolate','Rich']},
+  // ---- Lavazza ----
   {n:'Qualità Rossa',roaster:'Lavazza',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Chocolate','Dried fruit']},
   {n:'Qualità Oro',roaster:'Lavazza',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Caramel','Honey','Floral']},
   {n:'Super Crema',roaster:'Lavazza',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Hazelnut','Brown sugar','Mild']},
+  {n:'Crema e Gusto',roaster:'Lavazza',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium-dark',notes:['Rich','Bold','Cocoa']},
+  // ---- Illy ----
   {n:'Classico',roaster:'Illy',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Caramel','Chocolate','Floral']},
   {n:'Intenso',roaster:'Illy',c:'Italy',loc:'INT',origin:'Blend',roast:'Dark',notes:['Cocoa','Dried fruit','Bold']},
+  // ---- Segafredo ----
   {n:'Intermezzo',roaster:'Segafredo',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium-dark',notes:['Cocoa','Woody','Spice']},
-  {n:'Red Brick Espresso',roaster:'Square Mile',c:'United Kingdom',loc:'INT',origin:'Seasonal blend',roast:'Medium',notes:['Red fruit','Caramel','Chocolate']},
-  {n:'Espresso',roaster:'Tim Wendelboe',c:'Norway',loc:'INT',origin:'Seasonal',roast:'Light',notes:['Berry','Floral','Bright']},
-  {n:'House Espresso',roaster:'The Coffee Collective',c:'Denmark',loc:'INT',origin:'Seasonal',roast:'Light-medium',notes:['Stone fruit','Caramel','Clean']},
-  {n:'Espresso Roast',roaster:'Starbucks',c:'USA',loc:'INT',origin:'Blend',roast:'Dark',notes:['Caramelized','Rich','Bold']}
+  {n:'Selezione Oro',roaster:'Segafredo',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Smooth','Caramel','Mild']},
+  {n:'Espresso Casa',roaster:'Segafredo',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium-dark',notes:['Bold','Nutty','Balanced']},
+  // ---- Kimbo ----
+  {n:'Extra Cream',roaster:'Kimbo',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium-dark',notes:['Creamy','Nutty','Sweet']},
+  {n:'Espresso Napoletano',roaster:'Kimbo',c:'Italy',loc:'INT',origin:'Blend',roast:'Dark',notes:['Bold','Roasted','Bitter-sweet']},
+  // ---- Julius Meinl ----
+  {n:'Wiener Melange',roaster:'Julius Meinl',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Balanced','Nutty','Smooth']},
+  {n:'Classic',roaster:'Julius Meinl',c:'Italy',loc:'INT',origin:'Blend',roast:'Medium',notes:['Caramel','Mild','Aromatic']},
+  // ---- Alnatura (organic, supermarket bio aisle) ----
+  {n:'Bio Café Crema',roaster:'Alnatura',c:'Germany',loc:'DE',origin:'Organic blend',roast:'Medium',notes:['Fruity','Mild','Light']},
+  {n:'Bio Espresso',roaster:'Alnatura',c:'Germany',loc:'DE',origin:'Organic blend',roast:'Medium-dark',notes:['Chocolate','Bold','Balanced']},
+  // ---- Gepa (Fairtrade, supermarket + bio aisle) ----
+  {n:'Café Crema Bio',roaster:'Gepa',c:'Germany',loc:'DE',origin:'Fairtrade organic blend',roast:'Medium',notes:['Mild','Nutty','Balanced']},
+  {n:'Espresso Klassik',roaster:'Gepa',c:'Germany',loc:'DE',origin:'Fairtrade blend',roast:'Medium-dark',notes:['Cocoa','Bold','Smooth']},
+  // ---- Discounter own brands ----
+  {n:'Moreno Caffè Crema',roaster:'Aldi',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Mild','Fruity','Light']},
+  {n:'Ristretto Espresso',roaster:'Aldi',c:'Germany',loc:'DE',origin:'Blend',roast:'Dark',notes:['Bold','Roasted','Intense']},
+  {n:'Bellarom Caffè Crema',roaster:'Lidl',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Balanced','Mild','Smooth']},
+  {n:'Bellarom Espresso',roaster:'Lidl',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Chocolate','Bold','Nutty']},
+  {n:'Beste Wahl Caffè Crema',roaster:'Rewe',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Mild','Balanced','Light']},
+  {n:'Feine Welt Espresso Sicilia',roaster:'Rewe',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Bold','Cocoa','Rich']},
+  {n:'Guten Morgen Caffè Crema',roaster:'Edeka',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Mild','Fruity','Smooth']},
+  {n:'Selection Espresso Perfetto',roaster:'Edeka',c:'Germany',loc:'DE',origin:'Blend',roast:'Dark',notes:['Bold','Chocolate','Intense']},
+  {n:'K-Classic Caffè Crema',roaster:'Kaufland',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Mild','Balanced','Light']},
+  {n:'K-Classic Espresso',roaster:'Kaufland',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Nutty','Bold','Smooth']},
+  // ---- Starbucks (widely stocked in DE supermarkets) ----
+  {n:'Espresso Roast',roaster:'Starbucks',c:'USA',loc:'INT',origin:'Blend',roast:'Dark',notes:['Caramelized','Rich','Bold']},
+  {n:'House Blend',roaster:'Starbucks',c:'USA',loc:'INT',origin:'Blend',roast:'Medium',notes:['Balanced','Nutty','Smooth']},
+  // ---- Specialty roasteries (niche, kept small on purpose) ----
+  {n:'Bumblebee Espresso',roaster:'The Barn',c:'Germany',loc:'DE',origin:'Colombia · Ethiopia blend',roast:'Medium',notes:['Milk chocolate','Red berry','Caramel']},
+  {n:'Buna Dimaa',roaster:'Coffee Circle',c:'Germany',loc:'DE',origin:'Ethiopia · Sidama',roast:'Light-medium',notes:['Jasmine','Blueberry','Honey']},
+  {n:'Tim Wendelboe Espresso',roaster:'Tim Wendelboe',c:'Norway',loc:'INT',origin:'Seasonal',roast:'Light',notes:['Berry','Floral','Bright']}
 ];
 /* Look up a catalog bean by (possibly partial) name.
 
