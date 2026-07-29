@@ -47,7 +47,15 @@ export const POINT_RULES=[
   ['A bean you\'ve never logged','+15'],
   ['An exact recipe · dose in, yield out','+5'],
   ['Someone comments on your pour','+3'],
-  ['Someone likes your pour','+2']
+  ['Someone likes your pour','+2'],
+  /* Not the podium's own ranking math — that weighs a like and a comment
+     equally, 1 point each, purely to decide who's in 1st/2nd/3rd for the
+     day (supabase/step-1.18.sql, podium_top()). This is the separate
+     payout once a day is over: three rows, one per place, added by
+     user_points() the same way a finished challenge is. */
+  ['1st place on today\'s podium','+15'],
+  ['2nd place on today\'s podium','+10'],
+  ['3rd place on today\'s podium','+5']
 ];
 
 export function computeBadges(){

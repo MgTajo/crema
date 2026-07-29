@@ -46,28 +46,56 @@ store the key.
 **`step-1.18.sql` is required by the current app** — without it Explore's
 podium section stays empty and logs a 404, because `podium_today` does not
 exist yet. It replaces the all-time board with **today's podium**: the
-three most-liked pours of the current day, and it drops the now-unused
-`top_posts` view.
+three most-engaged pours of the current day (a like and a comment are
+worth one point each for this ranking — its own rule, not a reuse of the
+2-and-3 weight below), and it drops the now-unused `top_posts` view.
 
-Two things to know before running it:
+A day finished on the podium now pays real points too, via a new
+`podium_wins` ledger and `podium_award_day()`/`podium_award_recent()`:
+15 for 1st, 10 for 2nd, 5 for 3rd, added to `user_points()` the same way a
+finished challenge is. A day is only ever settled once — `podium_award_day()`
+refuses to touch a day that already has any winners recorded, specifically
+so a late like on an old, previously-unplaced pour can't hand out a fourth
+paid winner for a day that was already final. `podium_award_recent()`
+re-checks the last 7 days on the same hourly cron as `podium_check()`
+(not on every like — settling a day is a batch job, not a per-like
+reaction), so an outage of up to a week still catches up once it's back.
 
-1. **It notifies people on the first run.** The last statement is
-   `select podium_check();`, which announces the current top three to
-   their authors — and because step-1.16 put push on the `notifications`
-   table itself, those go to phones. That is the intended introduction to
-   the feature, but it does mean up to three people get a push the moment
-   you run it. Comment out the last line if you'd rather it start quiet.
+Four things to know before running it:
+
+1. **It notifies people on the first run.** The seed calls at the bottom
+   are `select podium_check();` then `select podium_award_recent();`,
+   and because step-1.16 put push on the `notifications` table itself,
+   the podium-placement notification goes to phones. That is the intended
+   introduction to the feature, but it does mean up to three people get a
+   push the moment you run it. Comment out `podium_check()`'s call if
+   you'd rather it start quiet — `podium_award_recent()` only pays past,
+   already-decided days and sends no notification of its own.
 2. **The day boundary is `Europe/Berlin`, not per-user and not UTC.** The
    podium is one global board showing the same three pours to everybody,
    so "today" has to mean one thing for everybody. Per-user local days
    (`user_tz()`, step-1.17) are still right for streaks and challenges,
    which are private to one person.
+3. **The podium's ranking weight (1 point per like or comment) and the
+   ordinary profile score's weight (2 per like, 3 per comment, in
+   `user_points()`) are deliberately different numbers for two different
+   questions** — "who won today" versus "how much is a single like worth
+   on your permanent score." Keep them that way rather than "simplifying"
+   them to match; they were never meant to agree.
+4. **Podium points are additive and start at zero for everyone** — no
+   backfill needed. `podium_wins` is empty until a day is actually
+   settled, so nobody's score moves on the migration itself.
 
 It was tested against a local Postgres 17 before it ran anywhere — see
 "Testing a migration locally" below — which is how the `revoke` on
-`podium_top()` was caught: `podium_today` is `security_invoker`, so the
+`podium_top()` was caught (`podium_today` is `security_invoker`, so the
 caller's rights are checked when the view calls the function, and revoking
-EXECUTE made the board unreadable for every signed-in client.
+EXECUTE made the board unreadable for every signed-in client), and how a
+second, subtler bug in the first draft of `podium_award_day()` was caught:
+keying "already paid" off `(day, post_id)` looked like it made a day
+final, but a late like promoting a fourth pour into the top three would
+have slipped past that check and paid a fourth winner. The fix checks
+whether the *day* has any winners at all before computing anything.
 
 **`step-1.14.sql` restates every score**, so run it when you're happy for
 scores to move — they will, both ways. Challenge entries and votes stop

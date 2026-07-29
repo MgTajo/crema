@@ -64,6 +64,8 @@ run -c "grant usage on schema public to anon, authenticated;" \
     -c "grant all on all tables in schema public to anon, authenticated;" \
     -c "grant all on all sequences in schema public to anon, authenticated;" \
     -c "revoke all on function podium_check() from public, anon, authenticated;" \
+    -c "revoke all on function podium_award_day(date) from public, anon, authenticated;" \
+    -c "revoke all on function podium_award_recent() from public, anon, authenticated;" \
     -c "revoke all on table podium_places from anon, authenticated;"
 
 for t in "$@"; do
