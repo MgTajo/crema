@@ -121,12 +121,21 @@ begin
   begin
     select decrypted_secret into v
       from vault.decrypted_secrets where name = k limit 1;
+    -- Trimmed because these are pasted by hand, and a trailing newline
+    -- riding along on the secret produces a 403 whose cause is invisible
+    -- at both ends: the two values look identical everywhere you would
+    -- print them, and differ only in a byte nothing renders.
+    --
+    -- The character set is spelled out because btrim(v) with no second
+    -- argument strips SPACES ONLY — not tabs, not newlines. The default
+    -- would have left the exact byte this is here to remove.
+    v := btrim(v, E' \t\r\n');
     if v is not null and v <> '' then return v; end if;
   exception when others then
     -- No vault extension, or no permission: fall through to the GUC.
     null;
   end;
-  return nullif(current_setting('app.' || k, true), '');
+  return nullif(btrim(coalesce(current_setting('app.' || k, true), ''), E' \t\r\n'), '');
 end $$;
 
 -- Store one of them. Re-runnable: the same name is updated rather than
@@ -154,10 +163,20 @@ begin
     raise notice 'push_endpoint unset — skipping push (see supabase/README.md §5)';
     return;
   end if;
+  -- The secret gets the same guard as the endpoint, and for a better
+  -- reason. Sending coalesce(secret,'') when Vault has nothing produces
+  -- a 403 from the Edge Function that is byte-for-byte identical to a
+  -- genuine mismatch — so "never configured" and "configured wrongly"
+  -- looked the same from the only place anyone can see, pg_net's
+  -- response log. Refusing here makes the first case say so.
+  if secret is null or secret = '' then
+    raise notice 'push_secret unset — skipping push (see supabase/README.md §5)';
+    return;
+  end if;
   if jsonb_array_length(coalesce(payload->'rows','[]'::jsonb)) = 0 then return; end if;
   perform net.http_post(
     url     := url,
-    headers := jsonb_build_object('Content-Type','application/json','X-Push-Secret',coalesce(secret,'')),
+    headers := jsonb_build_object('Content-Type','application/json','X-Push-Secret',secret),
     body    := payload
   );
 end $$;

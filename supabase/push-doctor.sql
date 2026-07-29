@@ -67,13 +67,32 @@ select '3. trigger' as check,
 -- ---------- 4. does Postgres know where to send it? ----------
 -- Both must be present. push_send() returns quietly with a notice when
 -- the endpoint is missing, which is easy to miss in a busy transaction.
+-- The fingerprint is what to compare against the function's copy. Never
+-- print the secret itself into a shared terminal; the first eight hex
+-- characters of its SHA-256 identify it beyond doubt without revealing
+-- it, and will differ if so much as a stray newline is riding along.
 select '4. config' as check,
        coalesce(left(push_config('push_endpoint'), 60), '(unset)') as endpoint,
        case when push_config('push_endpoint') is null then 'MISSING — see supabase/README.md §5'
             when push_config('push_endpoint') not like '%/functions/v1/send-push' then 'WRONG — should end in /functions/v1/send-push'
             else 'ok' end as endpoint_verdict,
-       case when push_config('push_secret') is null then 'MISSING'
-            else 'present (' || length(push_config('push_secret')) || ' chars)' end as secret_verdict;
+       case when push_config('push_secret') is null then 'MISSING — every push will 403'
+            else 'present, ' || length(push_config('push_secret')) || ' chars' end as secret_verdict,
+       case when push_config('push_secret') is null then '(none)'
+            else left(encode(digest(push_config('push_secret'), 'sha256'), 'hex'), 8)
+       end as secret_fingerprint;
+
+-- Compare that fingerprint with the one the Edge Function is using:
+--
+--     printf %s '<the PUSH_HOOK_SECRET you set>' | shasum -a 256 | cut -c1-8
+--
+-- printf, not `echo` and not a <<< herestring: both append a newline,
+-- which changes the hash and would have you chasing a mismatch that
+-- isn't there. That is the same byte this whole section is about.
+--
+-- Same eight characters → the secret is not the problem, look at
+-- sections 1-3. Different → they have drifted; section 6 resets both
+-- from one value.
 
 -- ---------- 5. THE ANSWER IS USUALLY HERE ----------
 -- Every call pg_net has made, with what came back. pg_net keeps these
@@ -108,23 +127,34 @@ select '5. what the network said' as check,
 -- query: if sections 1-4 are ok and section 5 is empty, run section 7
 -- and watch the NOTICE output in the SQL editor's Messages pane.
 
--- ---------- 6. is the function reachable without a JWT? ----------
--- This is the one that produces exactly "inbox works, phone silent".
--- There is no config.toml in this repo, so verify_jwt is whatever the
--- last deploy set it to — and a redeploy WITHOUT the flag silently turns
--- it back on. supabase/config.toml now pins it; redeploy after pulling:
+-- ---------- 6. resetting both sides from one value ----------
+-- A 403 means the function ran and rejected the header, so JWT is off
+-- and the two copies of the secret have drifted. Rather than hunt for
+-- which one is wrong, set both from a single fresh value — one shell
+-- variable, used twice, so they cannot disagree:
 --
---     supabase functions deploy send-push --no-verify-jwt
+--     S=$(openssl rand -hex 32)
+--     supabase secrets set PUSH_HOOK_SECRET="$S"
+--     printf %s "$S" | shasum -a 256 | cut -c1-8      # note this
+--     echo "select push_set_config('push_secret','$S');"   # paste into SQL editor
 --
--- Then confirm from a shell that it answers 403 (rejected on the secret)
--- rather than 401 (rejected before it ever ran):
+-- Then re-run section 4 and check the fingerprint matches.
+--
+-- `supabase secrets set` takes a moment to reach the running function.
+-- Confirm end to end from a shell — with the right secret this returns
+-- 200 {"sent":0} rather than 403, because rows is empty:
 --
 --     curl -i -X POST \
 --       https://diabtvahplwoipvrprvb.supabase.co/functions/v1/send-push \
---       -H 'Content-Type: application/json' -d '{"rows":[]}'
+--       -H 'Content-Type: application/json' \
+--       -H "X-Push-Secret: $S" -d '{"rows":[]}'
 --
---   403 Forbidden  → good. JWT is off; the secret check is doing its job.
---   401            → JWT verification is still on. That is the bug.
+--   200 {"sent":0}  → the secret matches. Push will work.
+--   403            → still drifted, or the function has not picked the
+--                    new secret up yet. Wait a few seconds and retry.
+--   401            → JWT verification is on. supabase/config.toml pins
+--                    it off; redeploy: supabase functions deploy
+--                    send-push --no-verify-jwt
 
 -- ---------- 7. send yourself one, synchronously ----------
 -- Uncomment, put your handle in, and run. Unlike the trigger path this
