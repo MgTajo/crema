@@ -11,13 +11,13 @@ small, contained changes rather than a rewrite.
         └───────────────┬───────────────────────────────┬───────────────┘
                         │                               │
                     domain/                          store/                 logic + state
-             art.js · scoring.js            store.js ── persistence.js
+         art.js · scoring.js · streak.js    store.js ── persistence.js
                         │                               │
                         └───────────────┬───────────────┘
                                      data/                                   content
               assets.js · catalog.js · world.js        (bundled catalog + live world)
               supabase.js · profiles · posts · social · challenges ·
-              notifications · media · remote.js                  (backend)
+              notifications · media · push · remote.js           (backend)
                                         │
                                 config.js · core/util.js                     pure helpers
 ```
@@ -34,7 +34,7 @@ A module only imports from layers **below** it. Nothing in `data/`, `domain/`, `
 | **data** | `data/assets.js`, `data/catalog.js`, `data/world.js` | The bundled catalog (drinks, machines, milks, levels) and `world.js` — the people / café / challenge / leaderboard maps, which ship **empty** and are filled from the backend | The same, plus a real image CDN |
 | **data (backend)** | `data/supabase.js`, `profiles`, `posts`, `social`, `challenges`, `notifications`, `media`, `remote` | The only modules that touch the network: auth + PostgREST + R2, and the row⇄app mapping per domain | The same, pointed at production |
 | **store** | `store/store.js`, `store/persistence.js` | The single source of truth: `state`, `ui`, selectors, and the persistence adapter | The client cache / API layer talking to your backend |
-| **domain** | `domain/art.js`, `domain/scoring.js` | Craft logic: latte-art rendering, art scores, badges | Same logic, shared between client and server |
+| **domain** | `domain/art.js`, `domain/scoring.js`, `domain/streak.js` | Craft logic: latte-art rendering, art scores, badges, streak rules | Same logic, shared between client and server — `streak.js` is already duplicated in plpgsql for the reminder job, and the two are fuzzed against each other |
 | **ui** | `ui/*` | Rendering (`gate`, `views`, `overlays`, `components`, `icons`) and interaction (`actions`, `app`) | Native screens & view models |
 
 ## The persistence seam — where the backend plugs in

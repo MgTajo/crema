@@ -121,7 +121,47 @@
   .iconbtn:active{transform:scale(.92)}
   @media(hover:hover){ .iconbtn:hover{background:var(--surface2)} }
   .ndot{position:absolute; top:6px; right:7px; width:9px; height:9px; border-radius:50%; background:var(--terra); border:2px solid var(--surface)}
-  .streak{display:flex; align-items:center; gap:5px; background:linear-gradient(135deg,var(--st1),var(--st2)); border:1px solid var(--st3); color:var(--st4); font-weight:800; font-size:13px; padding:8px 12px; border-radius:999px; box-shadow:var(--sh-sm); font-variant-numeric:tabular-nums}
+  .streak{display:flex; align-items:center; gap:5px; background:linear-gradient(135deg,var(--st1),var(--st2)); border:1px solid var(--st3); color:var(--st4); font-weight:800; font-size:13px; padding:8px 12px; border-radius:999px; box-shadow:var(--sh-sm); font-variant-numeric:tabular-nums; cursor:pointer}
+  /* Unfinished today: same number, hollow. Banked vs. still owed. */
+  .streak.open{background:transparent; box-shadow:none; border-style:dashed; color:var(--muted); border-color:var(--st3)}
+
+  /* ---------- streak nudge (home) ---------- */
+  .stk{display:flex; align-items:center; gap:11px; border:1.5px solid var(--line2); background:var(--surface); border-radius:var(--r-sm); padding:10px 12px; margin:2px 0 12px}
+  .stk.warn{border-color:var(--st3); background:linear-gradient(135deg,var(--st1),var(--st2))}
+  .stk.good{border-color:var(--pm2); background:var(--pm1)}
+  .stk-n{display:flex; align-items:center; gap:4px; font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; flex:none; color:var(--st4)}
+  .stk.good .stk-n{color:var(--green)}
+  .stk:not(.warn):not(.good) .stk-n{color:var(--muted)}
+  .stk-b{flex:1; min-width:0}
+  .stk-b b{display:block; font-size:13.5px; font-weight:700; line-height:1.3}
+  .stk-sub{font-size:11.5px; color:var(--ink2); margin-top:1px}
+  .stk .btn{margin:0; flex:none}
+
+  /* ---------- streak sheet ---------- */
+  .stk-hero{text-align:center; padding:18px 12px; border:1.5px solid var(--st3); border-radius:var(--r-sm);
+            background:linear-gradient(135deg,var(--st1),var(--st2))}
+  .stk-hero-n{display:flex; align-items:center; justify-content:center; gap:7px; font-family:var(--serif);
+              font-size:40px; font-weight:600; color:var(--st4); font-variant-numeric:tabular-nums; line-height:1}
+  .stk-hero-l{font-size:13px; font-weight:700; color:var(--st4); margin-top:6px}
+  .stk-hero-b{font-size:11.5px; color:var(--ink2); margin-top:3px; font-weight:600}
+  /* 28 dots on a 14-wide grid: two tidy rows of a fortnight each, and it
+     stays square on a narrow phone because the columns are fractional. */
+  .stk-cal{display:grid; grid-template-columns:repeat(14,1fr); gap:5px}
+  .stk-cal i{aspect-ratio:1; border-radius:4px; background:var(--line); border:1px solid transparent}
+  /* --crema, not the amber --st2/--st3 pair the rest of the streak UI
+     uses: in the dark theme those are near-black browns and a poured day
+     was indistinguishable from a blank one. --crema is a mid tone in
+     both themes, so the calendar reads either way. */
+  .stk-cal i.on{background:var(--crema); border-color:var(--crema-deep)}
+  .stk-cal i.today{outline:2px solid var(--crema); outline-offset:1px}
+
+  /* ---------- switch ---------- */
+  .swch{flex:none; width:40px; height:23px; border-radius:999px; background:var(--line);
+        border:1px solid var(--line2); position:relative; transition:background .16s}
+  .swch::after{content:''; position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%;
+               background:#fff; box-shadow:var(--sh-sm); transition:transform .16s}
+  .swch.on{background:var(--crema); border-color:var(--crema-deep)}
+  .swch.on::after{transform:translateX(17px)}
 
   /* ---------- scroll view & sections ---------- */
   .view{flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none; overscroll-behavior:contain}

@@ -20,7 +20,7 @@ import { useSession, applyMe, findPost, state } from './store/store.js';
 import { render } from './ui/views.js';
 import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
-import { applyTheme, tick, toast, syncProfile } from './ui/actions.js';
+import { applyTheme, tick, toast, syncProfile, initPush } from './ui/actions.js';
 
 /* top-level await: the session decides what the first paint even is. */
 const auth = await initAuth();
@@ -63,5 +63,34 @@ if(auth.session){
 if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname))){
   let _reloading=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_reloading)return; _reloading=true; location.reload(); });
+
+  /* Messages from the worker (sw.js).
+
+     `navigate` arrives when a notification is tapped while Crema is
+     already open — the worker focuses this tab, but a focused tab does
+     not navigate itself, so the deep link is handed over here and
+     opened the same way a cold start would open it.
+
+     `push-resubscribed` means the push service rotated our endpoint
+     behind our back. The worker cannot write to PostgREST (it has no
+     session), so the page stores the new one. */
+  navigator.serviceWorker.addEventListener('message',e=>{
+    const d=e.data||{};
+    if(d.type==='navigate'&&d.url){
+      const m=String(d.url).match(/#p\/([\w-]+)/);
+      if(!m) return;
+      if(findPost(m[1])) pushOv({type:'post',id:m[1]});
+      else if(auth.session) fetchPost(m[1],auth.session.user.id)
+        .then(p=>{ if(p){ state.posts.unshift(p); pushOv({type:'post',id:p.id}); } })
+        .catch(()=>{});
+    }
+    else if(d.type==='push-resubscribed') initPush();
+  });
+
   try{ navigator.serviceWorker.register('./sw.js').then(r=>{ if(r&&r.update) r.update(); }).catch(()=>{}); }catch(e){}
+
+  /* After registration, so navigator.serviceWorker.ready resolves. Does
+     not prompt — it only notices an existing subscription and refreshes
+     the row that points at it. */
+  if(auth.session) initPush().catch(()=>{});
 }

@@ -510,6 +510,68 @@ Found by asking "is this number real?" of the *media* path for the first time:
 
 ---
 
+## Step 1.16 — reasons to come back ✅ CODE DONE (needs deploy)
+
+Everything Crema knew how to say, it said on a screen the user was already looking at. For a
+habit product that is backwards: the moment that decides whether someone keeps a streak is the
+moment they are *not* in the app. Two halves, and the first works for everyone.
+
+### The streak, made legible
+
+`domain/streak.js` — pure, tested (`streak.test.mjs`, 20 cases), no imports, so it ports to
+React Native untouched. `streak()` used to be six lines inside the store returning a bare
+number; it now answers *is this at risk*, *has the rest day been spent*, *what is the best ever*.
+
+- **Rest days.** Once a streak reaches 7 days a single missed day is forgiven, once. Losing a
+  40-day streak to one hotel morning is the moment people quit an app like this, and a streak
+  nobody believes they can keep is a countdown, not a habit. Derived from the pours like every
+  other count in Crema — replay the same posts, get the same streak. Two blank days still ends it.
+- **The nudge on Home** appears on exactly three occasions: the streak is alive but today is
+  empty (the only actionable one), today's pour hit a milestone, or a recent streak lapsed and
+  is worth restarting. Every other day it renders nothing — a banner that shows up every
+  morning is wallpaper by week two.
+- **The streak sheet** (tap the chip) explains the rule, draws the last 28 days, and is where
+  reminders are opted into.
+
+### Reaching people who aren't looking
+
+Web Push, no vendor SDK: `supabase/functions/send-push/` implements RFC 8291 encryption and
+RFC 8292 VAPID on plain WebCrypto, ~140 lines, **verified against the published RFC 8291 §5
+test vector** (`webpush.test.mjs`). That vector matters more than it looks — an implementation
+that has, say, swapped the two public keys inside `key_info` encrypts and decrypts happily
+against itself and fails against every real browser.
+
+- `push_subscriptions` is owner-only under RLS in all four verbs. An endpoint plus its two keys
+  *is* the capability to notify that person, so the table is closer to a credential store than
+  to profile data.
+- **Three switches, not one.** "Someone liked your pour" is a fact about another person and
+  defaults on. The streak nudge and the weekly recap are Crema talking on its own initiative and
+  default off. Bundled together, turning off the annoying one would cost the wanted one, so
+  people turn off everything instead.
+- **The permission prompt only ever fires from a tap on "Remind me"**, inside a sheet that has
+  just explained what the reminder is for. An unexplained prompt is denied roughly always, and a
+  denial is close to permanent.
+- The streak rule now exists twice — plpgsql and JS. They are fuzzed against each other over
+  34k histories (`streak-parity-test.mjs`); the first draft of the SQL disagreed on 1,496 of
+  them, which would have meant an evening push the app then contradicted.
+
+### Where it works — the part that shapes the design
+
+Push reaches Chrome/Edge/Firefox on desktop and Android, and Safari 16.4+ on macOS, **in an
+ordinary browser tab**. On **iOS it works only after Add to Home Screen** — Apple ships no Web
+Push in a Safari tab, with no flag and no workaround.
+
+So push is a bonus channel, never the only one: every nudge it carries is also visible in the
+app itself. `iosNeedsInstall()` detects the iPhone-in-a-tab case and asks for the Home Screen
+rather than showing a toggle that cannot work.
+
+**Not done:** deploy. `supabase/README.md` §5 has the steps — generate nothing (the public key
+is already in `config.js`), set the private key and hook secret, deploy `send-push`
+`--no-verify-jwt`, then run `step-1.16.sql`. Email as a fallback channel for iOS-tab users is
+still unbuilt and is the obvious follow-up.
+
+---
+
 ### Phase 1 checkpoint — ✅ REACHED
 
 | | Before | After |
@@ -697,7 +759,7 @@ ones here will be moderation tooling, account deletion, and IAP compliance.
 
 | | |
 | --- | --- |
-| **Do next** | Run `supabase/step-1.9.sql`, then fix the Redirect URLs so Google sign-in completes. Both are dashboard work, both take minutes, and the app is half-inert without them. |
+| **Do next** | Deploy step 1.16 (`supabase/README.md` §5 → then `step-1.16.sql`), and fix the Redirect URLs so Google sign-in completes. Both are dashboard work, both take minutes. |
 | **Then** | Apple/Google developer enrolment (slow — start now, it blocks Phase 2 testing) |
 | **Biggest real gap** | account deletion — doesn't exist in-app at all, blocks 2.7 store review |
 | **Tooling** | `graphify update .` rebuilds a local code graph (`graphify-out/`, gitignored) — `affected`, `path` and `god-nodes` answer "what calls what" without grepping |

@@ -15,7 +15,9 @@ import { DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, MY_BEANS, bean
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
-import { ensureProfile, pushProfile, pushAvatar, fetchUserCard, searchProfiles, fetchScore } from '../data/profiles.js';
+import { ensureProfile, pushProfile, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
+         setNotifyPrefs } from '../data/profiles.js';
+import { enablePush, disablePush, pushEnabled, syncPush, pushSupported } from '../data/push.js';
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
@@ -64,6 +66,12 @@ document.addEventListener('click',e=>{
     case 'open-board': pushOv({type:'board'}); break;
     case 'open-flist': openFlist(id); break;
     case 'open-scoring': pushOv({type:'scoring'}); break;
+    case 'open-streak': pushOv({type:'streak'}); break;
+    case 'push-on': turnPushOn(); break;
+    case 'push-off': turnPushOff(); break;
+    case 'toggle-notify-social': toggleNotify('notifySocial'); break;
+    case 'toggle-notify-streak': toggleNotify('notifyStreak'); break;
+    case 'toggle-notify-digest': toggleNotify('notifyDigest'); break;
     case 'open-passport': pushOv({type:'passport'}); break;
     /* the logo is the way back to a clean slate */
     case 'reload': location.reload(); break;
@@ -299,6 +307,70 @@ async function syncProfile(){
     else if(state.me.name) state.onboarded=true;
     save(); applyMe();
   }catch(e){ console.warn('profile sync failed',e); toast('Couldn\'t load your profile — retrying next time'); }
+}
+
+/* ---------- reminders ----------
+   Push permission is asked for exactly once, from a tap on "Remind me",
+   never on boot: a prompt with no context is denied, and a denial is
+   effectively permanent — the browser will not ask again. */
+async function turnPushOn(){
+  const u=currentUser(); if(!u) return;
+  ui.push=ui.push||{}; ui.push.busy=true; renderOverlay();
+  const r=await enablePush(u.id);
+  ui.push.busy=false;
+
+  if(r.ok){
+    ui.push.enabled=true;
+    /* Turning reminders on is the whole reason someone tapped the
+       button, so it starts on rather than making them find a second
+       switch. The recap stays off — they didn't ask for that one. */
+    state.me.notifyStreak=true;
+    save();
+    try{ await setNotifyPrefs(u.id,state.me); }
+    catch(e){ console.warn('notification prefs failed',e); }
+    renderOverlay();
+    toast('Reminders on ☕');
+    return;
+  }
+
+  renderOverlay();
+  toast(
+    r.reason==='denied'      ? 'Notifications are blocked in your browser settings'
+  : r.reason==='ios-install' ? 'Add Crema to your Home Screen first'
+  : r.reason==='dismissed'   ? 'No reminders — you can turn them on any time'
+  : 'Couldn\'t turn on reminders — try again');
+}
+
+async function turnPushOff(){
+  ui.push=ui.push||{}; ui.push.busy=true; renderOverlay();
+  await disablePush();
+  ui.push.busy=false; ui.push.enabled=false; renderOverlay();
+  toast('Reminders off on this device');
+}
+
+/* Optimistic: the switch flips at once and the write follows. A failed
+   write is worth saying out loud — a preference that silently didn't
+   stick is how people end up getting notifications they turned off. */
+async function toggleNotify(key){
+  const u=currentUser(); if(!u) return;
+  state.me[key]=!state.me[key];
+  save(); renderOverlay();
+  try{ await setNotifyPrefs(u.id,state.me); }
+  catch(e){
+    console.warn('notification prefs failed',e);
+    state.me[key]=!state.me[key]; save(); renderOverlay();
+    toast('Couldn\'t save that — try again');
+  }
+}
+
+/* On boot: find out whether this device already has a live subscription,
+   and re-state it if so (endpoints rotate silently). Never prompts. */
+export async function initPush(){
+  if(!pushSupported()) return;
+  const u=currentUser(); if(!u) return;
+  ui.push=ui.push||{};
+  ui.push.enabled=await pushEnabled().catch(()=>false);
+  if(ui.push.enabled) syncPush(u.id).catch(()=>{});
 }
 
 /* Write the onboarding answers to the profile row. This is the first

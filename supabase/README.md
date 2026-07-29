@@ -19,6 +19,8 @@ Supabase dashboard → **SQL Editor** → paste and run:
 9. [`step-1.13.sql`](step-1.13.sql) — optional profile photos (`profiles.avatar_key`).
 10. [`step-1.14.sql`](step-1.14.sql) — points for coffee: pours, likes, comments, exact recipes, new beans.
 11. [`step-1.15.sql`](step-1.15.sql) — public/followers-only pours, and follows you have to accept.
+12. [`step-1.16.sql`](step-1.16.sql) — push subscriptions, notification switches, streak reminder and weekly digest.
+    **Needs [section 5](#5-deploy-the-push-function-step-116) done first**, or the cron jobs fire into nothing.
 
 All of them are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
@@ -174,6 +176,100 @@ its own entry here, or photos silently fall back to inline: the presign call sti
   ready to call once that flow exists; post deletion already calls it.
 - The `403` Cloudflare Images returns for a transform request on a **nonexistent** key hasn't
   been checked against a **real** uploaded object yet — do that after the first live upload.
+
+## 5. Deploy the push function (step 1.16)
+
+Reminders and the weekly digest go out as Web Push. Postgres builds the batch and hands it
+to one Edge Function, which does the RFC 8291 encryption and the RFC 8292 VAPID signing.
+
+**Do this before running `step-1.16.sql`** — that file schedules the cron jobs, and a job
+whose endpoint is missing fails quietly.
+
+### Generate the VAPID keypair
+
+The keypair identifies Crema to every browser push service. The **public** half is already in
+[`src/config.js`](../src/config.js) and is meant to ship in client code; the **private** half
+must never enter the repo:
+
+```bash
+node -e "(async()=>{const k=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign']);const r=new Uint8Array(await crypto.subtle.exportKey('raw',k.publicKey));const j=await crypto.subtle.exportKey('jwk',k.privateKey);const b=b=>Buffer.from(b).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');console.log('public :',b(r));console.log('private:',j.d)})()"
+```
+
+Only generate a new pair if you are replacing the one in `src/config.js`. **Rotating the
+public key invalidates every existing subscription** — a subscription is bound to the key
+that created it, so everyone silently stops receiving notifications until their next visit
+re-subscribes them. If you do rotate, `truncate push_subscriptions` at the same time.
+
+### Deploy and set the secrets
+
+`--no-verify-jwt` is required: the caller is Postgres, which has no user JWT. `PUSH_HOOK_SECRET`
+is therefore the only thing standing between this function and the open internet — make it long
+and random (`openssl rand -hex 32`).
+
+```bash
+supabase functions deploy send-push --no-verify-jwt
+supabase secrets set \
+  VAPID_PUBLIC_KEY=<the public key from src/config.js> \
+  VAPID_PRIVATE_KEY=<the private key — never paste this into chat> \
+  VAPID_SUBJECT=mailto:hello@crema-app.com \
+  PUSH_HOOK_SECRET=<a long random string>
+```
+
+Then tell Postgres where to find it, as the `postgres` role in the SQL editor. These two
+settings are read by `push_send()` and cannot be inferred from the environment:
+
+```sql
+alter database postgres set app.push_endpoint =
+  'https://diabtvahplwoipvrprvb.supabase.co/functions/v1/send-push';
+alter database postgres set app.push_secret = '<the same PUSH_HOOK_SECRET>';
+```
+
+New connections pick these up, so reconnect (or wait) before testing.
+
+### Verify
+
+The crypto is covered offline against the published RFC 8291 test vector — that catches the
+mistakes a self-consistent implementation gets away with:
+
+```bash
+node --experimental-strip-types supabase/functions/send-push/webpush.test.mjs
+```
+
+The streak rule exists twice (plpgsql here, `src/domain/streak.js` in the app) and a
+disagreement would mean a notification the app then contradicts, so they are fuzzed against
+each other:
+
+```bash
+node supabase/streak-parity-test.mjs
+```
+
+End to end: sign in, Settings → Reminders → **Remind me**, accept the browser prompt, then
+force one from the SQL editor:
+
+```sql
+select push_send(jsonb_build_object('rows', (
+  select jsonb_agg(jsonb_build_object(
+    'endpoint', endpoint, 'p256dh', p256dh, 'auth', auth,
+    'title', 'Crema', 'body', 'Test push', 'url', './', 'tag', 'test'))
+  from push_subscriptions where user_id = auth.uid())));
+```
+
+`supabase functions logs send-push` reports `{sent, gone, failed}` per batch. Subscriptions the
+push service answers 404/410 for are deleted automatically — that is normal churn, not an error.
+
+### Where push does and doesn't arrive
+
+| | |
+| --- | --- |
+| Chrome, Edge, Firefox — desktop & Android | Works in an ordinary tab. No install. |
+| Safari 16.4+ on macOS | Works in an ordinary tab. |
+| **Safari on iOS / iPadOS** | **Only after Add to Home Screen.** Apple ships no Web Push in a Safari tab, and there is no flag or workaround. |
+| Anything older, or notifications denied | Nothing. |
+
+This is why every nudge push carries is also visible inside the app (the streak block on Home,
+the notification inbox): a large share of the audience is on an iPhone in a Safari tab and will
+never receive one. `iosNeedsInstall()` in [`src/data/push.js`](../src/data/push.js) detects that
+case and the reminders sheet asks for the Home Screen instead of showing a toggle that cannot work.
 
 ## A trap worth knowing about
 

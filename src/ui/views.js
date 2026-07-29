@@ -9,7 +9,7 @@ import { $, esc, fmt, cap, initials, seedOf, daysAgo, agoLabel } from '../core/u
 import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, TOP_POSTS } from '../data/world.js';
-import { state, ui, session, feed, discover, social, saved, streak,
+import { state, ui, session, feed, discover, social, saved, mine, streak, streakInfo,
          myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
@@ -24,7 +24,16 @@ export function renderAppbar(){
   if(!session){ bar.innerHTML=`<div class="title" data-action="reload" title="Reload Crema">${logoMark()} Crema</div>`; return; }
   const unread=state.notifications.some(n=>!n.read);
   const bell=`<button class="iconbtn" data-action="open-notifs" aria-label="Notifications">${icon('bell',20)}${unread?'<span class="ndot"></span>':''}</button>`;
-  if(ui.route==='home'){ const s=streak(); const streakChip=s>0?`<div class="streak" title="Day streak">${icon('bolt',15)} ${s}</div>`:''; bar.innerHTML=`<div class="title" data-action="reload" title="Reload Crema">${logoMark()} Crema</div><div class="actions">${streakChip}${bell}</div>`; }
+  if(ui.route==='home'){
+    /* The chip goes hollow when the streak is unfinished today. It is
+       the same number either way — what changes is whether it looks
+       banked or still owed. */
+    const s=streakInfo();
+    const streakChip=s.days>0
+      ? `<div class="streak${s.atRisk?' open':''}" data-action="open-streak" title="${s.atRisk?'Not poured today':'Day streak'}">${icon('bolt',15)} ${s.days}</div>`
+      : '';
+    bar.innerHTML=`<div class="title" data-action="reload" title="Reload Crema">${logoMark()} Crema</div><div class="actions">${streakChip}${bell}</div>`;
+  }
   else if(ui.route==='explore') bar.innerHTML=`<div class="title">Explore</div><div class="actions">${bell}</div>`;
   else if(ui.route==='cafes') bar.innerHTML=`<div class="title">Cafés</div><div class="actions">${USERS.me.city?`<div class="streak" style="background:var(--pm1);border-color:var(--pm2);color:var(--green)">📍 ${esc(USERS.me.city)}</div>`:''}${bell}</div>`;
   else if(ui.route==='profile') bar.innerHTML=`<div class="title">Profile</div><div class="actions"><button class="iconbtn" data-action="open-settings" aria-label="Settings">${icon('gear',20)}</button></div>`;
@@ -39,6 +48,7 @@ export function renderHome(){
       : `<div class="empty"><div class="big">🌅</div>Nobody has poured today yet.<br>Tap ＋ and be the first.</div>`;
   return `<div class="pad">
     ${followRequestsBlock()}
+    ${streakBlock()}
     <div class="seg">
       <button class="${ui.filter==='today'?'on':''}" data-action="filter" data-f="today">Today</button>
       <button class="${ui.filter==='following'?'on':''}" data-action="filter" data-f="following">Following</button>
@@ -63,6 +73,61 @@ function followRequestsBlock(){
       <button class="btn ghost sm" data-action="decline-follow" data-id="${r.id}">Decline</button>
     </div>`).join('')}
   </div>`;
+}
+
+/* Milestones worth interrupting someone for. Sparse on purpose: a
+   banner that appears every single day is wallpaper by week two. */
+const MILESTONES=[3,7,14,30,50,100,200,365];
+
+/* The streak nudge, above the feed and below follow requests.
+   It says something on exactly three occasions:
+
+     · the streak is alive but today is still empty — the only genuinely
+       actionable state, and the reason this block exists;
+     · today's pour just hit a milestone — worth a moment;
+     · a streak ended recently enough to be worth restarting.
+
+   Every other day it renders nothing. The number already lives in the
+   app bar for anyone who wants to check it, and a habit app that
+   congratulates you every morning stops being read.
+
+   Nothing renders before mine.loaded either: myPosts() is the feed page
+   until the user's own pours arrive, so an early paint would tell
+   someone their streak was over while it was still loading. */
+function streakBlock(){
+  if(!mine.loaded) return '';
+  const s=streakInfo();
+
+  if(s.atRisk){
+    /* The badge already carries the number, so the headline doesn't
+       repeat it — three columns on a narrow phone, and a headline long
+       enough to wrap pushes the button off its line. */
+    const rest=s.canRest ? 'A rest day would cover you — once.'
+             : s.rested  ? 'Rest day already used.'
+             : `${s.days} ${s.days===1?'day':'days'} on the line.`;
+    return `<div class="stk warn">
+      <div class="stk-n">${icon('bolt',16)} ${s.days}</div>
+      <div class="stk-b"><b>No pour yet today</b><div class="stk-sub">${rest}</div></div>
+      <button class="btn sm" data-action="open-create">Log one</button></div>`;
+  }
+
+  if(s.poured && MILESTONES.includes(s.days)){
+    const best=s.days>=s.best?`Your best yet.`:`Best: ${s.best} days.`;
+    return `<div class="stk good">
+      <div class="stk-n">${icon('bolt',16)} ${s.days}</div>
+      <div class="stk-b"><b>${s.days} days in a row</b><div class="stk-sub">${best}</div></div></div>`;
+  }
+
+  /* Lapsed, but recently. Past about a week this is just a reminder of
+     failure, so it stops asking. */
+  if(!s.days && s.best>=3){
+    const gap=Math.min(...myPosts().map(p=>daysAgo(p.createdAt,p.ago)).filter(d=>d>=0), Infinity);
+    if(gap>=2 && gap<=7) return `<div class="stk">
+      <div class="stk-n">${icon('bolt',16)} 0</div>
+      <div class="stk-b"><b>Start a new streak</b><div class="stk-sub">Your best was ${s.best} days.</div></div>
+      <button class="btn sm" data-action="open-create">Log a pour</button></div>`;
+  }
+  return '';
 }
 
 export function renderExplore(){

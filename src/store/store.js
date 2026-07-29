@@ -22,6 +22,7 @@ import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMy
 import { fetchMyJoins, fetchTopPosts, fetchJoinCounts } from '../data/challenges.js';
 import { fetchProfileCounts, fetchSuggestedProfiles } from '../data/profiles.js';
 import { fetchNotifications } from '../data/notifications.js';
+import { streakFrom, bestStreakFrom } from '../domain/streak.js';
 import { makePersistence } from './persistence.js';
 
 export const KEY='crema_v11';
@@ -55,7 +56,12 @@ export function freshState(){
     challenges:{},
     challengeSubs:{}, customBeans:[], customDrinks:[],
     onboarded:false, theme:'auto',
-    me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:'',avatar:''},
+    /* notify* mirror the column defaults in step-1.16.sql; the profile
+       row overwrites them on sync. Present here so the reminder switches
+       render a real position before the first sync rather than reading
+       as "off" and inviting someone to turn on what is already on. */
+    me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:'',avatar:'',
+        notifySocial:true,notifyStreak:false,notifyDigest:false},
     notifications:[]
   };
 }
@@ -335,14 +341,24 @@ export function activityBars(){const a=Array(21).fill(0);myPosts().forEach(p=>{c
    one and from the relative label otherwise. */
 const dayIndex=p=>daysAgo(p.createdAt,p.ago);
 
+/* The days this user poured on, as indices back from today. Everything
+   streak-shaped is derived from this one set — see domain/streak.js for
+   the rules, which are pure so they can be tested and, eventually,
+   shared with the reminder job that has to agree with them. */
+const pourDays=()=>new Set(myPosts().map(dayIndex).filter(d=>d>=0));
+
 /* The streak is counted, not stored: consecutive days up to today (or
    up to yesterday, so a streak isn't "broken" before you've had your
-   morning coffee) on which the user logged at least one pour. */
-export function streak(){
-  const days=new Set(myPosts().map(dayIndex).filter(d=>d>=0));
-  if(!days.size) return 0;
-  let start=days.has(0)?0:(days.has(1)?1:-1);
-  if(start<0) return 0;
-  let n=0; for(let d=start;days.has(d);d++) n++;
-  return n;
+   morning coffee) on which the user logged at least one pour.
+
+   streakInfo() is the full picture the reminder UI needs — is it at
+   risk, has the rest day been spent, what is the personal best. streak()
+   stays a plain number for the callers that only ever wanted one. */
+export function streakInfo(){
+  const days=pourDays();
+  const cur=streakFrom(days);
+  /* bestStreakFrom() starts a run at every block head, and the live
+     streak's head is one of them, so it already accounts for today. */
+  return { ...cur, best:bestStreakFrom(days) };
 }
+export const streak = () => streakFrom(pourDays()).days;

@@ -5,13 +5,15 @@
    Overlays are data-driven strings just like the screens; opening
    one pushes a descriptor, closing pops it.
    ============================================================ */
-import { $, esc, fmt, cap, initials, seedOf, withUnit } from '../core/util.js';
+import { $, esc, fmt, cap, initials, seedOf, withUnit, daysAgo } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache,
-         beanPassport, canEdit } from '../store/store.js';
+         beanPassport, canEdit, streakInfo } from '../store/store.js';
+import { REST_AFTER } from '../domain/streak.js';
+import { pushSupported, iosNeedsInstall, pushPermission } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, lbRow, gcell, commentCount, joinedLabel, likeButton, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
@@ -40,6 +42,7 @@ export function renderOverlay(){
     T==='board'?overlayBoard():
     T==='flist'?overlayFlist(top.id):
     T==='scoring'?overlayScoring():
+    T==='streak'?overlayStreak():
     T==='passport'?overlayPassport():
     T==='settings'?overlaySettings():
     T==='picker'?overlayPicker(top.id):
@@ -335,6 +338,93 @@ function overlayScoring(){
       <p style="font-size:12px;color:var(--muted);margin-top:14px">Each level costs about half again as much as the one before, and the names follow the classic latte-art progression: hearts → tulips → rosettas → swans.</p>
     </div></div></div>`;
 }
+/* The streak sheet — what the number means, and the one place that asks
+   for permission to nudge you about it.
+
+   The ask lives HERE rather than behind a prompt on first launch on
+   purpose. A notification permission dialog someone hasn't been given a
+   reason for is denied roughly always, and a denial is permanent-ish:
+   the browser won't ask twice, and undoing it means digging through site
+   settings. So the prompt only ever fires from a tap on "Remind me",
+   inside a sheet that has just explained what the reminder is for. */
+function overlayStreak(){
+  const s=streakInfo();
+  /* Last 28 days, oldest first, so the row reads left-to-right like a
+     calendar and today sits at the end where the eye lands. */
+  const days=new Set(myPosts().map(p=>daysAgo(p.createdAt,p.ago)).filter(d=>d>=0));
+  const dots=Array.from({length:28},(_,i)=>{
+    const d=27-i;
+    return `<i class="${days.has(d)?'on':''}${d===0?' today':''}" title="${d===0?'Today':d===1?'Yesterday':d+' days ago'}"></i>`;
+  }).join('');
+
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Streak">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Your streak</b></div>
+    <div class="ov-body"><div style="padding:14px 16px 20px">
+
+      <div class="stk-hero">
+        <div class="stk-hero-n">${icon('bolt',26)} ${s.days}</div>
+        <div class="stk-hero-l">${s.days===1?'day':'days'} in a row${s.poured?'':' · nothing logged today yet'}</div>
+        <div class="stk-hero-b">Best: ${s.best} ${s.best===1?'day':'days'}</div>
+      </div>
+
+      <div class="rlabel" style="margin-top:18px">Last four weeks</div>
+      <div class="stk-cal">${dots}</div>
+
+      <div class="rlabel" style="margin-top:18px">Rest days</div>
+      <p style="font-size:13px;color:var(--ink2);line-height:1.55;margin:0">
+        Once a streak reaches ${REST_AFTER} days, missing a single day won't end it — one rest day
+        is forgiven, once. Two days in a row still starts you over.
+        ${s.rested?'<br><b>Your rest day is currently in use.</b>'
+                  :s.canRest?'<br><b>Your rest day is available.</b>':''}
+      </p>
+
+      <div class="rlabel" style="margin-top:18px">Reminders</div>
+      ${remindersBlock()}
+
+    </div></div></div>`;
+}
+
+/* The reminder controls, shared by the streak sheet and Settings.
+
+   Every state this can be in says something specific, because "enable
+   notifications" that silently does nothing is worse than no button:
+
+     · no push support at all (old browser, or no VAPID key configured)
+       — say so plainly and stop.
+     · iOS in a Safari tab — Apple has no Web Push there at all. Ask for
+       the Home Screen instead of showing a toggle that cannot work.
+     · permission already denied — the browser will not re-prompt, so
+       point at site settings rather than a button that no-ops.
+     · granted — show the switches for what may be sent. */
+function remindersBlock(){
+  const p=ui.push||(ui.push={ enabled:false, busy:false });
+  const note=t=>`<div class="mrow" style="cursor:default"><div class="mi">🔔</div>
+    <div style="flex:1;font-size:13px;color:var(--ink2);font-weight:500;line-height:1.5">${t}</div></div>`;
+
+  if(iosNeedsInstall()) return note(
+    `Add Crema to your Home Screen to get reminders — tap Share, then <b>Add to Home Screen</b>.
+     Safari can't send notifications from a browser tab on iPhone.`);
+  if(!pushSupported()) return note(
+    `This browser can't send notifications. The streak nudge still appears on Home when you open Crema.`);
+  if(pushPermission()==='denied') return note(
+    `Notifications are blocked for Crema in your browser settings. Allow them there and this comes back.`);
+
+  if(!p.enabled) return `
+    <p style="font-size:13px;color:var(--ink2);line-height:1.55;margin:0 0 10px">
+      One nudge in the evening if your streak is about to lapse — nothing else unless you ask.</p>
+    <button class="btn block" data-action="push-on"${p.busy?' disabled':''}>${p.busy?'Just a moment…':'Remind me'}</button>`;
+
+  const sw=(action,on,label,sub)=>`<div class="mrow" data-action="${action}">
+    <div class="mi">${on?'🔔':'🔕'}</div>
+    <div style="flex:1">${label}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${sub}</div></div>
+    <span class="swch${on?' on':''}"></span></div>`;
+
+  return `${sw('toggle-notify-social',state.me.notifySocial,'Likes, comments &amp; follows','When someone reacts to your coffee')}
+    ${sw('toggle-notify-streak',state.me.notifyStreak,'Streak reminder','Evenings, only when your streak is at risk')}
+    ${sw('toggle-notify-digest',state.me.notifyDigest,'Weekly recap','Monday morning, only if you poured that week')}
+    <button class="btn ghost block" style="margin-top:10px" data-action="push-off"${p.busy?' disabled':''}>Turn off on this device</button>`;
+}
+
 /* The bean passport — every coffee you have logged, in one place.
    Built from all of your pours, not the feed page. */
 function overlayPassport(){
@@ -396,8 +486,11 @@ function overlaySettings(){
              <button class="btn block" data-action="toggle-premium">Turn Premium on</button></div>`}
       <div class="rlabel" style="margin-top:18px">Appearance</div>
       <div class="seg">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(x=>`<button class="${th===x[0]?'on':''}" data-action="set-theme" data-t="${x[0]}">${x[1]}</button>`).join('')}</div>
+      <div class="rlabel" style="margin-top:18px">Reminders</div>
+      ${remindersBlock()}
       <div class="rlabel" style="margin-top:18px">About</div>
       <div class="mrow" data-action="open-scoring"><div class="mi">⭐</div>How levels work</div>
+      <div class="mrow" data-action="open-streak"><div class="mi">⚡</div>How streaks work</div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">Signed in · your pours live in your account</div>
     </div></div>`;
 }

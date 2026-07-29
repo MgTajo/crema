@@ -35,3 +35,17 @@ export const REFERENCE_TTL_MS = 15 * 60 * 1000;
 
 /* Feed page size for the paginated post feed. */
 export const FEED_PAGE = 12;
+
+/* VAPID public key for Web Push (roadmap step 1.16). Public by design:
+   it identifies Crema to the browser's push service and is handed to
+   PushManager.subscribe() in client code, so it belongs here next to the
+   other publishable values.
+
+   The matching PRIVATE key must never appear in this repo. It lives as a
+   Supabase Edge Function secret (VAPID_PRIVATE_KEY) — anyone holding it
+   can send notifications that appear to come from Crema.
+
+   Blank disables push everywhere: pushSupported() is false, the toggle
+   in Settings hides itself, and the in-app nudges carry on unaffected. */
+export const VAPID_PUBLIC_KEY = 'BG6-xot5uE9TXxaK4JkMntrlmbGCRO1SXZG6_zDWJ9J7I7vGQ60aorseelDTIEoJrOd6SAWwyABMOvgtDJCZZnk';
+export const VAPID_SUBJECT = 'mailto:hello@crema-app.com';

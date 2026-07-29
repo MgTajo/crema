@@ -53,8 +53,31 @@ export function rowToMe(row){
     /* Both are maintained by triggers (step-1.9.sql) and are read-only
        here — meToRow never writes them back. */
     points: row.points|0,
-    level: row.level || 1
+    level: row.level || 1,
+    /* Notification switches (step-1.16.sql). Read here off `select=*` so
+       an unrun migration simply leaves them undefined; written only by
+       setNotifyPrefs(), never by meToRow — "Save profile" must not be
+       able to silently reset what someone chose in the reminders sheet.
+       The defaults match the column defaults. */
+    notifySocial: row.notify_social===undefined ? true  : !!row.notify_social,
+    notifyStreak: row.notify_streak===undefined ? false : !!row.notify_streak,
+    notifyDigest: row.notify_digest===undefined ? false : !!row.notify_digest
   };
+}
+
+/* The three notification switches, written on their own. Uses its own
+   optionalColumns() so that on a deploy where step-1.16.sql has not been
+   run yet the toggles quietly do nothing instead of failing the save —
+   same contract as avatar_key above. */
+const notifyOpt = optionalColumns(['notify_social','notify_streak','notify_digest']);
+export function setNotifyPrefs(uid, me){
+  return notifyOpt.run(has=>{
+    const body={};
+    if(has('notify_social')) body.notify_social = !!me.notifySocial;
+    if(has('notify_streak')) body.notify_streak = !!me.notifyStreak;
+    if(has('notify_digest')) body.notify_digest = !!me.notifyDigest;
+    return { path:`profiles?id=eq.${uid}`, method:'PATCH', body };
+  });
 }
 
 /* a remote profile → the shape ui/ expects in the USERS map.
