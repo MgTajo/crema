@@ -543,6 +543,8 @@ function overlaySettings(){
       <div class="rlabel" style="margin-top:18px">About</div>
       <div class="mrow" data-action="open-scoring"><div class="mi">⭐</div>How levels work</div>
       <div class="mrow" data-action="open-streak"><div class="mi">⚡</div>How streaks work</div>
+      <a class="mrow" href="/impressum/" target="_blank" rel="noopener"><div class="mi">📄</div>Impressum</a>
+      <a class="mrow" href="/privacy/" target="_blank" rel="noopener"><div class="mi">🔒</div>Datenschutz / Privacy Policy</a>
       <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">Signed in · your pours live in your account</div>
     </div></div>`;
 }
