@@ -12,7 +12,7 @@
    `import { state }` always observe the latest value, including
    after load() reassigns it on reset.
    ============================================================ */
-import { agoDays, isToday } from '../core/util.js';
+import { daysAgo, isToday } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
 import { beanCatalog, MY_BEANS } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, handleToUid } from '../data/world.js';
@@ -333,14 +333,7 @@ export function activityBars(){const a=Array(21).fill(0);myPosts().forEach(p=>{c
 
 /* How many days ago a pour was, from its real timestamp where we have
    one and from the relative label otherwise. */
-function dayIndex(p){
-  if(p.createdAt){
-    const t=Date.parse(p.createdAt);
-    if(isFinite(t)) return Math.floor((startOfDay(Date.now())-startOfDay(t))/864e5);
-  }
-  return agoDays(p.ago);
-}
-const startOfDay=ms=>{const d=new Date(ms); d.setHours(0,0,0,0); return d.getTime();};
+const dayIndex=p=>daysAgo(p.createdAt,p.ago);
 
 /* The streak is counted, not stored: consecutive days up to today (or
    up to yesterday, so a streak isn't "broken" before you've had your

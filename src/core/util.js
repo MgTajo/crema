@@ -56,4 +56,24 @@ export function isToday(iso){
   const d=new Date(t), n=new Date();
   return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
 }
-export function agoLabel(a){const d=agoDays(a);if(d===0)return'Today';if(d===1)return'Yesterday';if(d<7)return new Date(Date.now()-d*864e5).toLocaleDateString('en',{weekday:'short'});return a+' ago';}
+const startOfDay=ms=>{const d=new Date(ms); d.setHours(0,0,0,0); return d.getTime();};
+/* How many *calendar* days ago something was — crossing midnight
+   correctly, which agoDays(ago) alone cannot: "23h" and "2h" are both
+   bucketed as day 0 by its hour/day/week parsing, so a pour from
+   11pm yesterday still reads as "0 days ago" after midnight. Falls
+   back to that bucketing only when there is no real timestamp. */
+export function daysAgo(createdAt,ago){
+  const t=createdAt&&Date.parse(createdAt);
+  if(isFinite(t)) return Math.floor((startOfDay(Date.now())-startOfDay(t))/864e5);
+  return agoDays(ago);
+}
+export function agoLabel(createdAt,ago){
+  const d=daysAgo(createdAt,ago);
+  if(d===0) return'Today';
+  if(d===1) return'Yesterday';
+  if(d<7){
+    const t=createdAt&&Date.parse(createdAt);
+    return (isFinite(t)?new Date(t):new Date(Date.now()-d*864e5)).toLocaleDateString('en',{weekday:'short'});
+  }
+  return ago+' ago';
+}
