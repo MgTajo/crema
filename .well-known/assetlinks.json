@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.crema_app.android",
+    "sha256_cert_fingerprints": [
+      "E6:38:C8:C8:BA:59:31:38:E8:D2:F8:9D:58:2C:DA:88:39:80:FF:93:EB:9C:D4:36:1B:EB:D2:D9:DC:6F:C4:7A"
+    ]
+  }
+}]

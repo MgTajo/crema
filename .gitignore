@@ -8,3 +8,13 @@ supabase/.temp/
 # generated code graph (graphify) — machine-local, rebuild with `graphify update .`
 graphify-out/
 .cograph/
+
+# Android TWA (Play Store wrapper) — signing key and build output never get committed
+android-twa/*.keystore
+android-twa/keystore-secrets.DO-NOT-COMMIT.txt
+android-twa/local.properties
+android-twa/.gradle/
+android-twa/app/build/
+android-twa/build/
+android-twa/*.aab
+android-twa/*.apk
