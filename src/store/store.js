@@ -19,7 +19,7 @@ import { USERS, CAFES, CHALLENGES, TOP_POSTS, handleToUid } from '../data/world.
 import { fetchFeed, fetchMine, fetchSavedPosts } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
          fetchCafeFollowCounts, fetchFollowRequests } from '../data/social.js';
-import { fetchMyJoins, fetchTopPosts, fetchJoinCounts } from '../data/challenges.js';
+import { fetchChallenges, fetchChallengeWins, fetchTopPosts } from '../data/challenges.js';
 import { fetchProfileCounts, fetchSuggestedProfiles } from '../data/profiles.js';
 import { fetchNotifications } from '../data/notifications.js';
 import { streakFrom, bestStreakFrom } from '../domain/streak.js';
@@ -53,8 +53,7 @@ export function freshState(){
        a coffee that later joins the catalogue picks up its roaster. */
     lastBean:'',
     cafeFollow:{},
-    challenges:{},
-    challengeSubs:{}, customBeans:[], customDrinks:[],
+    customBeans:[], customDrinks:[],
     onboarded:false, theme:'auto',
     /* notify* mirror the column defaults in step-1.16.sql; the profile
        row overwrites them on sync. Present here so the reminder switches
@@ -67,7 +66,11 @@ export function freshState(){
 }
 export async function load(){try{const s=await persistence.read(); state=(s&&s.me)?s:freshState();
   ['posts','customBeans','customDrinks','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
-  ['follows','cafeFollow','challenges','challengeSubs','followPending'].forEach(k=>{if(!state[k])state[k]={};});
+  ['follows','cafeFollow','followPending'].forEach(k=>{if(!state[k])state[k]={};});
+  /* Retired in step 1.17: challenges are no longer something you join or
+     submit to, so the two maps that tracked that are dropped from any
+     state persisted before it. */
+  delete state.challenges; delete state.challengeSubs;
   if(state.lastVisibility!=='followers') state.lastVisibility='public';
   if(!state.me)state.me=freshState().me; if(!state.me.favMilk)state.me.favMilk='Whole milk';
  }catch(e){state=freshState();}}
@@ -114,15 +117,35 @@ export async function loadSaved(){
 }
 export const followeeIds = () => Object.keys(state.follows||{}).filter(k=>state.follows[k]);
 
-/* Entries per challenge, loaded on demand when a challenge opens. */
-export const entryCache={};
+/* The three live challenges with this user's progress already in them.
+   Refetched rather than mutated after a pour: progress is decided by
+   Postgres (a pour can move two of the three at once, and only the
+   database knows whether it crossed a goal), so guessing here would
+   just be a second, worse implementation of the same rules. */
+export const challenges={ list:[], loaded:false, wins:0 };
+export async function loadChallenges(){
+  if(!session) return false;
+  try{
+    challenges.list=await fetchChallenges();
+    challenges.loaded=true;
+    /* Completion rows outlive the week they were earned in, so the
+       badge counts those rather than the live three. Its own try: a
+       badge is not worth losing this week's challenges over. */
+    try{ challenges.wins=(await fetchChallengeWins(session.user.id)).length; }
+    catch(e){ console.warn('challenge wins failed',e); }
+    /* CHALLENGES is what ui/ has always imported; refill it in place so
+       the array identity every overlay holds stays valid. */
+    CHALLENGES.length=0; CHALLENGES.push(...challenges.list);
+    return true;
+  }catch(e){ console.warn('challenges failed',e); return false; }
+}
 
 export async function hydrateSocial(){
   if(!session) return;
   const uid=session.user.id;
   try{
-    const [follows,cafeFollows,blocks,joins]=await Promise.all([
-      fetchMyFollows(uid), fetchMyCafeFollows(uid), fetchMyBlocks(uid), fetchMyJoins(uid)
+    const [follows,cafeFollows,blocks]=await Promise.all([
+      fetchMyFollows(uid), fetchMyCafeFollows(uid), fetchMyBlocks(uid)
     ]);
     /* The server is the truth about who you follow — including the ones
        that are still only requests. Rebuild rather than merge, or a
@@ -131,7 +154,6 @@ export async function hydrateSocial(){
     follows.accepted.forEach(id=>{ state.follows[id]=true; });
     follows.pending.forEach(id=>{ state.followPending[id]=true; });
     cafeFollows.forEach(id=>{ state.cafeFollow[id]=true; });
-    joins.forEach(id=>{ state.challenges[id]=true; });
     social.blocks=blocks; social.loaded=true;
   }catch(e){ console.warn('social state failed',e); }
 
@@ -163,9 +185,11 @@ export async function hydrateSocial(){
   try{ discover.list=await fetchSuggestedProfiles(uid,social.blocks); discover.loaded=true; }
   catch(e){ console.warn('suggestions failed',e); }
 
-  /* Real join / follow counts, so no screen shows a number nobody earned. */
-  try{ applyCounts(await fetchJoinCounts(), CHALLENGES, 'participants'); }
-  catch(e){ console.warn('challenge counts failed',e); }
+  /* The three live challenges, with progress. Nobody joins them, so
+     there is no join count to fetch any more. */
+  await loadChallenges();
+
+  /* Real follow counts, so no screen shows a number nobody earned. */
   try{ applyCounts(await fetchCafeFollowCounts(), CAFES, 'followers'); }
   catch(e){ console.warn('cafe follow counts failed',e); }
 }

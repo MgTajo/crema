@@ -10,13 +10,13 @@ import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, TOP_POSTS, userOf } from '../data/world.js';
-import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, entryCache,
+import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, challenges,
          beanPassport, canEdit, streakInfo } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
 import { pushSupported, iosNeedsInstall, pushPermission } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, lbRow, gcell, commentCount, joinedLabel, likeButton, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, lbRow, gcell, commentCount, likeButton, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 
@@ -45,7 +45,6 @@ export function renderOverlay(){
     T==='streak'?overlayStreak():
     T==='passport'?overlayPassport():
     T==='settings'?overlaySettings():
-    T==='picker'?overlayPicker(top.id):
     T==='onboard'?overlayOnboard():
     T==='password'?overlayPassword():
     T==='create'?overlayCreate():'';
@@ -223,67 +222,121 @@ function overlayTag(pat){
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>#${pat}</b></div>
     <div class="ov-body"><div style="padding:14px 16px 20px">
       <div style="font-size:13px;color:var(--muted);font-weight:600;margin-bottom:8px">${list.length} pour${list.length===1?'':'s'}</div>
-      ${ch?`<button class="btn sm" style="margin-bottom:12px" data-action="open-challenge" data-id="${ch.id}">🎯 ${ch.title} — join the challenge</button>`:''}
+      ${ch?`<button class="btn sm" style="margin-bottom:12px" data-action="open-challenge" data-id="${ch.id}">🎯 ${ch.title} — this week's challenge</button>`:''}
       ${list.length?`<div class="grid">${list.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:
         `<div class="empty"><div class="big">🎨</div>No ${pat} pours yet — be the first!<br><br><button class="btn sm" data-action="open-create">Post a pour</button></div>`}
     </div></div></div>`;
 }
 
-/* Entries are rows from challenge_entries with real vote counts, loaded
-   when the challenge opens. Nothing stands in for them: until the load
-   returns, `entryCache` has no key and the screen says it's loading. */
-const challengeEntries = ch => entryCache[ch.id] || null;
-function overlayChallenge(id){
-  const ch=CHALLENGES.find(c=>c.id===id); if(!ch) return '';
-  const joined=state.challenges[id], sub=state.challengeSubs[id];
-  const entries=challengeEntries(ch);
-  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${ch.title}">
-    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${ch.title}</b></div>
-    <div class="ov-body"><div style="padding:0 16px 20px">
-      <div class="ch-top" style="height:150px;border-radius:16px;margin-top:14px">${cupSVG(ch.pattern,.92,ch.id.charCodeAt(0))}<span class="ends">Ends in ${ch.ends}</span></div>
-      <div style="margin:14px 2px 4px"><b style="font-family:var(--serif);font-size:22px">${ch.title}</b>
-        <div class="chips" style="margin:8px 0"><span class="chip tag" data-action="open-tag" data-id="${ch.pattern}">${ch.tag}</span><span class="chip">${joinedLabel(ch)}</span>${joined?'<span class="chip" style="color:var(--green)">✓ You\'re in</span>':''}</div>
-        <p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:4px 0 14px">${ch.blurb}</p>
-        <div style="display:flex;gap:10px;margin-bottom:6px">
-          <button class="btn ${joined?'ghost':''} block" data-action="join" data-id="${ch.id}">${joined?'Leave challenge':'Join challenge'}</button>
-          ${joined&&!sub?`<button class="btn block" data-action="submit-entry" data-id="${ch.id}">Submit a pour</button>`:''}</div>
-        ${sub?`<div style="font-size:12.5px;font-weight:700;color:var(--green);margin:6px 2px">✓ Your entry is in — good luck!</div>`:''}</div>
-      <div class="section-h"><h2>Top entries</h2></div>
-      ${!entries?`<div class="empty" style="padding:22px">Loading entries…</div>`:
-        entries.length?`<div class="lb" style="margin-bottom:14px">${entries.slice(0,3).map((e,i)=>`<div class="lb-row click" data-action="open-post" data-id="${e.p.id}">
-          <div class="lb-rank top">${i===0?'🥇':i===1?'🥈':'🥉'}</div>${avatar(e.p.user)}
-          <div class="who" style="flex:1"><b>${esc(userOf(e.p.user).name)}${e.mine?' (you)':''}</b><span>${cap(ch.pattern)}</span></div>
-          <div class="lb-pts">▲ ${e.votes}</div></div>`).join('')}</div>
-        <div class="section-h" style="margin-top:4px"><h2>All entries</h2></div>
-        <div class="grid">${entries.map(e=>`<div class="entrywrap">${e.mine?'<span class="entrytag">YOURS</span>':''}${gcell(e.p.pattern,e.p.quality,e.p.id,e.p.img)}
-          ${e.id?`<div class="ev${e.votedByMe?' on':''}" data-action="vote-entry" data-id="${e.id}" data-ch="${ch.id}" role="button" title="${e.votedByMe?'Remove your vote':'Vote for this pour'}" style="cursor:pointer">▲ ${e.votes}</div>`
-                :`<div class="ev">▲ ${e.votes}</div>`}</div>`).join('')}</div>`:
-        `<div class="empty"><div class="big">🦢</div>No entries yet — be the first!</div>`}
-    </div></div></div>`;
+/* ---------- challenges ----------
+   A challenge is a rule, and the only thing worth showing about a rule
+   is how close you are to satisfying it. So both sheets are progress
+   bars: no join button, no entry picker, no votes. See
+   supabase/step-1.17.sql for where the number comes from — it is
+   computed in Postgres from the pours you already logged, which is why
+   the client never tries to recompute it.
+
+   Everything reads from CHALLENGES, refilled by loadChallenges(). */
+
+/* How long is left, in the roughest unit that is still true. */
+function endsIn(ch){
+  const ms=Date.parse(ch.endsAt)-Date.now();
+  if(!isFinite(ms)||ms<=0) return 'ending';
+  const h=Math.floor(ms/36e5);
+  if(h<1) return 'under an hour';
+  if(h<24) return h+'h';
+  const d=Math.round(h/24);
+  return d+' day'+(d===1?'':'s');
 }
-function overlayPicker(chId){
-  const ch=CHALLENGES.find(c=>c.id===chId); if(!ch) return '';
-  const candidates=myPosts().filter(p=>p.art);
-  const matching=candidates.filter(p=>p.pattern===ch.pattern), rest=candidates.filter(p=>p.pattern!==ch.pattern);
-  const cell=p=>`<div class="gcell" data-action="pick-entry" data-ch="${chId}" data-id="${p.id}">${art(p.img,p.pattern,p.quality,seedOf(p.id),p.drink)}</div>`;
-  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="Pick your entry">
-    <div class="grab"></div>
-    <div class="ov-bar" style="border:0"><b>Pick your entry</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
-    <div class="ov-body" style="padding:0 16px 18px">
-      ${matching.length?`<div class="rlabel">Your ${ch.pattern}s</div><div class="grid" style="margin-bottom:12px">${matching.map(cell).join('')}</div>`:''}
-      ${rest.length?`<div class="rlabel">Other pours</div><div class="grid">${rest.map(cell).join('')}</div>`:''}
-      ${!candidates.length?`<div class="empty">Post a latte-art pour first, then enter it here.</div>`:''}
+
+const CAT_LABEL={ habit:'Habit', craft:'Craft', discovery:'Discovery' };
+
+/* The bar plus its numbers. `done` wins over the count: a finished
+   challenge says so rather than showing 3/3 and leaving you to work it
+   out. */
+function progressBar(ch){
+  const pct=ch.goal?Math.round(100*ch.progress/ch.goal):0;
+  return `<div class="chp">
+    <div class="chp-bar"><i style="width:${ch.done?100:pct}%"></i></div>
+    <div class="chp-n">${ch.done?`<b class="chp-done">✓ Done · +${ch.points}</b>`
+                                :`<b>${ch.progress}</b> / ${ch.goal}`}</div>
+  </div>`;
+}
+
+/* A card for Explore and the all-challenges sheet. */
+export function challengeCard(ch){
+  return `<div class="chcard${ch.done?' done':''}" data-action="open-challenge" data-id="${ch.id}">
+    <div class="chcard-cup">${cupSVG(ch.pattern,.9,ch.id.length)}</div>
+    <div class="chcard-b">
+      <div class="chcard-h"><span class="chcat">${CAT_LABEL[ch.cat]||''}</span><span class="chpts">+${ch.points}</span></div>
+      <b>${esc(ch.title)}</b>
+      <div class="chcard-s">${esc(ch.blurb)}</div>
+      ${progressBar(ch)}
+      <div class="chcard-f">${ch.done?'Earned this week':`${endsIn(ch)} left`}</div>
     </div></div>`;
 }
+
+/* What actually counts toward this rule, in the app's own words. The
+   challenge blurb sells it; this explains it, so nobody has to guess
+   whether a cortado counts as a different drink. */
+const RULE_TEXT={
+  days:          g=>`Log a coffee on ${g} different days.`,
+  pours:         g=>`Log ${g} coffees in total.`,
+  hour_before:  (g,p)=>`Log a coffee before ${p}:00 your time, on ${g} different days. Anything before 4am counts as the night before.`,
+  hour_after:   (g,p)=>`Log a coffee after ${p}:00 your time, on ${g} different days.`,
+  weekend:       ()=>`Log a coffee on Saturday and again on Sunday.`,
+  pattern:      (g,p)=>`Post ${g} latte-art pours with a ${p}.`,
+  art:           g=>`Post ${g} pours with latte art, any pattern.`,
+  recipe:        g=>`Post ${g} pours with dose, yield and time all filled in.`,
+  caption:       g=>`Post ${g} pours with a note of at least 20 characters.`,
+  drinks:        g=>`Log ${g} different drinks.`,
+  beans:         g=>`Brew ${g} different coffees.`,
+  milks:         g=>`Use ${g} different milks.`,
+  cafes:         g=>`Log a coffee at ${g} different cafés.`,
+  countries:     g=>`Brew beans grown in ${g} different countries. Coffees the catalogue doesn't know the origin of can't count.`,
+  roasters:      g=>`Brew coffee from ${g} different roasters.`,
+  new_bean:      g=>`Log ${g} coffee you have never logged before.`,
+  comments:      g=>`Leave ${g} comments on other people's coffee. Your own don't count.`
+};
+const ruleText = ch => (RULE_TEXT[ch.kind]||(()=>'Keep pouring.'))(ch.goal, ch.param);
+
+function overlayChallenge(id){
+  const ch=CHALLENGES.find(c=>c.id===id); if(!ch) return '';
+  const left=ch.goal-ch.progress;
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(ch.title)}">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${esc(ch.title)}</b></div>
+    <div class="ov-body"><div style="padding:0 16px 20px">
+      <div class="ch-top" style="height:150px;border-radius:16px;margin-top:14px">${cupSVG(ch.pattern,.92,ch.id.length)}<span class="ends">${ch.done?'Complete':endsIn(ch)+' left'}</span></div>
+      <div style="margin:14px 2px 4px">
+        <b style="font-family:var(--serif);font-size:22px">${esc(ch.title)}</b>
+        <div class="chips" style="margin:8px 0">
+          <span class="chip">${CAT_LABEL[ch.cat]||''}</span>
+          <span class="chip tag">${esc(ch.tag)}</span>
+          <span class="chip" style="color:var(--st4);border-color:var(--st3);background:var(--st1)">+${ch.points} points</span>
+          ${ch.done?'<span class="chip" style="color:var(--green)">✓ Earned</span>':''}</div>
+        <p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:4px 0 14px">${esc(ch.blurb)}</p>
+        ${progressBar(ch)}
+        <div class="chrule">
+          <div class="rlabel" style="margin:0 0 4px">What counts</div>
+          <div>${esc(ruleText(ch))}</div>
+        </div>
+        ${ch.done
+          ? `<div class="chdone">✓ Finished — ${ch.points} points are already on your score.${ch.raw>ch.goal?` You got to ${ch.raw}.`:''}</div>`
+          : `<div style="font-size:12.5px;color:var(--muted);margin:10px 2px 12px">${left} to go. Nothing to enter — your pours count on their own.</div>
+             <button class="btn block" data-action="open-create">Log a coffee</button>`}
+      </div>
+    </div></div></div>`;
+}
+
 function overlayChallenges(){
-  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="All challenges">
-    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>Challenges</b></div>
+  const list=CHALLENGES;
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Challenges">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>This week</b></div>
     <div class="ov-body"><div style="padding:14px 16px 20px">
-      ${CHALLENGES.map(c=>{const j=state.challenges[c.id];return `<div class="card" style="display:flex;align-items:center;gap:12px;padding:12px">
-        <div class="aod" style="width:64px;height:64px;border-radius:14px;overflow:hidden;flex:none;display:grid;place-items:center;background:radial-gradient(120% 120% at 30% 20%,var(--mb1),var(--mb2));cursor:pointer" data-action="open-challenge" data-id="${c.id}">${cupSVG(c.pattern,.9,c.id.charCodeAt(0))}</div>
-        <div style="flex:1;min-width:0;cursor:pointer" data-action="open-challenge" data-id="${c.id}"><b style="font-family:var(--serif);font-size:16px">${c.title}</b>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">${fmt(c.participants)} joined · ends in ${c.ends} · ${c.tag}</div></div>
-        <button class="btn ${j?'ghost':''} sm" data-action="join" data-id="${c.id}">${j?'✓':'Join'}</button></div>`;}).join('')}
+      ${list.length?list.map(challengeCard).join('')
+        :`<div class="empty"><div class="big">🎯</div>${challenges.loaded?'No challenges running right now.<br>Three new ones land every Monday.':'Loading challenges…'}</div>`}
+      <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px">
+        Three challenges a week, one of each kind. They start every Monday and score themselves from the coffee you log.</div>
     </div></div></div>`;
 }
 function overlayBoard(){

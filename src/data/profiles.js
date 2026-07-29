@@ -80,6 +80,25 @@ export function setNotifyPrefs(uid, me){
   });
 }
 
+/* Which timezone this person's mornings happen in, as minutes east of
+   UTC — the sign convention Postgres wants, hence the negation of
+   getTimezoneOffset(), which counts the other way.
+
+   The database can't work this out on its own: it sees a UTC timestamp
+   and nothing else, so without this "log a coffee on five different
+   days" and "before 8am" would be measured in UTC and be wrong for
+   everyone outside it (supabase/step-1.17.sql). Written on sign-in
+   rather than once at signup so it follows people who travel or move.
+
+   Its own optionalColumns(), so a deploy that lands before step-1.17
+   has been run silently skips it instead of failing the sync. */
+const tzOpt = optionalColumns(['tz_offset']);
+export function setTimezone(uid){
+  return tzOpt.run(has=>has('tz_offset')
+    ? { path:`profiles?id=eq.${uid}`, method:'PATCH', body:{ tz_offset: -new Date().getTimezoneOffset() } }
+    : { path:`profiles?id=eq.${uid}&select=id`, method:'GET' });
+}
+
 /* a remote profile → the shape ui/ expects in the USERS map.
    Deliberately no follower/pour counts: this shape arrives with every
    embedded author on every post, comment and notification, and if it

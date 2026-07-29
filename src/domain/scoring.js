@@ -14,7 +14,7 @@
    actually see it (roadmap, "what comes after"), so nothing pretends to.
    ============================================================ */
 import { LEVELS } from '../data/catalog.js';
-import { state, myPosts, myBeans, myCountries, streak } from '../store/store.js';
+import { state, myPosts, myBeans, myCountries, streak, challenges } from '../store/store.js';
 
 /* The level a score sits in, as [level, name, threshold]. */
 export function levelOf(points){
@@ -63,6 +63,10 @@ export function computeBadges(){
     {i:'🫘',n:'Bean explorer',d:'Log 7 different beans',e:beansN>=7,p:Math.min(beansN,7)+'/7'},
     {i:'🌍',n:'World tour',d:'Try coffees from 5 origins',e:origins>=5,p:Math.min(origins,5)+'/5'},
     {i:'🧊',n:'Cold brew curious',d:'Post a cold brew',e:mine.some(p=>p.drink==='Cold brew')},
-    {i:'🎯',n:'Challenger',d:'Join a challenge',e:Object.values(state.challenges).some(Boolean)},
+    /* Joining is no longer a thing you can do (step 1.17), so this is
+       what it always should have been: finishing one. `wins` counts
+       completion rows, which outlive the week they were earned in. */
+    {i:'🎯',n:'Challenger',d:'Finish a challenge',e:challenges.wins>0},
+    {i:'🏆',n:'Regular winner',d:'Finish 10 challenges',e:challenges.wins>=10,p:Math.min(challenges.wins,10)+'/10'},
     {i:'💯',n:'Century club',d:'Log 100 pours',e:n>=100,p:n+'/100'}];
 }

@@ -16,15 +16,14 @@ import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
 import { ensureProfile, pushProfile, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
-         setNotifyPrefs } from '../data/profiles.js';
+         setNotifyPrefs , setTimezone } from '../data/profiles.js';
 import { enablePush, disablePush, pushEnabled, syncPush, pushSupported } from '../data/push.js';
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
-import * as chal from '../data/challenges.js';
 import { markAllRead } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
-         saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, entryCache, canEdit,
+         saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, loadChallenges, canEdit,
          feed } from '../store/store.js';
 import { commentRow, postLink, searchHTML } from './components.js';
 import { icon } from './icons.js';
@@ -61,7 +60,6 @@ document.addEventListener('click',e=>{
     case 'open-menu': pushOv({type:'menu',id}); break;
     case 'open-tag': pushOv({type:'tag',id}); break;
     case 'open-challenge': openChallenge(id); break;
-    case 'vote-entry': toggleVote(t.dataset.ch,id); break;
     case 'open-challenges': pushOv({type:'challenges'}); break;
     case 'open-board': pushOv({type:'board'}); break;
     case 'open-flist': openFlist(id); break;
@@ -87,14 +85,11 @@ document.addEventListener('click',e=>{
     case 'decline-follow': declineFollow(id); break;
     case 'follow-cafe': toggleCafeFollow(id); break;
     case 'recipe':{const el=$('#rp-'+id); if(el){el.classList.toggle('open'); const o=el.classList.contains('open'); t.innerHTML=t.innerHTML.replace(o?'▾':'▴',o?'▴':'▾');} break;}
-    case 'join': toggleJoin(id); break;
     case 'ptab':{ ui.profTab=t.dataset.t; renderView();
       /* the saves are rows, not a filter over the feed page */
       if(ui.profTab==='saved'&&!saved.loaded) loadSaved().then(ok=>{ if(ok) renderView(); });
       break;}
 
-    case 'submit-entry': pushOv({type:'picker',id}); break;
-    case 'pick-entry': pickEntry(t.dataset.ch,id); break;
 
     case 'cmt-like':{ const p=findPost(t.dataset.pid); const c=p&&p.comments[+t.dataset.idx]; if(!c)break;
       c.likedByMe=!c.likedByMe; c.likes=(c.likes||0)+(c.likedByMe?1:-1); save();
@@ -306,6 +301,10 @@ async function syncProfile(){
     if(created) state.onboarded=false;
     else if(state.me.name) state.onboarded=true;
     save(); applyMe();
+    /* Which local morning a pour belongs to is decided in Postgres, and
+       only this line tells it where the user is. Fire-and-forget: a
+       failed timezone write is not worth a toast. */
+    setTimezone(u.id).catch(err=>console.warn('timezone sync failed',err));
   }catch(e){ console.warn('profile sync failed',e); toast('Couldn\'t load your profile — retrying next time'); }
 }
 
@@ -764,7 +763,7 @@ function addComment(id){
   inp.value=''; toast('Comment added 💬');
   const u=currentUser(); if(!u) return;
   social.addComment(u.id,id,text)
-    .then(row=>{ if(row) c.id=row.id; })
+    .then(row=>{ if(row) c.id=row.id; refreshChallenges(); })
     .catch(err=>{
       console.warn('comment failed',err);
       const i=p.comments.indexOf(c); if(i>=0) p.comments.splice(i,1);
@@ -784,88 +783,45 @@ function toggleCafeFollow(id){
   });
 }
 
-/* ---------- challenges (step 1.8) ---------- */
-function bumpParticipants(id,delta){
-  const c=CHALLENGES.find(x=>x.id===id);
-  if(c) c.participants=Math.max(0,(c.participants|0)+delta);
-}
+/* ---------- challenges (step 1.17) ----------
+   Nothing to join, nothing to submit, nothing to vote on — so all that
+   is left here is opening one and keeping the number honest.
 
+   Progress is computed in Postgres, so after anything that could move it
+   the app refetches rather than adjusting a local count. A single pour
+   can advance two of the three challenges at once and may or may not
+   cross a goal; reproducing those rules in the client would be a second
+   implementation to keep in step with the first. */
 function refreshChallengeViews(){
   renderView();
   const top=ui.ovStack[ui.ovStack.length-1];
   if(top&&(top.type==='challenge'||top.type==='challenges')) renderOverlay();
 }
 
-function toggleJoin(id){
-  const on=state.challenges[id]=!state.challenges[id]; save();
-  bumpParticipants(id,on?1:-1);
-  refreshChallengeViews();
-  toast(on?'Joined challenge! 🎯':'Left challenge');
-  const u=currentUser(); if(!u) return;
-  (on?chal.joinChallenge(u.id,id):chal.leaveChallenge(u.id,id)).catch(err=>{
-    if(err.status===409) return; console.warn('join failed',err);
-    state.challenges[id]=!on; bumpParticipants(id,on?-1:1); save(); refreshChallengeViews(); toast('Couldn\'t update that challenge');
-  });
-}
-
-async function openChallenge(id){
+function openChallenge(id){
   pushOv({type:'challenge',id});
-  const u=currentUser(); if(!u) return;
-  try{
-    const entries=await chal.fetchEntries(id,u.id);
-    const voted=new Set(await chal.fetchMyVotes(entries.map(e=>e.id)));
-    entries.forEach(e=>{ e.votedByMe=voted.has(e.id); });
-    entryCache[id]=entries; cachePosts(entries.map(e=>e.p));
-    const mine=entries.find(e=>e.mine);
-    if(mine) state.challengeSubs[id]=mine.p.id;
-    const top=ui.ovStack[ui.ovStack.length-1];
-    if(top&&top.type==='challenge'&&top.id===id) renderOverlay();
-  }catch(e){ console.warn('entries failed',e); }
+  /* Re-read on open: the sheet is where someone goes to check, and the
+     numbers may have moved on another device since the last load. */
+  refreshChallenges();
 }
 
-async function pickEntry(challengeId,postId){
-  state.challengeSubs[challengeId]=postId;
-  if(!state.challenges[challengeId]) state.challenges[challengeId]=true;
-  save(); ui.ovStack.pop(); renderOverlay(); toast('Entry submitted! 🎯');
-  const u=currentUser(); if(!u) return;
-  try{
-    await chal.submitEntry(u.id,challengeId,postId);
-    delete entryCache[challengeId];
-    await openChallengeRefresh(challengeId);
-  }catch(err){
-    if(err.status===409){ toast('You already have an entry in this one'); return; }
-    console.warn('entry failed',err);
-    delete state.challengeSubs[challengeId]; save(); renderOverlay();
-    toast('Couldn\'t submit that entry');
+/* Refetch the three, then repaint whatever is showing them. Also picks
+   up the points a just-finished challenge awarded, which land on the
+   profile row rather than in anything the client computed. */
+export async function refreshChallenges(){
+  if(!currentUser()) return;
+  const before=CHALLENGES.filter(c=>c.done).length;
+  if(!await loadChallenges()) return;
+  refreshChallengeViews();
+  const won=CHALLENGES.filter(c=>c.done).length-before;
+  if(won>0){
+    /* The database also wrote a notification, so the bell is already
+       right; this is the in-the-moment version for someone who is
+       looking at the screen when it lands. */
+    const c=CHALLENGES.find(x=>x.done);
+    toast(won===1&&c?`Challenge complete: ${c.title} · +${c.points} 🎯`:`${won} challenges complete! 🎯`);
+    refreshScore();
   }
-}
-
-async function openChallengeRefresh(id){
-  const u=currentUser(); if(!u) return;
-  try{
-    const entries=await chal.fetchEntries(id,u.id);
-    const voted=new Set(await chal.fetchMyVotes(entries.map(e=>e.id)));
-    entries.forEach(e=>{ e.votedByMe=voted.has(e.id); });
-    entryCache[id]=entries; cachePosts(entries.map(e=>e.p));
-    const top=ui.ovStack[ui.ovStack.length-1];
-    if(top&&top.type==='challenge'&&top.id===id) renderOverlay();
-  }catch(e){ console.warn('entry refresh failed',e); }
-}
-
-function toggleVote(challengeId,entryId){
-  const u=currentUser();
-  if(!u){ toast('Sign in to vote on entries'); return; }
-  const list=entryCache[challengeId]; if(!list) return;
-  const e=list.find(x=>x.id===entryId); if(!e) return;
-  const want=!e.votedByMe;
-  e.votedByMe=want; e.votes+=want?1:-1;
-  list.sort((a,b)=>b.votes-a.votes);
-  renderOverlay();
-  (want?chal.voteEntry(u.id,entryId):chal.unvoteEntry(u.id,entryId)).catch(err=>{
-    if(err.status===409) return; console.warn('vote failed',err);
-    e.votedByMe=!want; e.votes+=want?-1:1; list.sort((a,b)=>b.votes-a.votes);
-    renderOverlay(); toast('Couldn\'t register that vote');
-  });
 }
 
 /* ---------- moderation ---------- */
@@ -903,7 +859,7 @@ async function deleteMyPost(id){
   const j=mine.list.indexOf(p); if(j>=0) mine.list.splice(j,1);
   ui.ovStack=[]; save(); render(); toast('Pour deleted');
   const u=currentUser(); if(!u) return;
-  deletePost(id).then(()=>{ deleteImage(p.img); refreshScore(); }).catch(err=>{
+  deletePost(id).then(()=>{ deleteImage(p.img); refreshScore(); refreshChallenges(); }).catch(err=>{
     console.warn('delete failed',err);
     if(i>=0) state.posts.splice(i,0,p);
     if(j>=0) mine.list.splice(j,0,p);
@@ -1092,6 +1048,9 @@ async function submitPost(){
   /* Optimistic: the post is already on screen. Reconcile on failure. */
   if(u) createPost(np,u.id).then(()=>{
     refreshScore();
+    /* The pour may have finished a challenge — the trigger has already
+       decided, so ask rather than guess. */
+    refreshChallenges();
     /* Both tabs are server-filtered now, and we may have just switched
        to the other one — so let the server say what belongs there rather
        than showing whichever list happened to be loaded. */

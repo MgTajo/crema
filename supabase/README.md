@@ -22,6 +22,8 @@ Supabase dashboard → **SQL Editor** → paste and run:
 12. [`step-1.16.sql`](step-1.16.sql) — push subscriptions, notification switches, streak reminder and weekly digest.
     Run it **as part of [section 5](#5-deploy-the-push-function-step-116)** — the Edge Function must be
     deployed before it, and the Vault settings go in after it.
+13. [`step-1.17.sql`](step-1.17.sql) — challenges that generate, score and pay out on their own.
+    Nothing to configure: it schedules its own weekly job and fills the current week as it runs.
 
 All of them are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
@@ -43,7 +45,7 @@ store the key.
 
 **`step-1.14.sql` restates every score**, so run it when you're happy for
 scores to move — they will, both ways. Challenge entries and votes stop
-paying (challenges are behind "Coming soon" and being reworked), and
+paying (step-1.17 later retires entries and votes altogether), and
 exact recipes and new beans start paying. It rewrites `user_points()` and
 repoints the triggers; the level curve is untouched. Until it runs, the
 Levels screen shows the new rules while the database still scores by the
@@ -64,8 +66,9 @@ Until it runs, the app still works — the board is empty and everyone shows
 > denies everything until a policy exists. `schema.sql` creates each table's policies right
 > after the table, so this only matters if you add tables by hand later.
 
-After running, `src/data/remote.js` serves cafés/beans/challenges from Postgres (the app
-bundles no copy of its own) —
+After running, `src/data/remote.js` serves cafés and beans from Postgres (the app
+bundles no copy of its own; challenges come from the `my_challenges()` RPC instead, since
+they carry your own progress) —
 edit a café row in the dashboard and it changes in the app within 15 minutes (the cache TTL
 in `src/config.js`), or immediately on a hard reload.
 

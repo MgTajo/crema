@@ -109,7 +109,6 @@ export const postLink=id=>location.href.split('#')[0]+'#p/'+id;
 
 /* Challenge participation, straight from challenge_joins. Zero is a real
    number here, and reads better as an invitation than as "0 joined". */
-export const joinedLabel = c => (c.participants|0) ? `${fmt(c.participants)} joined` : 'Be the first to join';
 
 /* ----- recipe helpers (no fabricated defaults) ----- */
 export function recipeRows(r){

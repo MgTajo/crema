@@ -746,6 +746,57 @@ ones here will be moderation tooling, account deletion, and IAP compliance.
 
 ---
 
+## Step 1.17 — challenges that run themselves ✅ BUILT (not yet run)
+
+Challenges were the last thing in the app still behind "Coming soon", and the reason was the
+design, not the effort. The old model asked three times before anything happened — join, submit
+a pour, then be voted on — and the ranking only means something once there is a crowd large
+enough to do the voting. For a young app that is a feature that cannot start working until it
+is already popular.
+
+**A challenge is now a rule the database checks against the coffee you were logging anyway.**
+
+- **No joining.** You are in all three the moment they start.
+- **No submitting.** Your ordinary pours count.
+- **No voting.** Whether you did it is a fact, not an opinion.
+
+Three run at once — one **habit** (five mornings, before eight, both weekend days), one
+**craft** (rosettas, full recipes, real notes), one **discovery** (new beans, new cafés, three
+countries) — rotating every Monday. One from each category means the week always has a
+low-effort win, a skill to practise and a reason to leave the house.
+
+`generate_challenges()` picks by week number modulo the templates in each category, so the
+choice is deterministic, walks the whole catalogue before repeating, and can be tested. A
+random pick serves the same challenge twice running often enough to be noticed. Templates live
+in a table, so a new challenge idea is one INSERT and never a deploy.
+
+Points are real: finishing one writes a `challenge_completions` row and `user_points()` sums
+them. That row is the one thing in Crema that is *stored* rather than counted on read, and
+deliberately — a challenge is only winnable inside its window, and posts can be edited or
+deleted long after it shuts, so recomputing it next March would give a different answer than
+the one the person was told. While the week is still open it stays honest: delete the pour that
+earned it and the completion goes with it.
+
+Completion inserts a notification, which step 1.16 already turns into a push.
+
+**Verified against a real Postgres 17**, not by reading: 43 behavioural assertions covering
+every rule, the completion/withdrawal cycle, the points arithmetic, and a 52-week generation
+walk proving every template is used and no week repeats the last. Two bugs it caught:
+
+- `generate_challenges()` read `t.cat` from a record that never selected it.
+- **Local days were computed in the server's timezone.** Casting a `timestamptz` to a date
+  resolves it in the session's TimeZone, so `created_at + tz_offset` was really "the server's
+  idea of local, plus the user's offset" — the offset applied twice. Correct on Supabase only
+  because that server happens to run UTC. `local_ts()` pins to UTC first. The same fault was
+  in step 1.16's `streak_at_risk()`, which 1.17 restates.
+
+"Before Eight" also gained a 4am floor, or a 00:30 nightcap counted as an early morning.
+
+**Not done:** running it. One paste into the SQL editor, no configuration — it schedules its
+own weekly job and fills the current week as it goes.
+
+---
+
 ## What comes after
 
 - Analytics (PostHog / Amplitude) — you'll want funnel data before optimizing anything.
@@ -755,6 +806,8 @@ ones here will be moderation tooling, account deletion, and IAP compliance.
   until a CV model exists to judge them, which stays the interesting long-term product bet.
 - Café partnerships — the 10%-off promo is mocked; making it real is a business motion, not a
   technical one.
+- Challenge templates are a table — adding seasonal ones (an Advent challenge, a summer cold
+  brew run) is an INSERT, and they enter the rotation on their own.
 
 ---
 
@@ -764,7 +817,7 @@ ones here will be moderation tooling, account deletion, and IAP compliance.
 
 | | |
 | --- | --- |
-| **Do next** | Deploy step 1.16 (`supabase/README.md` §5 → then `step-1.16.sql`), and fix the Redirect URLs so Google sign-in completes. Both are dashboard work, both take minutes. |
+| **Do next** | Run `supabase/step-1.17.sql` — one paste, no configuration, and challenges start generating, scoring and paying out on their own. Then fix the Redirect URLs so Google sign-in completes. |
 | **Then** | Apple/Google developer enrolment (slow — start now, it blocks Phase 2 testing) |
 | **Biggest real gap** | account deletion — doesn't exist in-app at all, blocks 2.7 store review |
 | **Tooling** | `graphify update .` rebuilds a local code graph (`graphify-out/`, gitignored) — `affected`, `path` and `god-nodes` answer "what calls what" without grepping |

@@ -8,15 +8,15 @@
 import { $, esc, fmt, cap, initials, seedOf, daysAgo, agoLabel } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
-import { USERS, TOP_POSTS } from '../data/world.js';
-import { state, ui, session, feed, discover, social, saved, mine, streak, streakInfo,
+import { USERS, TOP_POSTS, CHALLENGES } from '../data/world.js';
+import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
          myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
 import { postCard, searchHTML, avatar, lbRow, gcell, followBtn } from './components.js';
 import { icon, logoMark } from './icons.js';
-import { renderOverlay } from './overlays.js';
+import { renderOverlay, challengeCard } from './overlays.js';
 import { renderGate } from './gate.js';
 
 export function renderAppbar(){
@@ -147,14 +147,28 @@ export function renderExplore(){
     <div id="explore-results">${ui.searchQ?searchHTML(ui.searchQ):''}</div>
     <div id="explore-normal" style="${ui.searchQ?'display:none':''}">
     ${people?`<div class="section-h"><h2>People to follow</h2></div>${people}`:''}
-    <div class="section-h"><h2>Challenges</h2></div>
-    <div class="empty" style="padding:18px 20px">Coming soon</div>
+    <div class="section-h"><h2>This week's challenges</h2>${CHALLENGES.length?'<a data-action="open-challenges">All three</a>':''}</div>
+    ${challengeBlock()}
     <div class="section-h"><h2>Most-loved pours</h2>${lbPrev.length?'<a data-action="open-board">Full list</a>':''}</div>
     ${board}
     <div class="section-h"><h2>Trending patterns</h2></div>
     <div class="chips" style="margin-bottom:8px">${['rosetta','swan','tulip','heart','abstract','wave','phoenix'].map(t=>`<span class="chip tag" data-action="open-tag" data-id="${t}">#${t}</span>`).join('')}</div>
     </div>
   </div>`;
+}
+
+/* The three live challenges. They are the same cards as the sheet, so
+   there is one place that decides what a challenge looks like.
+
+   `challenges.loaded` separates "none are running" from "we haven't
+   asked yet" — the first is a real state worth a sentence, the second
+   would be a lie. */
+function challengeBlock(){
+  if(!CHALLENGES.length)
+    return `<div class="empty" style="padding:18px 20px">${challenges.loaded
+      ? 'No challenges running right now.<br>Three new ones land every Monday.'
+      : 'Loading this week\u2019s challenges…'}</div>`;
+  return CHALLENGES.map(challengeCard).join('');
 }
 
 export function renderCafes(){
