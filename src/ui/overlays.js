@@ -499,7 +499,7 @@ function visibilityPicker(c){
    camera row is simply not there, because the photo is not editable. */
 function overlayCreate(){
   const c=ui.create||freshCreate(), isArt=!!DRINK_ART[c.drink], editing=!!c.editId;
-  const pats=[['heart','Heart'],['rosetta','Rosetta'],['tulip','Tulip'],['swan','Swan']];
+  const pats=[['heart','Heart'],['rosetta','Rosetta'],['tulip','Tulip'],['swan','Swan'],['abstract','Abstract art']];
   const mkList=(base,cur)=>{const l=base.slice(); if(cur&&cur!==ADD_BEAN&&!l.includes(cur))l.push(cur); return l;};
   const sel=(list,cur,ph,extra)=>`<option value=""${cur?'':' selected'}>${ph}</option>`+list.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')+(extra?`<option${cur===extra?' selected':''}>${extra}</option>`:'');
   const chosenCafe=(c.source==='cafe'&&c.cafe)?CAFES.find(x=>x.id===c.cafe):null;

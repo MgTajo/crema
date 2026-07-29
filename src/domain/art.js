@@ -32,6 +32,18 @@ function artShapes(pattern,q,rnd,foam){
       s+=`<ellipse cx="${44+off}" cy="${y}" rx="${len}" ry="${2+spread*2.4}" transform="rotate(20 ${44+off} ${y})"/>`;}
     s+=`<path d="M56 60 C72 54 70 34 58 28" stroke="${foam}" stroke-width="3.4" fill="none" stroke-linecap="round"/>`;
     s+=`<circle cx="${57+jit(1.5)}" cy="26" r="4.4"/><path d="M53 25 l-6 -1 l5 3.5 z"/>`;
+  }else if(pattern==='abstract'){
+    /* No fixed shape on purpose — a free pour, not a taught one. Same
+       rng() every other pattern uses, so a given post still draws the
+       same "abstract" every time rather than reshuffling on repaint. */
+    const n=6+Math.floor(rnd()*3);
+    for(let i=0;i<n;i++){
+      const ang=rnd()*Math.PI*2, r=6+rnd()*24;
+      const cx=50+Math.cos(ang)*r, cy=50+Math.sin(ang)*r*0.85;
+      const rx=3.5+rnd()*8, ry=2.5+rnd()*6;
+      s+=`<ellipse cx="${cx+jit(2)}" cy="${cy+jit(2)}" rx="${rx}" ry="${ry}" transform="rotate(${rnd()*360} ${cx} ${cy})"/>`;
+    }
+    s+=`<path d="M30 48 C40 60 60 60 70 48" stroke="${foam}" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.65"/>`;
   }
   return s;
 }

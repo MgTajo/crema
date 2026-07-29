@@ -87,7 +87,7 @@ export function renderExplore(){
     <div class="section-h"><h2>Most-loved pours</h2>${lbPrev.length?'<a data-action="open-board">Full list</a>':''}</div>
     ${board}
     <div class="section-h"><h2>Trending patterns</h2></div>
-    <div class="chips" style="margin-bottom:8px">${['rosetta','swan','tulip','heart','wave','phoenix'].map(t=>`<span class="chip tag" data-action="open-tag" data-id="${t}">#${t}</span>`).join('')}</div>
+    <div class="chips" style="margin-bottom:8px">${['rosetta','swan','tulip','heart','abstract','wave','phoenix'].map(t=>`<span class="chip tag" data-action="open-tag" data-id="${t}">#${t}</span>`).join('')}</div>
     </div>
   </div>`;
 }
