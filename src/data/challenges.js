@@ -61,17 +61,23 @@ export async function fetchChallengeWins(uid){
   }));
 }
 
-/* ---------- the board: pours ranked by likes ---------- */
-/* Live, not a scheduled snapshot: a like moves the board on the next
-   load. The `top_posts` view (step-1.9.sql) carries the author's columns
-   inline, so this is one round trip with no embed to disambiguate.
+/* ---------- today's podium: the three most-liked pours of the day ------ */
+/* Live, not a scheduled snapshot: a like moves the podium on the next
+   load. The `podium_today` view (step-1.18.sql) carries the author's
+   columns inline, so this is one round trip with no embed to disambiguate.
 
-   Swap in a time window whenever the board wants to reset weekly — add
-   `&created_at=gte.<monday>` and nothing else changes. */
-export async function fetchTopPosts(myUid=null, { limit=50, blocked=[] }={}){
+   The day window and the ranking both live in Postgres on purpose. The
+   places are announced to their authors as notifications by podium_check(),
+   and a board that decided "today" for itself in the browser would sooner
+   or later disagree with the notification someone already received —
+   different clock, different timezone, different answer. The server is the
+   only one that gets to say. */
+export async function fetchPodium(myUid=null, { limit=3, blocked=[] }={}){
   /* Blocking has to hold everywhere, not just in the feed: a blocked
-     person's pour could otherwise still surface on Explore. */
-  let q = `top_posts?select=*&order=like_count.desc,created_at.desc&limit=${limit}`;
+     person's pour could otherwise still surface on Explore. This can leave
+     the podium short, which is correct — the places belong to the pours,
+     not to the slots. */
+  let q = `podium_today?select=*&order=place.asc&limit=${limit}`;
   if(blocked.length) q += `&user_id=not.in.(${blocked.map(id=>`"${id}"`).join(',')})`;
   const rows = await rest(q);
   return (rows||[]).filter(r=>(r.like_count|0)>0).map(r=>{
@@ -79,6 +85,10 @@ export async function fetchTopPosts(myUid=null, { limit=50, blocked=[] }={}){
                              avatar_color:r.avatar_color, level:r.level }));
     return {
       id: r.id,
+      /* The server's place, not the array index. Blocking can remove the
+         pour in front of you, and the medal you see must still be the
+         medal its author was told about. */
+      place: r.place|0,
       user: r.user_id===myUid ? 'me' : r.user_id,
       drink: r.drink, art: !!r.art, pattern: r.pattern||null,
       quality: r.quality==null ? null : Number(r.quality),

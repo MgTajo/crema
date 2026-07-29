@@ -334,20 +334,20 @@
   .duel-bar b{display:grid; place-items:center; transition:flex .5s ease}
   .duel-bar .a{background:var(--grad-crema)} .duel-bar .b{background:linear-gradient(145deg,#5f8b98,#3d6672)}
 
-  .lb{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--sh-sm); overflow:hidden}
-  .lb-row{display:flex; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line)}
-  .lb-row:last-child{border-bottom:0}
-  .lb-row.me{background:var(--crema-soft)}
-  .lb-row.click{cursor:pointer; transition:background .15s}
-  @media(hover:hover){ .lb-row.click:hover{background:var(--surface2)} .lb-row.me.click:hover{background:var(--crema-soft)} }
-  .lb-rank{width:24px; font-family:var(--serif); font-weight:700; font-size:16px; color:var(--muted); text-align:center; font-variant-numeric:tabular-nums}
-  .lb-rank.top{color:var(--gold)}
-  .lb-row .who b{font-size:14px; font-weight:700} .lb-row .who span{font-size:11.5px; color:var(--muted)}
-  .lb-pts{font-weight:800; font-size:14px; color:var(--crema-deep); font-variant-numeric:tabular-nums}
-  .lb-pts small{font-weight:600; color:var(--muted); font-size:11px}
+  .rlist{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--sh-sm); overflow:hidden}
+  .rlist-row{display:flex; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line)}
+  .rlist-row:last-child{border-bottom:0}
+  .rlist-row.me{background:var(--crema-soft)}
+  .rlist-row.click{cursor:pointer; transition:background .15s}
+  @media(hover:hover){ .rlist-row.click:hover{background:var(--surface2)} .rlist-row.me.click:hover{background:var(--crema-soft)} }
+  .pod-rank{width:24px; font-family:var(--serif); font-weight:700; font-size:16px; color:var(--muted); text-align:center; font-variant-numeric:tabular-nums}
+  .pod-rank.top{color:var(--gold)}
+  .rlist-row .who b{font-size:14px; font-weight:700} .rlist-row .who span{font-size:11.5px; color:var(--muted)}
+  .rlist-val{font-weight:800; font-size:14px; color:var(--crema-deep); font-variant-numeric:tabular-nums}
+  .rlist-val small{font-weight:600; color:var(--muted); font-size:11px}
   /* board rows show the pour itself, not just who poured it */
-  .lb-thumb{width:46px; height:46px; border-radius:12px; overflow:hidden; flex:none; background:var(--surface2)}
-  .lb-thumb img,.lb-thumb svg{width:100%; height:100%; object-fit:cover; display:block}
+  .pod-thumb{width:46px; height:46px; border-radius:12px; overflow:hidden; flex:none; background:var(--surface2)}
+  .pod-thumb img,.pod-thumb svg{width:100%; height:100%; object-fit:cover; display:block}
 
   /* the wordmark reloads the app */
   .appbar .title[data-action="reload"]{cursor:pointer}

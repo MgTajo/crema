@@ -587,7 +587,7 @@ is already in `config.js`), set the private key and hook secret, deploy `send-pu
 | Social | simulated | ✅ real, cross-user — follows, likes, saves, comments, reports, blocks |
 | Signed-out | the whole app | ⛔ removed 2026-07-25 — sign-in gate, no demo mode (see principle 1) |
 | Progression | `level` never moved | ✅ points from real activity; levels on a 1.5x curve (step 1.9) |
-| Leaderboard | computed on read | ✅ live `top_posts` view — pours ranked by likes (replaced the nightly user board, step 1.9) |
+| Leaderboard | computed on read | ✅ replaced by **today's podium** — live `podium_today` view, the day's top three by likes, with each place announced to its author (step 1.18; superseded the all-time `top_posts` board of step 1.9) |
 
 **Open items carried into Phase 2 planning:** Sign in with Apple (needs Developer Program
 enrollment first), account-deletion flow (and its R2/cache purge), Cloudflare cache purge on
@@ -637,7 +637,7 @@ Suggested order, each shippable to TestFlight:
 
 1. **Home** — feed, like, save, open post, comments.
 2. **Profile** — stats, tabs, badges (`domain/scoring.js` already computes these).
-3. **Explore** — search, challenges, leaderboard.
+3. **Explore** — search, challenges, today's podium.
 4. **Cafés** — list + detail (map comes next step).
 5. **Create** — the most complex sheet; do it last, with the real camera.
 

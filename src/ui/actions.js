@@ -61,7 +61,6 @@ document.addEventListener('click',e=>{
     case 'open-tag': pushOv({type:'tag',id}); break;
     case 'open-challenge': openChallenge(id); break;
     case 'open-challenges': pushOv({type:'challenges'}); break;
-    case 'open-board': pushOv({type:'board'}); break;
     case 'open-flist': openFlist(id); break;
     case 'open-scoring': pushOv({type:'scoring'}); break;
     case 'open-streak': pushOv({type:'streak'}); break;

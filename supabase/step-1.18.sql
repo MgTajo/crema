@@ -166,10 +166,18 @@ exception when others then
 end $$;
 
 -- ---------- 7. lock the surface ----------
--- Same rule as everywhere else in Crema: the client reads the view, never
--- the machinery behind it.
-revoke all on function podium_check()      from public, anon, authenticated;
-revoke all on function podium_top(date)    from public, anon, authenticated;
+-- podium_check() writes notifications, so nobody may call it but the
+-- triggers and the cron job, which run as definer.
+revoke all on function podium_check() from public, anon, authenticated;
+
+-- podium_top() deliberately keeps its default EXECUTE. Revoking it looks
+-- tidier and breaks the feature outright: podium_today is
+-- security_invoker, so the *caller's* rights are what get checked when
+-- the view calls the function, and a signed-in client reading the board
+-- got `permission denied for function podium_top`. Nothing leaks by
+-- leaving it — it returns ids and like counts for public pours, which is
+-- strictly less than the view built on top of it already shows.
+grant execute on function podium_top(date) to anon, authenticated;
 
 -- ---------- 8. the old board ----------
 -- top_posts ranked every pour ever posted. Nothing reads it now that the

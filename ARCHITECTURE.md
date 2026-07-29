@@ -31,7 +31,7 @@ A module only imports from layers **below** it. Nothing in `data/`, `domain/`, `
 | Layer | Files | Responsibility | Becomes, in the target app |
 | --- | --- | --- | --- |
 | **core** | `core/util.js` | Pure format/time/dom helpers | Shared utilities (the DOM helpers are the only web-only part) |
-| **data** | `data/assets.js`, `data/catalog.js`, `data/world.js` | The bundled catalog (drinks, machines, milks, levels) and `world.js` — the people / café / challenge / leaderboard maps, which ship **empty** and are filled from the backend | The same, plus a real image CDN |
+| **data** | `data/assets.js`, `data/catalog.js`, `data/world.js` | The bundled catalog (drinks, machines, milks, levels) and `world.js` — the people / café / challenge / podium maps, which ship **empty** and are filled from the backend | The same, plus a real image CDN |
 | **data (backend)** | `data/supabase.js`, `profiles`, `posts`, `social`, `challenges`, `notifications`, `media`, `remote` | The only modules that touch the network: auth + PostgREST + R2, and the row⇄app mapping per domain | The same, pointed at production |
 | **store** | `store/store.js`, `store/persistence.js` | The single source of truth: `state`, `ui`, selectors, and the persistence adapter | The client cache / API layer talking to your backend |
 | **domain** | `domain/art.js`, `domain/scoring.js`, `domain/streak.js` | Craft logic: latte-art rendering, art scores, badges, streak rules | Same logic, shared between client and server — `streak.js` is already duplicated in plpgsql for the reminder job, and the two are fuzzed against each other |
