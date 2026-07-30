@@ -17,8 +17,8 @@
   "maskableIconUrl": "https://crema-app.com/icon-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
-    "path": "/Users/magnus/Documents/Projects/Coding/coffee_lover/android-twa/android.keystore",
-    "alias": "android"
+    "path": "/Users/magnus/Documents/Projects/Coding/coffee_lover/android-twa/pwab/signing.keystore",
+    "alias": "my-key-alias"
   },
   "appVersionName": "1",
   "appVersionCode": 1,
