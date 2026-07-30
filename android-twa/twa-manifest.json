@@ -20,8 +20,8 @@
     "path": "/Users/magnus/Documents/Projects/Coding/coffee_lover/android-twa/pwab/signing.keystore",
     "alias": "my-key-alias"
   },
-  "appVersionName": "1",
-  "appVersionCode": 1,
+  "appVersionName": "1.0.0",
+  "appVersionCode": 2,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://crema-app.com/manifest.webmanifest",
@@ -43,5 +43,5 @@
   "fileHandlers": [],
   "launchHandlerClientMode": "",
   "displayOverride": [],
-  "appVersion": "1"
+  "appVersion": "1.0.0"
 }
