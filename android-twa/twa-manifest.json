@@ -21,7 +21,7 @@
     "alias": "my-key-alias"
   },
   "appVersionName": "1.1.0",
-  "appVersionCode": 3,
+  "appVersionCode": 4,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://crema-app.com/manifest.webmanifest",
