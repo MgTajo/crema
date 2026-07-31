@@ -10,32 +10,64 @@
    In the target app this layer maps onto screen event handlers /
    view-model methods; the store calls it makes stay the same.
    ============================================================ */
-import { $, $$, fmt, withUnit } from '../core/util.js';
+import { $, $$, esc, fmt, withUnit } from '../core/util.js';
 import { DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, MY_BEANS, beanCatalog, combineMachine, splitMachine } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
+import { USERS, CAFES, CHALLENGES, userOf, handleToUid } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
 import { ensureProfile, pushProfile, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
-         setNotifyPrefs , setTimezone } from '../data/profiles.js';
-import { enablePush, disablePush, pushEnabled, syncPush, pushSupported } from '../data/push.js';
+         setNotifyPrefs , setTimezone, fetchProfilesByHandles } from '../data/profiles.js';
+import { enablePush, disablePush, pushEnabled, syncPush, pushSupported, pushPermission } from '../data/push.js';
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, loadChallenges, canEdit,
-         feed } from '../store/store.js';
-import { commentRow, postLink, searchHTML } from './components.js';
+         feed, hydrateReactions } from '../store/store.js';
+import { react, unreact, noReactions } from '../data/reactions.js';
+import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
 import { render, renderView, renderAppbar } from './views.js';
 import { pushOv, popOv, renderOverlay } from './overlays.js';
+import { initHistory } from './history.js';
+
+/* ============================================================ BACK */
+/* Moving to a tab, remembering where you came from. See ui/history.js
+   for why the app has a back stack at all. */
+function navTo(route){
+  if(route!==ui.route){ const i=ui.navStack.indexOf(ui.route); if(i>=0) ui.navStack.splice(i,1); ui.navStack.push(ui.route); }
+  ui.route=route; ui.ovStack=[]; render();
+}
+
+/* One step back: the top sheet if one is open, otherwise the tab you
+   came from. False means there is nothing left, and the Play build
+   should close rather than sit there ignoring the gesture. */
+function goBack(){
+  const top=ui.ovStack[ui.ovStack.length-1];
+  /* Onboarding is the one sheet with no way out — the profile row is
+     half-written until it finishes, and there is no app behind it worth
+     dropping someone into. Back holds still here. */
+  if(top&&top.type==='onboard') return true;
+  if(ui.ovStack.length){ popOv(); return true; }
+  /* Posting, blocking and signing out all drop you on Home without
+     asking the trail about it, so the tab we came from can be the tab we
+     are already on. Skip those rather than spending a back press on a
+     move nobody would see. */
+  while(ui.navStack.length){
+    const to=ui.navStack.pop();
+    if(to!==ui.route){ ui.route=to; render(); return true; }
+  }
+  return false;
+}
+initHistory({ depth: () => ui.ovStack.length + ui.navStack.length, step: goBack });
 
 /* ============================================================ ACTIONS */
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-action]'); if(!t) return;
   const a=t.dataset.action, id=t.dataset.id;
   switch(a){
-    case 'nav':{ ui.route=t.dataset.r; ui.ovStack=[]; render();
+    case 'nav':{ navTo(t.dataset.r);
       /* points move when other people like your pours, so re-read them
          when you look at your own profile rather than only after posting */
       if(ui.route==='profile') refreshScore();
@@ -48,7 +80,7 @@ document.addEventListener('click',e=>{
     case 'open-post': openPost(id); break;
     case 'open-cafe': pushOv({type:'cafe',id}); break;
     case 'open-bean':{ if(BEANS.find(b=>b.n===id)) pushOv({type:'bean',id}); else toast('No details for that bean yet'); break;}
-    case 'open-user':{ if(!id)break; if(id==='me'){ui.ovStack=[]; ui.route='profile'; render();} else openUser(id); break;}
+    case 'open-user':{ if(!id)break; if(id==='me') navTo('profile'); else openUser(id); break;}
     case 'open-notifs':{ const had=state.notifications.some(n=>!n.read); state.notifications.forEach(n=>n.read=true); if(had){save(); renderAppbar();} pushOv({type:'notifs'});
       const u=currentUser(); if(u&&had) markAllRead(u.id).catch(err=>console.warn('mark read failed',err));
       break;}
@@ -78,6 +110,7 @@ document.addEventListener('click',e=>{
     case 'clear-search':{ ui.searchQ=''; renderView(); break;}
 
     case 'like': toggleLike(id); break;
+    case 'react': toggleReaction(id,t.dataset.k); break;
     case 'save': toggleSave(id); break;
     case 'follow': toggleFollow(id); break;
     case 'accept-follow': acceptFollow(id); break;
@@ -99,7 +132,8 @@ document.addEventListener('click',e=>{
           if(err.status===409) return; console.warn('comment like failed',err);
           c.likedByMe=!want; c.likes=(c.likes||0)+(want?-1:1); renderOverlay(); }); }
       break;}
-    case 'cmt-reply':{ const inp=$('#cmt-input'); if(inp){inp.value='@'+(t.dataset.handle||'').replace('@','')+' '; inp.focus();} break;}
+    case 'cmt-reply':{ const inp=$('#cmt-input'); if(inp){inp.value='@'+(t.dataset.handle||'').replace('@','')+' '; inp.focus(); paintMentions(null);} break;}
+    case 'mention-pick': pickMention(t.dataset.h); break;
     case 'add-cmt': addComment(id); break;
 
     case 'share-post': sharePost(id); break;
@@ -171,6 +205,22 @@ function maskRecipeInput(el,unit){
 document.addEventListener('input',e=>{
   const unit=RECIPE_UNITS[e.target.id];
   if(unit){ maskRecipeInput(e.target,unit); return; }
+  if(e.target.id==='cmt-input'){
+    const q=mentionQuery(e.target);
+    paintMentions(q);
+    /* Most people you'd name are already in USERS — but not everyone is,
+       so widen the pool from Postgres too. Debounced; searchProfiles()
+       registers what it finds, which is what the repaint then picks up. */
+    clearTimeout(mentionT);
+    if(q==null||!q.length) return;
+    mentionT=setTimeout(async()=>{
+      const u=currentUser(); if(!u) return;
+      try{ await searchProfiles(u.id,q,6,storeSocial.blocks);
+        if(mentionQuery($('#cmt-input'))===q) paintMentions(q); }
+      catch(err){ console.warn('mention search failed',err); }
+    },250);
+    return;
+  }
   if(e.target.id==='search-input'){ ui.searchQ=e.target.value;
     paintSearch();
     /* People live in Postgres, so searching them is a query. Debounced,
@@ -185,6 +235,74 @@ document.addEventListener('input',e=>{
   }
 });
 let searchT;
+
+/* ---------- @mentions ----------
+   Typing an @ in the comment box opens a short list of people to name.
+   It is painted straight into its own element rather than through
+   renderOverlay(), because repainting the sheet would take the keyboard
+   down and the caret with it — and the whole point is to keep typing. */
+const MENTION_RE=/@([A-Za-z0-9_.]*)$/;
+let mentionT;
+
+/* What is being mentioned at the caret, or null when nothing is. */
+function mentionQuery(inp){
+  if(!inp) return null;
+  const caret=inp.selectionStart==null?inp.value.length:inp.selectionStart;
+  const upto=inp.value.slice(0,caret);
+  const m=upto.match(MENTION_RE); if(!m) return null;
+  /* Only at a word boundary — the @ in an email address is not a
+     mention, and offering to tag someone mid-word is noise. */
+  const before=upto[upto.length-m[0].length-1];
+  if(before!==undefined && !/\s/.test(before)) return null;
+  return m[1];
+}
+
+function paintMentions(q){
+  const box=$('#cmt-mentions'); if(!box) return;
+  if(q==null){ box.innerHTML=''; box.hidden=true; return; }
+  const ql=q.toLowerCase();
+  /* Everyone this session already knows about — authors on the feed,
+     your followers, anyone the search below has turned up. Handle first,
+     because that is what is being typed. */
+  const list=Object.values(USERS)
+    .filter(u=>u&&u.id&&u.id!=='me'&&u.handle)
+    .filter(u=>!ql||u.handle.slice(1).toLowerCase().indexOf(ql)===0||(u.name||'').toLowerCase().includes(ql))
+    .slice(0,6);
+  box.hidden=!list.length;
+  box.innerHTML=list.map(u=>`<button type="button" data-action="mention-pick" data-h="${esc(u.handle.slice(1))}">
+    ${avatar(u.id)}<div class="who"><b>${esc(u.name)}</b><span>${esc(u.handle)}</span></div></button>`).join('');
+}
+
+/* Clicking the list must not blur the input first: the caret is what
+   tells pickMention() which @ to replace. */
+document.addEventListener('mousedown',e=>{ if(e.target.closest('#cmt-mentions')) e.preventDefault(); });
+
+function pickMention(handle){
+  const inp=$('#cmt-input'); if(!inp||!handle) return;
+  const caret=inp.selectionStart==null?inp.value.length:inp.selectionStart;
+  const head=inp.value.slice(0,caret).replace(MENTION_RE,'@'+handle+' ');
+  inp.value=head+inp.value.slice(caret);
+  inp.focus(); inp.setSelectionRange(head.length,head.length);
+  paintMentions(null);
+}
+
+/* The @handles in a thread that we cannot turn into a link yet. */
+function mentionedHandles(comments){
+  const out=[];
+  (comments||[]).forEach(c=>{
+    (String(c.t||'').match(/@[A-Za-z0-9_.]+/g)||[]).forEach(m=>{
+      const h=m.slice(1).toLowerCase();
+      if(h && !handleToUid[h] && out.indexOf(h)<0) out.push(h);
+    });
+  });
+  return out;
+}
+async function resolveHandles(handles){
+  if(!handles.length||!currentUser()) return false;
+  try{ return (await fetchProfilesByHandles(handles)).length>0; }
+  catch(e){ console.warn('mention lookup failed',e); return false; }
+}
+
 function paintSearch(){
   const res=$('#explore-results'), normal=$('#explore-normal');
   if(res&&normal){ res.innerHTML=ui.searchQ?searchHTML(ui.searchQ):''; normal.style.display=ui.searchQ?'none':''; }
@@ -370,9 +488,10 @@ async function turnPushOn(){
   if(r.ok){
     ui.push.enabled=true;
     /* Turning reminders on is the whole reason someone tapped the
-       button, so it starts on rather than making them find a second
-       switch. The recap stays off — they didn't ask for that one. */
-    state.me.notifyStreak=true;
+       button, so the switches are on rather than making them find a
+       second screen. Since step-1.19 they are on by default anyway;
+       this covers anyone who had turned one off and changed their mind. */
+    state.me.notifySocial=true; state.me.notifyStreak=true;
     save();
     try{ await setNotifyPrefs(u.id,state.me); }
     catch(e){ console.warn('notification prefs failed',e); }
@@ -418,7 +537,17 @@ export async function initPush(){
   const u=currentUser(); if(!u) return;
   ui.push=ui.push||{};
   ui.push.enabled=await pushEnabled().catch(()=>false);
-  if(ui.push.enabled) syncPush(u.id).catch(()=>{});
+  if(ui.push.enabled){ syncPush(u.id).catch(()=>{}); return; }
+  /* Permission granted but no subscription. That is the normal state in
+     the Play build — the Android wrapper asks for notification
+     permission itself, so someone can have said yes on install and still
+     never receive anything, because nothing here ever subscribed them.
+     enablePush() only ever prompts when permission is still 'default',
+     so this cannot put a dialog in front of anybody; the one prompt in
+     Crema is still the one behind "Remind me". */
+  if(pushPermission()!=='granted') return;
+  const r=await enablePush(u.id).catch(()=>({ok:false}));
+  if(r&&r.ok){ ui.push.enabled=true; renderOverlay(); }
 }
 
 /* Write the onboarding answers to the profile row. This is the first
@@ -444,7 +573,7 @@ onAuthChange(async s=>{
   await useSession(s);
   if(s) await syncProfile();
   applyMe(); applyTheme();
-  ui.ovStack=[]; ui.route='home'; ui.auth=null; render();
+  ui.ovStack=[]; ui.navStack.length=0; ui.route='home'; ui.auth=null; render();
   if(s){
     if(!state.onboarded){ ui.obStep=1; pushOv({type:'onboard'}); }
     else toast('Signed in ☕');
@@ -677,6 +806,36 @@ function toggleLike(id){
     toast('Couldn\'t save that like');
   });
 }
+/* Reactions repaint their own row rather than the whole card: the card
+   carries a photo, and swapping its HTML to change a chip makes the
+   image blink. Every copy of the row in the DOM is patched, because the
+   feed and the open post sheet can both be showing this pour. */
+function paintReactions(p){
+  $$('[data-reacts="'+p.id+'"]').forEach(el=>el.outerHTML=reactionBar(p));
+}
+function toggleReaction(id,kind){
+  const p=findPost(id); if(!p||!kind) return;
+  /* Refused by RLS as well (step-1.19.sql); the buttons aren't rendered
+     on your own pour either, so this only guards a stray dispatch. */
+  if(p.user==='me'){ toast('Reactions are for other people\'s coffee'); return; }
+  if(!p.reactions) p.reactions=noReactions();
+  if(!p.myReactions) p.myReactions=[];
+  const had=p.myReactions.indexOf(kind)>=0;
+  if(had) p.myReactions=p.myReactions.filter(k=>k!==kind);
+  else p.myReactions=p.myReactions.concat(kind);
+  p.reactions[kind]=Math.max(0,(p.reactions[kind]|0)+(had?-1:1));
+  save(); paintReactions(p);
+
+  const u=currentUser(); if(!u) return;
+  (had?unreact(u.id,id,kind):react(u.id,id,kind)).catch(err=>{
+    if(err.status===409) return;                    // already there; local state is right
+    console.warn('reaction failed',err);
+    if(had) p.myReactions=p.myReactions.concat(kind);
+    else p.myReactions=p.myReactions.filter(k=>k!==kind);
+    p.reactions[kind]=Math.max(0,(p.reactions[kind]|0)+(had?1:-1));
+    save(); paintReactions(p); toast('Couldn\'t save that reaction');
+  });
+}
 function paintSave(p){
   $$('[data-action="save"][data-id="'+p.id+'"]').forEach(b=>{b.classList.toggle('saved',p.saved); b.innerHTML=icon(p.saved?'saveF':'save',22);});
 }
@@ -755,22 +914,39 @@ function toggleFollow(id){
 async function acceptFollow(id){
   const u=currentUser(); if(!u) return;
   const req=storeSocial.requests.find(r=>r.id===id); if(!req) return;
+  const first=(req.user.name||'They').split(' ')[0];
+  const wasFollowing=!!state.follows[id], wasPending=!!state.followPending[id];
+
   storeSocial.requests=storeSocial.requests.filter(r=>r.id!==id);
   storeSocial.counts.followers=(storeSocial.counts.followers|0)+1;
   if(storeSocial.listsLoaded && !storeSocial.followers.some(x=>x.id===id)) storeSocial.followers.push(req.user);
-  renderView(); renderAppbar();
-  toast(`${(req.user.name||'They').split(' ')[0]} can see your pours now`);
+  /* Accepting is mutual now (step-1.19.sql): the database writes the
+     follow back, so the local world has to agree the moment the tap
+     lands, or their profile and the Following tab stay locked until the
+     next reload of something that happens to refetch the graph. */
+  if(!wasFollowing){
+    state.follows[id]=true; state.followPending[id]=false;
+    storeSocial.counts.following=(storeSocial.counts.following|0)+1;
+    if(storeSocial.listsLoaded && !storeSocial.following.some(x=>x.id===id)) storeSocial.following.push(req.user);
+  }
+  save(); renderView(); renderAppbar();
+  toast(wasFollowing ? `${first} can see your pours now` : `You and ${first} now follow each other`);
   try{
     await social.acceptFollow(u.id,id);
-    /* they can see followers-only pours from here on, so the feed they
-       are in is not the feed we already have */
+    /* they can see followers-only pours from here on, and so do we —
+     so the feed they are in is not the feed we already have */
     if(await loadFeed()) renderView();
   }catch(err){
     console.warn('accept failed',err);
     storeSocial.requests.unshift(req);
     storeSocial.counts.followers=Math.max(0,(storeSocial.counts.followers|0)-1);
     storeSocial.followers=storeSocial.followers.filter(x=>x.id!==id);
-    renderView(); toast('Couldn\'t accept that — try again');
+    if(!wasFollowing){
+      state.follows[id]=wasFollowing; state.followPending[id]=wasPending;
+      storeSocial.counts.following=Math.max(0,(storeSocial.counts.following|0)-1);
+      storeSocial.following=storeSocial.following.filter(x=>x.id!==id);
+    }
+    save(); renderView(); toast('Couldn\'t accept that — try again');
   }
 }
 
@@ -791,15 +967,30 @@ async function declineFollow(id){
 async function openPost(id){
   pushOv({type:'post',id});
   const u=currentUser(); if(!u) return;
-  const p=findPost(id); if(!p||p.comments.length) return;
+  const p=findPost(id); if(!p) return;
+  /* Still showing this post? Everything below is a round trip, and the
+     sheet can be gone by the time one lands. */
+  const showing=()=>{ const top=ui.ovStack[ui.ovStack.length-1]; return top&&top.type==='post'&&top.id===id; };
+
+  /* A pour reached from the podium, a notification or someone's grid
+     never went through a feed page, so its reaction tally is still the
+     empty one postOf() gave it. */
+  await hydrateReactions([p]);
+  if(showing()) renderOverlay();
+
+  if(p.comments.length) return;
   try{
     const rows=await social.fetchComments(id);
     p.comments=rows.map(r=>social.commentOf(r,u.id));
     p.commentN=p.comments.length;
     const mine=new Set(await social.fetchMyCommentLikes(rows.map(r=>r.id)));
     p.comments.forEach(c=>{ c.likedByMe=mine.has(c.id); });
-    const top=ui.ovStack[ui.ovStack.length-1];
-    if(top&&top.type==='post'&&top.id===id) renderOverlay();
+    if(showing()) renderOverlay();
+    /* A mention only becomes a link once we know whose handle it is, and
+       the thread can name people who are nowhere else on this screen.
+       After the paint, because a comment reads the same either way and
+       nobody should wait on it. */
+    if(await resolveHandles(mentionedHandles(p.comments)) && showing()) renderOverlay();
   }catch(e){ console.warn('comments failed',e); }
 }
 
@@ -809,7 +1000,7 @@ function addComment(id){
   const c={u:'me',t:text,ago:'now',likes:0};
   p.comments.push(c); if(p.commentN!=null) p.commentN++; save();
   const list=$('#cmt-list'); if(list){if(list.querySelector('.empty')) list.innerHTML=''; list.insertAdjacentHTML('beforeend',commentRow(c,p.id,p.comments.length-1));}
-  inp.value=''; toast('Comment added 💬');
+  inp.value=''; paintMentions(null); toast('Comment added 💬');
   const u=currentUser(); if(!u) return;
   social.addComment(u.id,id,text)
     .then(row=>{ if(row) c.id=row.id; refreshChallenges(); })

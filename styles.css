@@ -356,6 +356,17 @@
   .act.like.own{cursor:default; opacity:.75}
   .act.like.own:hover{background:none}
 
+  /* three named reactions — a second row, never part of the like */
+  .reacts{display:flex; gap:7px; padding:2px 11px 9px; flex-wrap:wrap}
+  .react{display:inline-flex; align-items:center; gap:5px; background:var(--surface2); border:1px solid var(--line2); color:var(--ink2); border-radius:999px; padding:5px 11px; font-size:12px; font-weight:700; cursor:pointer; font-variant-numeric:tabular-nums; transition:transform .12s, background .15s, border-color .15s, color .15s}
+  .react i{font-style:normal; font-size:13px; line-height:1}
+  .react span{color:var(--muted)}
+  .react:active{transform:scale(.9)}
+  .react.on{background:var(--crema-soft); border-color:var(--crema); color:var(--crema-deep)}
+  .react.on span{color:var(--crema-deep)}
+  .react.own{cursor:default; opacity:.65}
+  @media(hover:hover){ .react:not(.own):hover{border-color:var(--crema); color:var(--crema-deep)} }
+
   /* bean passport rows */
   .bean-fl{width:34px; height:34px; border-radius:10px; background:var(--surface2); border:1px solid var(--line);
            display:grid; place-items:center; font-size:17px; flex:none}
@@ -504,6 +515,14 @@
   .cmt .cbody .meta span{cursor:pointer}
   .clike{flex:none; align-self:center; display:flex; flex-direction:column; align-items:center; gap:1px; background:none; border:0; cursor:pointer; color:var(--muted); font-size:10.5px; font-weight:700; padding:4px}
   .clike.on{color:var(--like)}
+  /* who you might mean, while you are typing an @ in the comment box */
+  .mentions{flex:none; max-height:184px; overflow-y:auto; border-top:1px solid var(--line); background:var(--cream)}
+  .mentions button{display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--line); padding:8px 12px; cursor:pointer; color:var(--ink); font:inherit}
+  .mentions .avatar{width:30px; height:30px; font-size:12px; flex:none}
+  .mentions .who{min-width:0}
+  .mentions .who b{display:block; font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .mentions .who span{display:block; font-size:11.5px; color:var(--muted); font-weight:600}
+  @media(hover:hover){ .mentions button:hover{background:var(--surface2)} }
   .composer{flex:none; display:flex; gap:10px; align-items:center; padding:10px 12px; border-top:1px solid var(--line); background:var(--cream)}
   .composer input{flex:1; border:1px solid var(--line2); background:var(--surface); border-radius:999px; padding:11px 15px; font-size:14px; outline:0; color:var(--ink)}
   .composer input:focus{border-color:var(--crema)}

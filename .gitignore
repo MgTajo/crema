@@ -23,3 +23,6 @@ android-twa/build/
 android-twa/*.aab
 android-twa/*.apk
 android-twa/*.idsig
+
+# unzipped AAB module, left behind when inspecting a bundle
+android-twa/base/

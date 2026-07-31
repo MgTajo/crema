@@ -58,10 +58,11 @@ export function rowToMe(row){
        an unrun migration simply leaves them undefined; written only by
        setNotifyPrefs(), never by meToRow — "Save profile" must not be
        able to silently reset what someone chose in the reminders sheet.
-       The defaults match the column defaults. */
-    notifySocial: row.notify_social===undefined ? true  : !!row.notify_social,
-    notifyStreak: row.notify_streak===undefined ? false : !!row.notify_streak,
-    notifyDigest: row.notify_digest===undefined ? false : !!row.notify_digest
+       The defaults match the column defaults, all three on since
+       step-1.19.sql. */
+    notifySocial: row.notify_social===undefined ? true : !!row.notify_social,
+    notifyStreak: row.notify_streak===undefined ? true : !!row.notify_streak,
+    notifyDigest: row.notify_digest===undefined ? true : !!row.notify_digest
   };
 }
 
@@ -224,6 +225,21 @@ export async function fetchSuggestedProfiles(uid, blocked=[], limit=10){
     if(blocked.length) q += `&id=not.in.(${blocked.map(id=>`"${id}"`).join(',')})`;
     return q;
   });
+  return (rows||[]).map(r=>registerUser(rowToUser(r)));
+}
+
+/* Profiles by exact username, for the @mentions in a comment thread.
+   mentionify() can only link a handle it has an id for, so a mention of
+   someone who is nowhere else on the screen renders as plain text —
+   correct, but a dead end. This is what turns it back into a link.
+
+   Handles are stored lowercase (see clean() above), so the lookup
+   lowercases too rather than asking Postgres to. */
+export async function fetchProfilesByHandles(handles, limit=20){
+  const list=[...new Set((handles||[]).map(clean).filter(Boolean))].slice(0,limit);
+  if(!list.length) return [];
+  const rows = await opt.run(has=>
+    `profiles?select=${card(has)}&handle=in.(${list.map(h=>`"${h}"`).join(',')})`);
   return (rows||[]).map(r=>registerUser(rowToUser(r)));
 }
 

@@ -24,6 +24,8 @@ Supabase dashboard → **SQL Editor** → paste and run:
     deployed before it, and the Vault settings go in after it.
 13. [`step-1.17.sql`](step-1.17.sql) — challenges that generate, score and pay out on their own.
     Nothing to configure: it schedules its own weekly job and fills the current week as it runs.
+14. [`step-1.18.sql`](step-1.18.sql) — today's podium, its notifications and its points.
+15. [`step-1.19.sql`](step-1.19.sql) — reactions, mutual follows, @mentions, reminders on by default.
 
 All of them are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
@@ -42,6 +44,28 @@ the first error and retries without it (`optionalColumns()` in
 `src/data/supabase.js`), so avatars stay as initials — but picking a photo
 in Settings says it isn't switched on yet, because there is nowhere to
 store the key.
+
+**`step-1.19.sql` is required by the current app.** Until it runs, the
+three reaction buttons on every post render but every tap fails with a
+404 — `reactions` does not exist yet, and unlike a missing *column* a
+missing *table* is not something `optionalColumns()` can shrug off. It
+also carries three things that are invisible in the schema and worth
+knowing before you run it:
+
+- **Every existing follow becomes mutual.** `follows_backfill_mutual()`
+  writes the reverse row for every accepted follow and promotes any
+  request that was pending the other way. Triggers are off while it runs,
+  so nobody is notified about a relationship they already had. From then
+  on the trigger `follows_reciprocate` does the same for each new accept.
+- **Everyone's reminder switches are turned on**, existing rows included,
+  not just the column defaults. It sends nothing on its own: Web Push
+  still needs the browser's permission, and the only prompt in Crema is
+  still the one behind "Remind me".
+- **Reactions deliberately pay nothing** — no points, no podium, no
+  level. `local-test/step-1.19-test.sql` asserts that, along with the
+  mutual-follow handshake, the mention parser and the two things a client
+  must not be able to do (react to its own pour, grant itself an accepted
+  follow).
 
 **`step-1.18.sql` is required by the current app** — without it Explore's
 podium section stays empty and logs a 404, because `podium_today` does not

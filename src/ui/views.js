@@ -18,6 +18,7 @@ import { postCard, searchHTML, avatar, podiumRow, gcell, followBtn } from './com
 import { icon, logoMark } from './icons.js';
 import { renderOverlay, challengeCard } from './overlays.js';
 import { renderGate } from './gate.js';
+import { arm } from './history.js';
 
 export function renderAppbar(){
   const bar=$('#appbar');
@@ -280,4 +281,4 @@ export function renderView(){
     : ui.route==='home'?renderHome() : ui.route==='explore'?renderExplore() : ui.route==='cafes'?renderCafes() : renderProfile();
   if(reset) v.scrollTop=0;
 }
-export function render(){renderAppbar();renderTabbar();renderView();renderOverlay();}
+export function render(){renderAppbar();renderTabbar();renderView();renderOverlay();arm();}

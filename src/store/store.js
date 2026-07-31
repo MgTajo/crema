@@ -22,6 +22,7 @@ import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMy
 import { fetchChallenges, fetchChallengeWins, fetchPodium } from '../data/challenges.js';
 import { fetchProfileCounts, fetchSuggestedProfiles } from '../data/profiles.js';
 import { fetchNotifications } from '../data/notifications.js';
+import { fetchReactions, noReactions } from '../data/reactions.js';
 import { streakFrom, bestStreakFrom } from '../domain/streak.js';
 import { makePersistence } from './persistence.js';
 
@@ -33,7 +34,9 @@ let persistence=makePersistence(null,KEY);
 export let session=null;
 
 export let state;
-export const ui={route:'home', filter:'today', ovStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
+/* `navStack` is the tabs you can come back to, oldest first — the other
+   half of the back button, alongside `ovStack`. See ui/history.js. */
+export const ui={route:'home', filter:'today', ovStack:[], navStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
 
 /* A brand-new account: nothing invented, nothing borrowed. Everything
    visible after this comes from the user or from the backend. */
@@ -55,12 +58,13 @@ export function freshState(){
     cafeFollow:{},
     customBeans:[], customDrinks:[],
     onboarded:false, theme:'auto',
-    /* notify* mirror the column defaults in step-1.16.sql; the profile
-       row overwrites them on sync. Present here so the reminder switches
+    /* notify* mirror the column defaults, now all three on (step-1.19.sql
+       flipped the streak nudge and the recap from off); the profile row
+       overwrites them on sync. Present here so the reminder switches
        render a real position before the first sync rather than reading
        as "off" and inviting someone to turn on what is already on. */
     me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:'',avatar:'',
-        notifySocial:true,notifyStreak:false,notifyDigest:false},
+        notifySocial:true,notifyStreak:true,notifyDigest:true},
     notifications:[]
   };
 }
@@ -196,17 +200,30 @@ export async function hydrateSocial(){
 
 function applyCounts(counts,list,field){ list.forEach(x=>{ x[field]=counts[x.id]|0; }); }
 
-/* Which of these posts you liked or saved. Per-viewer, so it can't ride
-   along on the cached feed query. */
+/* Which of these posts you liked, saved or reacted to. Per-viewer, so it
+   can't ride along on the cached feed query. */
 async function markMine(list){
   if(!session||!list.length) return list;
   try{
     const ids=list.map(p=>p.id);
-    const [liked,savedIds]=await Promise.all([ fetchMyLikes(session.user.id,ids), fetchMySaves(ids) ]);
+    const [liked,savedIds,reactions]=await Promise.all([
+      fetchMyLikes(session.user.id,ids), fetchMySaves(ids), fetchReactions(ids,session.user.id) ]);
     const L=new Set(liked), S=new Set(savedIds);
-    list.forEach(p=>{ p.likedByMe=L.has(p.id); p.saved=S.has(p.id); });
+    list.forEach(p=>{ p.likedByMe=L.has(p.id); p.saved=S.has(p.id);
+      p.reactions=reactions.counts[p.id]||noReactions();
+      p.myReactions=reactions.mine[p.id]||[]; });
   }catch(e){ console.warn('interaction state failed',e); }
   return list;
+}
+
+/* The same, for one post that arrived outside a feed page — opened from
+   the podium, a notification, or someone's profile grid. */
+export async function hydrateReactions(list){
+  if(!session||!list||!list.length) return;
+  try{
+    const { counts, mine }=await fetchReactions(list.map(p=>p.id), session.user.id);
+    list.forEach(p=>{ p.reactions=counts[p.id]||noReactions(); p.myReactions=mine[p.id]||[]; });
+  }catch(e){ console.warn('reactions failed',e); }
 }
 
 /* Both tabs filter server-side so pagination stays correct.

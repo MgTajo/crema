@@ -20,6 +20,7 @@ import { agoFrom } from '../core/util.js';
 import { rest, optionalColumns } from './supabase.js';
 import { CAFES, registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
+import { noReactions } from './reactions.js';
 
 const COLS = 'id,user_id,drink,art,pattern,quality,image_key,caption,cafe_id,recipe,created_at';
 /* The author embed MUST name the foreign key. posts↔profiles is reachable
@@ -65,7 +66,12 @@ export function postOf(row, myUid){
     ago: agoFrom(row.created_at),
     likes: countOf(row.likes),
     commentN: countOf(row.comments),   // the full thread loads when the post opens
-    likedByMe: false, saved: false, comments: []
+    likedByMe: false, saved: false, comments: [],
+    /* Reactions are their own table and their own request (data/reactions),
+       so a post starts with an empty tally and is filled in once the page
+       it belongs to has been hydrated. Zero is a real answer here — most
+       pours have none — so nothing waits on it. */
+    reactions: noReactions(), myReactions: []
   };
 }
 

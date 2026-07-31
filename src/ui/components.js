@@ -9,11 +9,23 @@ import { esc, fmt, seedOf, initials } from '../core/util.js';
 import { MACHINES, MACHINE_BRANDS, BEANS, ADD_BEAN, MY_BEANS, DRINKS, FREE_DRINKS, ADD_DRINK, beanBrands, beansByBrand, flag } from '../data/catalog.js';
 import { USERS, handleToUid, CAFES, userOf } from '../data/world.js';
 import { state, allPosts, findPost } from '../store/store.js';
+import { REACTIONS } from '../data/reactions.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { icon } from './icons.js';
 
-export function mentionify(t){return esc(t).replace(/@([A-Za-z0-9_.]+)/g,(m,h)=>handleToUid[h]?`<span class="mention" data-action="open-user" data-id="${handleToUid[h]}">${m}</span>`:m);}
+/* @handles become links to the person named, when we know who that is.
+   Case-insensitive on purpose: handles are stored lowercase, but nobody
+   types a name that way, and a mention that fails to link because it was
+   capitalised is a mention that looks broken. An unknown handle stays
+   plain text — see fetchProfilesByHandles() for how a comment thread
+   turns its unknowns into knowns. */
+export function mentionify(t){
+  return esc(t).replace(/@([A-Za-z0-9_.]+)/g,(m,h)=>{
+    const uid=handleToUid[h]||handleToUid[h.toLowerCase()];
+    return uid?`<span class="mention" data-action="open-user" data-id="${uid}">${m}</span>`:m;
+  });
+}
 
 /* A photo if they picked one, initials on their generated colour if they
    didn't. The initials are always in the markup and the photo sits on top
@@ -141,6 +153,30 @@ export function likeButton(p,size=22){
   return `<button class="act like ${p.likedByMe?'liked':''}" data-action="like" data-id="${p.id}" aria-label="Like">${icon(p.likedByMe?'heartF':'heart',size)} <span class="cnt">${fmt(p.likes)}</span></button>`;
 }
 
+/* ----- reactions -----
+   Three named ways to say what you liked, next to the heart but never
+   part of it. A like is the app's currency: it moves points and it
+   decides the podium. A reaction is a sentence you didn't have to type
+   and is worth nothing anywhere — no points, no podium, no level. Both
+   can be true of one pour at once, which is why this is a second row
+   rather than a replacement for the first.
+
+   Your own pour shows the tally without the buttons, exactly as the like
+   count does. The counts mean "other people said so", and the database
+   refuses a self-reaction anyway (supabase/step-1.19.sql). */
+export function reactionBar(p){
+  const mine=p.myReactions||[], n=p.reactions||{}, own=p.user==='me';
+  const cells=REACTIONS.map(([k,emoji,label,hint])=>{
+    const c=n[k]|0, on=mine.indexOf(k)>=0;
+    const inner=`<i>${emoji}</i>${label}${c?`<span>${fmt(c)}</span>`:''}`;
+    return own
+      ? `<div class="react own" title="${esc(hint)}">${inner}</div>`
+      : `<button class="react${on?' on':''}" data-action="react" data-id="${p.id}" data-k="${k}"
+           title="${esc(hint)}" aria-pressed="${on}" aria-label="${esc(hint)}">${inner}</button>`;
+  }).join('');
+  return `<div class="reacts" data-reacts="${p.id}">${cells}</div>`;
+}
+
 /* An edited pour says so — in the timestamp line, in the same dimmed
    type as the rest of it. Honest, and quiet enough that nobody has to
    feel watched for fixing a typo. */
@@ -171,6 +207,7 @@ export function postCard(p){
       <button class="act" data-action="share-post" data-id="${p.id}" aria-label="Share">${icon('send',20)}</button>
       <div class="grow"></div>
       <button class="act save ${p.saved?'saved':''}" data-action="save" data-id="${p.id}" aria-label="Save">${icon(p.saved?'saveF':'save',22)}</button></div>
+    ${reactionBar(p)}
     <div class="p-body">
       <div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
       <div class="chips">

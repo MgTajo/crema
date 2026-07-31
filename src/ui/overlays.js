@@ -16,16 +16,31 @@ import { REST_AFTER } from '../domain/streak.js';
 import { pushSupported, iosNeedsInstall, pushPermission } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, gcell, commentCount, likeButton, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
+import { arm } from './history.js';
 
-export function pushOv(o){ui.ovStack.push(o); renderOverlay();}
-export function popOv(){ui.ovStack.pop(); renderOverlay(); if(!ui.ovStack.length){renderView(); renderAppbar();}}
+export function pushOv(o){ui.ovStack.push(o); renderOverlay(); arm();}
+export function popOv(){ui.ovStack.pop(); renderOverlay(); if(!ui.ovStack.length){renderView(); renderAppbar();} arm();}
+
+/* Which sheet the DOM currently holds, so a repaint of the same one can
+   be told from a different one opening. */
+let painted=null;
 
 export function renderOverlay(){
   const ov=$('#overlay'), top=ui.ovStack[ui.ovStack.length-1];
-  if(!top){ov.className='overlay'; ov.innerHTML=''; return;}
+  if(!top){ov.className='overlay'; ov.innerHTML=''; painted=null; return;}
+  /* Replacing the sheet's HTML destroys the element that was scrolled,
+     and a fresh one always starts at the top — which is why picking a
+     machine halfway down the recipe form, or a milk in Settings, threw
+     you back to the first field. Remember where the body was and put it
+     back, but only when the SAME sheet is being repainted: a different
+     sheet is a different document and belongs at its top. */
+  const key=top.type+':'+(top.id||'');
+  const body=ov.querySelector('.ov-body');
+  const keep=(key===painted&&body)?body.scrollTop:0;
+  painted=key;
   ov.className='overlay show';
   const T=top.type;
   ov.innerHTML =
@@ -47,6 +62,7 @@ export function renderOverlay(){
     T==='onboard'?overlayOnboard():
     T==='password'?overlayPassword():
     T==='create'?overlayCreate():'';
+  if(keep){ const next=ov.querySelector('.ov-body'); if(next) next.scrollTop=keep; }
 }
 
 function overlayPost(id){
@@ -65,13 +81,15 @@ function overlayPost(id){
         <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="More options">⋯</button></div>
       <div class="p-body"><div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
         <div class="chips"><span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
+      ${reactionBar(p)}
       ${rows.length?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0">${recipePanel(r)}
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ Brew this recipe</button></div></div></div>`:''}
       <div style="padding:14px 14px 4px;font-weight:700;font-family:var(--serif);font-size:16px">${commentCount(p)} comments</div>
       <div id="cmt-list">${p.comments.length?p.comments.map((c,i)=>commentRow(c,p.id,i)).join(''):
         (commentCount(p)?`<div class="empty" style="padding:24px">Loading comments…</div>`:`<div class="empty" style="padding:24px">Be the first to comment.</div>`)}</div>
     </div>
-    <div class="composer">${avatar('me')}<input id="cmt-input" placeholder="Add a comment…" data-enter="add-cmt" data-id="${p.id}" aria-label="Add a comment"><button class="send" data-action="add-cmt" data-id="${p.id}" aria-label="Send">${icon('sendF',20)}</button></div>
+    <div class="mentions" id="cmt-mentions" hidden></div>
+    <div class="composer">${avatar('me')}<input id="cmt-input" placeholder="Add a comment… use @ to name someone" data-enter="add-cmt" data-id="${p.id}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Add a comment"><button class="send" data-action="add-cmt" data-id="${p.id}" aria-label="Send">${icon('sendF',20)}</button></div>
   </div>`;
 }
 
