@@ -36,7 +36,7 @@ export function renderAppbar(){
     bar.innerHTML=`<div class="title" data-action="reload" title="Reload Crema">${logoMark()} Crema</div><div class="actions">${streakChip}${bell}</div>`;
   }
   else if(ui.route==='explore') bar.innerHTML=`<div class="title">Explore</div><div class="actions">${bell}</div>`;
-  else if(ui.route==='cafes') bar.innerHTML=`<div class="title">Cafés</div><div class="actions">${USERS.me.city?`<div class="streak" style="background:var(--pm1);border-color:var(--pm2);color:var(--green)">📍 ${esc(USERS.me.city)}</div>`:''}${bell}</div>`;
+  else if(ui.route==='cafes') bar.innerHTML=`<div class="title">Cafés</div><div class="actions">${USERS.me.city?`<div class="streak" style="background:var(--pm1);border-color:var(--pm2);color:var(--green)">${icon('cafe',14)} ${esc(USERS.me.city)}</div>`:''}${bell}</div>`;
   else if(ui.route==='profile') bar.innerHTML=`<div class="title">Profile</div><div class="actions"><button class="iconbtn" data-action="open-settings" aria-label="Settings">${icon('gear',20)}</button></div>`;
 }
 
@@ -222,8 +222,8 @@ export function renderProfile(){
       <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return cat?`<div class="bean" data-action="open-bean" data-id="${esc(cat.n)}"><span class="fl">${flag[cat.c]||'🫘'}</span>${cat.n}</div>`:`<div class="bean" data-action="toast" data-msg="Your own bean — details coming soon">🫘 ${esc(n)}</div>`;}).join('')}</div></div>`:'';
   return `<div class="pad">
     <div class="prof-top"><div class="prof-av" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px;cursor:pointer" data-action="open-settings" title="Change your photo in Settings">${initials(u.name)}${u.avatar?`<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}</div>
-      <div class="prof-id"><b>${esc(u.name)}</b><div class="h">${u.handle}${u.city?` · 📍 ${esc(u.city)}`:''}</div>
-        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} Level ${lvl[0]} · ${lvl[1]}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:linear-gradient(135deg,#f5d78a,#e0b25a);color:#5a3d17;border-color:#e6c98a">✦ PREMIUM</span>`:''}</div></div>
+      <div class="prof-id"><b>${esc(u.name)}</b><div class="h">${u.handle}${u.city?` · ${esc(u.city)}`:''}</div>
+        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} Level ${lvl[0]} · ${lvl[1]}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:var(--gold);color:var(--on-crema);border-color:transparent">PREMIUM</span>`:''}</div></div>
     <div class="bio">${bioHTML}</div>
     <div class="lvlbar" data-action="open-scoring" style="cursor:pointer">
       <div class="top"><b>${fmt(points)} points</b><span>${next?`${fmt(next[2]-points)} to ${next[1]}`:'Top level reached'}</span></div>
@@ -272,7 +272,7 @@ export function renderTabbar(){
   if(!session){ bar.innerHTML=''; bar.hidden=true; return; }
   bar.hidden=false;
   const t=(r,ic,icF,label)=>`<button class="tab ${ui.route===r?'on':''}" data-action="nav" data-r="${r}"><span class="ic">${icon(ui.route===r&&icF?icF:ic,25)}</span><span>${label}</span></button>`;
-  bar.innerHTML=t('home','home','homeF','Home')+t('explore','compass','compass','Explore')+`<button class="tab plus" data-action="open-create" aria-label="New coffee"><span class="fab">${icon('plus',26)}</span></button>`+t('cafes','cup','cup','Cafés')+t('profile','user','userF','You');
+  bar.innerHTML=t('home','home','homeF','Home')+t('explore','compass','compass','Explore')+`<button class="tab plus" data-action="open-create" aria-label="New coffee"><span class="fab">${icon('plus',26)}</span></button>`+t('cafes','cafe','cafe','Cafés')+t('profile','user','userF','You');
 }
 export function renderView(){
   const v=$('#view'), route=session?ui.route:'gate';

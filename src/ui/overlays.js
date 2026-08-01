@@ -99,7 +99,7 @@ function overlayCafe(id){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${c.name}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${c.name}</b></div>
     <div class="ov-body">
-      <div style="height:130px;background:linear-gradient(135deg,${c.color},#3a271a);position:relative"><div style="position:absolute;left:16px;bottom:-26px">${cafeThumb(c)}</div></div>
+      <div style="height:130px;background:linear-gradient(135deg,${c.color},#24170F);position:relative"><div style="position:absolute;left:16px;bottom:-26px">${cafeThumb(c)}</div></div>
       <div style="padding:34px 16px 8px"><b style="font-family:var(--serif);font-size:22px">${c.name}</b>
         <div style="color:var(--muted);font-size:13px;margin:3px 0 10px">${c.spec} · ${c.area}, ${c.city}</div>
         <div class="chips" style="margin:0 0 12px"><span class="chip"><span class="star">★ ${c.rating}</span></span><span class="chip">${fmt(c.followers)} followers</span>${c.hours?`<span class="chip" style="color:${c.hours.startsWith('Open')?'var(--green)':'var(--terra)'}">${esc(c.hours)}</span>`:''}</div>
@@ -163,7 +163,7 @@ function overlayUser(uid){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${u.name}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="Back">${icon('back',20)}</button><b>${u.name}</b></div>
     <div class="ov-body">
-      <div style="height:96px;background:linear-gradient(135deg,${u.color},#3a271a)"></div>
+      <div style="height:96px;background:linear-gradient(135deg,${u.color},#24170F)"></div>
       <div style="padding:0 16px 20px">
         <div style="display:flex;align-items:flex-end;gap:12px;margin-top:-28px">
           ${avatar(uid,'xl')}
@@ -548,7 +548,7 @@ function overlaySettings(){
       <button class="btn block" data-action="save-profile">Save profile</button>
       <div class="rlabel" style="margin-top:18px">Crema Premium</div>
       ${m.premium
-        ? `<div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">✦</div><div style="flex:1">Premium active<div style="font-size:11.5px;color:var(--muted);font-weight:500">Add your own coffees · early features</div></div><span class="lvlchip" style="background:linear-gradient(135deg,#f5d78a,#e0b25a);color:#5a3d17;border-color:#e6c98a">ACTIVE</span></div>
+        ? `<div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">✦</div><div style="flex:1">Premium active<div style="font-size:11.5px;color:var(--muted);font-weight:500">Add your own coffees · early features</div></div><span class="lvlchip" style="background:var(--gold);color:var(--on-crema);border-color:transparent">ACTIVE</span></div>
            <button class="btn ghost block" data-action="toggle-premium">Turn Premium off</button>`
         : `<div style="background:linear-gradient(135deg,var(--st1),var(--st2));border:1px solid var(--st3);border-radius:var(--r-sm);padding:14px;margin-bottom:2px">
              <b style="font-family:var(--serif);font-size:16px;color:var(--st4)">✦ Crema Premium</b>

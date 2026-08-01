@@ -14,13 +14,32 @@
    ============================================================ */
 import { rest } from './supabase.js';
 
-/* kind · emoji · button label · what it means, in the tooltip.
-   The order is the order they appear in, and it is the order the eye
-   reads the photo in: the cup first, then the room, then what's in it. */
+/* kind · icon name (ui/icons.js) · button label · what it means, in the
+   tooltip.
+
+   All three read "Nice ___", because that is what they are: three
+   compliments about three different parts of the same photo. The
+   parallel wording is the point — one glance says these are alternatives
+   to each other, and the icon says which part each one is about. A
+   rosetta is latte art, a pin is a place, a bean is the coffee; nobody
+   has to read the label to guess right.
+
+   Line icons rather than emoji, per §06: they inherit the chip's colour,
+   so a picked reaction goes Roast along with its label instead of
+   sitting there in a foreign palette.
+
+   The `kind` keys are what the database stores and are deliberately
+   unchanged — supabase/step-1.19.sql constrains them and builds its
+   notification wording from them ("loved your latte art", "loved where
+   you had it", "loved your choice of coffee"), which is still exactly
+   what these three say.
+
+   The order is the order the eye reads the photo in: the cup first,
+   then the room, then what's in it. */
 export const REACTIONS = [
-  ['art',   '🎨', 'Art',     'Beautiful latte art'],
-  ['scene', '🪴', 'Setting', 'Lovely spot for it'],
-  ['drink', '✨', 'Drink',   'A coffee you don\'t see every day']
+  ['art',   'rosetta', 'Nice pour', 'Beautiful latte art'],
+  ['scene', 'cafe',    'Nice spot', 'Lovely place to have it'],
+  ['drink', 'bean',    'Nice pick', 'A good choice of coffee']
 ];
 export const REACTION_KINDS = REACTIONS.map(r=>r[0]);
 

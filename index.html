@@ -4,11 +4,18 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta name="color-scheme" content="light dark" />
-<meta name="theme-color" content="#fbf6ef" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#1e1712" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#F7F1E7" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#17100B" media="(prefers-color-scheme: dark)" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-192.png" />
+<!-- Brand type: Newsreader speaks, Public Sans works, JetBrains Mono counts.
+     Cross-origin, so sw.js never intercepts it — offline the stack in
+     styles.css falls back to the platform serif/sans/mono and the app
+     still reads. `display=swap` keeps first paint honest either way. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
 <title>Crema — coffee, brewed social</title>
 </head>
@@ -16,12 +23,14 @@
   <div class="stage">
     <div class="pitch">
       <div class="mark">
-        <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="#fff" stroke="#e6d3b8"/><circle cx="20" cy="20" r="14" fill="#8a5a30"/><path d="M20 13c-4 3-4 8 0 11 4-3 4-8 0-11z" fill="#f3e6d2"/></svg>
+        <!-- The mark: a cup from above, the disc in Roast, the heart in foam.
+             Clear space on all sides equals the heart's height (§02). -->
+        <svg width="44" height="44" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="#8A5A28"/><path transform="translate(11.1,11.1) scale(.178)" fill="#F5EADA" d="M50 92C50 92 6 62 6 34.5 6 18.5 17.5 8 30.5 8 39.5 8 46 13.2 50 20.5 54 13.2 60.5 8 69.5 8 82.5 8 94 18.5 94 34.5 94 62 50 92 50 92Z"/></svg>
         <b>Crema</b>
       </div>
-      <h1>Every pour is progress.</h1>
-      <p>A social home for coffee craft — post your latte art, log your recipes, watch your skill grow, and discover the cafés doing it best. Strava for the morning ritual.</p>
-      <div class="tags"><span>☕ Home baristas</span><span>📈 Skill progress</span><span>🗺️ Café discovery</span><span>🎯 Weekly challenges</span></div>
+      <h1>A cup a day.</h1>
+      <p>Crema is where people keep a record of the coffee they make, and see what everyone else made this morning. Real beans, real cafés, streaks built from real timestamps.</p>
+      <div class="tags"><span>Log every cup</span><span>Keep the streak</span><span>See the morning</span><span>Beans you can actually buy</span></div>
       <footer class="site-footer">
         <a href="impressum/">Impressum</a>
         <span aria-hidden="true">·</span>

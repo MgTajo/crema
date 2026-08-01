@@ -137,7 +137,7 @@ export function recipeRows(r){
 }
 export function recipePanel(r){
   const rows=recipeRows(r); if(!rows.length) return '';
-  return `<div class="recipe-grid">${rows.map(x=>x[0]==='bean'?`<div class="recipe-bean">🫘 <div><span>${x[1]}</span><b>${esc(x[2])}</b></div></div>`:x[0]==='mach'?`<div class="recipe-mach"><span>${x[1]}</span><b>${esc(x[2])}</b></div>`:`<div><span>${x[1]}</span><b>${esc(x[2])}</b></div>`).join('')}</div>`;
+  return `<div class="recipe-grid">${rows.map(x=>x[0]==='bean'?`<div class="recipe-bean"><span class="g">${icon('bean',18)}</span><div><span>${x[1]}</span><b>${esc(x[2])}</b></div></div>`:x[0]==='mach'?`<div class="recipe-mach"><span>${x[1]}</span><b>${esc(x[2])}</b></div>`:`<div><span>${x[1]}</span><b>${esc(x[2])}</b></div>`).join('')}</div>`;
 }
 export const recipeBtnLabel=r=>(r.dose&&r.yield)?`Recipe · ${r.dose} in → ${r.yield} out`:'Recipe';
 
@@ -154,21 +154,21 @@ export function likeButton(p,size=22){
 }
 
 /* ----- reactions -----
-   Three named ways to say what you liked, next to the heart but never
-   part of it. A like is the app's currency: it moves points and it
-   decides the podium. A reaction is a sentence you didn't have to type
-   and is worth nothing anywhere — no points, no podium, no level. Both
-   can be true of one pour at once, which is why this is a second row
-   rather than a replacement for the first.
+   Three compliments — "Nice pour", "Nice spot", "Nice pick" — next to
+   the heart but never part of it. A like is the app's currency: it moves
+   points and it decides the podium. A reaction is a sentence you didn't
+   have to type and is worth nothing anywhere — no points, no podium, no
+   level. Both can be true of one pour at once, which is why this is a
+   second row rather than a replacement for the first.
 
    Your own pour shows the tally without the buttons, exactly as the like
    count does. The counts mean "other people said so", and the database
    refuses a self-reaction anyway (supabase/step-1.19.sql). */
 export function reactionBar(p){
   const mine=p.myReactions||[], n=p.reactions||{}, own=p.user==='me';
-  const cells=REACTIONS.map(([k,emoji,label,hint])=>{
+  const cells=REACTIONS.map(([k,ic,label,hint])=>{
     const c=n[k]|0, on=mine.indexOf(k)>=0;
-    const inner=`<i>${emoji}</i>${label}${c?`<span>${fmt(c)}</span>`:''}`;
+    const inner=`<i>${icon(ic,15)}</i>${label}${c?`<span>${fmt(c)}</span>`:''}`;
     return own
       ? `<div class="react own" title="${esc(hint)}">${inner}</div>`
       : `<button class="react${on?' on':''}" data-action="react" data-id="${p.id}" data-k="${k}"
@@ -204,7 +204,7 @@ export function postCard(p){
     <div class="p-act">
       ${likeButton(p)}
       <button class="act" data-action="open-post" data-id="${p.id}" aria-label="Comments">${icon('chat',22)} ${cn}</button>
-      <button class="act" data-action="share-post" data-id="${p.id}" aria-label="Share">${icon('send',20)}</button>
+      <button class="act" data-action="share-post" data-id="${p.id}" aria-label="Share">${icon('share',20)}</button>
       <div class="grow"></div>
       <button class="act save ${p.saved?'saved':''}" data-action="save" data-id="${p.id}" aria-label="Save">${icon(p.saved?'saveF':'save',22)}</button></div>
     ${reactionBar(p)}
@@ -213,9 +213,9 @@ export function postCard(p){
       <div class="chips">
         <span class="chip drinkchip">${esc(p.drink||'Coffee')}</span>
         ${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}
-        ${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}
+        ${r&&r.milk?`<span class="chip"><span class="g">${icon('milk',12)}</span>${esc(r.milk)}</span>`:''}
         ${r&&r.machine?`<span class="chip"><span class="g">${icon('mach',12)}</span>${esc(r.machine)}</span>`:''}
-        ${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}
+        ${p.cafe?`<span class="chip"><span class="g">${icon('cafe',12)}</span>${esc(p.cafe)}</span>`:''}
       </div>
       ${rows.length?`<button class="recipe-btn" data-action="recipe" data-id="${p.id}">☕ ${recipeBtnLabel(r)} ▾</button>
       <div class="recipe-panel" id="rp-${p.id}">${recipePanel(r)}

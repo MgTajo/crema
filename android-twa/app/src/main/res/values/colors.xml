@@ -15,4 +15,8 @@
 -->
 <resources>
     <color name="shortcut_background">#F5F5F5</color>
+    <!-- The plate behind the adaptive icon. Brand guidelines §03: the disc
+         sits on the cream field, not on white — a white plate showed as a
+         ring around the tile on every launcher that masks to a circle. -->
+    <color name="ic_launcher_background">#F5EADA</color>
 </resources>
