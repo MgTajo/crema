@@ -4,7 +4,9 @@
     "namespace": "android_app",
     "package_name": "com.crema_app.android",
     "sha256_cert_fingerprints": [
+      "4D:B7:DD:F4:BC:C0:2A:B6:07:3F:14:C9:B0:BF:FE:44:A6:E8:32:B9:70:CF:85:A8:4A:D1:D7:DD:5C:30:19:92",
       "92:FB:2E:C8:DA:30:9A:DF:9F:E5:C5:77:B2:85:01:D5:6A:9B:BF:FE:96:4E:03:E8:E1:1C:A3:C3:B4:84:82:2D",
+      "96:62:E5:20:C7:70:D1:D1:BC:71:34:94:04:BA:DF:08:AB:AB:E2:92:10:37:AF:99:0D:4D:62:D4:A4:20:F3:92",
       "01:1A:73:4E:76:F1:86:C9:A2:5C:91:3C:3C:DA:D6:F8:39:57:5A:04:4B:24:A6:D0:E0:20:52:85:F3:7B:A6:A6"
     ]
   }
