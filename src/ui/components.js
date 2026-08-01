@@ -168,7 +168,7 @@ export function reactionBar(p){
   const mine=p.myReactions||[], n=p.reactions||{}, own=p.user==='me';
   const cells=REACTIONS.map(([k,ic,label,hint])=>{
     const c=n[k]|0, on=mine.indexOf(k)>=0;
-    const inner=`<i>${icon(ic,15)}</i>${label}${c?`<span>${fmt(c)}</span>`:''}`;
+    const inner=`<i>${icon(ic,14)}</i>${label}${c?`<span>${fmt(c)}</span>`:''}`;
     return own
       ? `<div class="react own" title="${esc(hint)}">${inner}</div>`
       : `<button class="react${on?' on':''}" data-action="react" data-id="${p.id}" data-k="${k}"

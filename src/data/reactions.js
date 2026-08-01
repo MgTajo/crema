@@ -17,12 +17,11 @@ import { rest } from './supabase.js';
 /* kind · icon name (ui/icons.js) · button label · what it means, in the
    tooltip.
 
-   All three read "Nice ___", because that is what they are: three
-   compliments about three different parts of the same photo. The
-   parallel wording is the point — one glance says these are alternatives
-   to each other, and the icon says which part each one is about. A
-   rosetta is latte art, a pin is a place, a bean is the coffee; nobody
-   has to read the label to guess right.
+   Three compliments about three different parts of the same photo. Each
+   label names the part it is about rather than describing the feeling,
+   and the icon says the same thing again without words: a rosetta is
+   latte art, a pin is a place, a bean is the coffee. Nobody has to read
+   the label to guess right.
 
    Line icons rather than emoji, per §06: they inherit the chip's colour,
    so a picked reaction goes Roast along with its label instead of
@@ -37,9 +36,9 @@ import { rest } from './supabase.js';
    The order is the order the eye reads the photo in: the cup first,
    then the room, then what's in it. */
 export const REACTIONS = [
-  ['art',   'rosetta', 'Nice pour', 'Beautiful latte art'],
-  ['scene', 'cafe',    'Nice spot', 'Lovely place to have it'],
-  ['drink', 'bean',    'Nice pick', 'A good choice of coffee']
+  ['art',   'rosetta', 'Great art',      'Beautiful latte art'],
+  ['scene', 'cafe',    'Nice spot',      'Lovely place to have it'],
+  ['drink', 'bean',    'Unique coffee',  'A coffee you don\'t see every day']
 ];
 export const REACTION_KINDS = REACTIONS.map(r=>r[0]);
 

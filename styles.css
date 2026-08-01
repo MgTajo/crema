@@ -391,15 +391,23 @@
   /* Three compliments — a second row, never part of the like.
      Each chip is icon + "Nice ___" + its count, and the icon inherits
      the chip's colour so picking one turns the whole chip Roast. */
-  /* One row of three equal segments, always. Three chips of different
-     widths wrapping onto two lines read as a list you could add to; three
-     equal ones read as a choice between three things, which is what this
-     is. Equal columns also keep the labels from reflowing as the counts
-     tick up. */
-  .reacts{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; padding:2px 11px 10px}
-  .react{display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:0; background:var(--surface2); border:1px solid transparent; color:var(--ink2); border-radius:999px; padding:7px 8px; font-size:12.5px; font-weight:500; white-space:nowrap; cursor:pointer; transition:transform .12s, background .15s, border-color .15s, color .15s}
+  /* Three chips that fill their rows. Equal thirds were tidier, but
+     thirds are a fixed budget and "Unique coffee" beside a three-digit
+     tally does not fit one on a 375px phone — it spilled out of the
+     card. So: never narrower than their own content (min-width:max-content,
+     which is what stops the overflow), free to grow into whatever the
+     row has left (flex:1), and free to wrap when three won't fit.
+
+     Growing is what makes the wrap look deliberate rather than left
+     over: two chips share the first row edge to edge and the third
+     takes the second, instead of a full line and one orphan.
+
+     The type is a step down from the caption below on purpose — these
+     are controls, not something to read. */
+  .reacts{display:flex; flex-wrap:wrap; gap:6px; padding:2px 11px 10px}
+  .react{display:inline-flex; flex:1 1 auto; min-width:max-content; align-items:center; justify-content:center; gap:5px; background:var(--surface2); border:1px solid transparent; color:var(--ink2); border-radius:999px; padding:7px 10px; font-size:11.5px; font-weight:500; white-space:nowrap; cursor:pointer; transition:transform .12s, background .15s, border-color .15s, color .15s}
   .react i{display:grid; place-items:center; font-style:normal; line-height:0; opacity:.75}
-  .react span{font-family:var(--mono); font-size:11.5px; font-weight:500; color:var(--muted); font-variant-numeric:tabular-nums}
+  .react span{font-family:var(--mono); font-size:11px; font-weight:500; color:var(--muted); font-variant-numeric:tabular-nums}
   .react:active{transform:scale(.94)}
   .react.on{background:var(--crema-soft); border-color:var(--crema); color:var(--crema-deep); font-weight:600}
   .react.on i{opacity:1}
