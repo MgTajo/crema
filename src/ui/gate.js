@@ -2,12 +2,15 @@
 /* ============================================================
    ui/gate — the sign-in screen.
 
-   Crema needs an account: your pours, follows and challenge entries are
-   rows that belong to a user, so there is nothing meaningful to show
-   before we know who you are. This screen is the whole app until then —
-   it replaces the feed, and there is no tab bar to escape it with.
+   Not the front door any more. A visitor with no session lands on
+   today's public feed and reads it as a guest; this screen is where they
+   arrive once they reach for something that belongs to an account —
+   posting, liking, following, their own profile. So it is answering a
+   question they just asked rather than blocking the door, and it keeps a
+   way back to what they were reading (`ui.gate`, ui/views.js).
 
-   It is a *screen*, not an overlay, on purpose: overlays can be popped.
+   It is a *screen*, not an overlay, on purpose: overlays can be popped,
+   and a half-finished sign-up shouldn't be.
 
    The session is stored in localStorage by data/supabase.js and only
    discarded when the server rejects it, so a returning visitor lands
@@ -67,6 +70,7 @@ export function renderGate(){
     ${body}
     <div style="font-size:11px;color:var(--muted);margin-top:20px;text-align:center;line-height:1.55">
       Your coffee log is stored in the EU and is yours alone.<br>Crema never posts anything without you.</div>
+    <div style="text-align:center;margin-top:18px;font-size:13px;color:var(--muted);cursor:pointer" data-action="guest-back">← Keep looking at today's pours</div>
     <div style="height:20px"></div>
   </div>`;
 }

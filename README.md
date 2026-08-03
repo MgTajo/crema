@@ -2,7 +2,8 @@
 
 A prototype social network for coffee lovers — post any coffee (latte art or not), log recipes, track your skill, join challenges, and discover cafés. *Strava for the morning ritual.*
 
-**Live app:** https://crema-app.com — sign-in required; there is no demo mode.
+**Live app:** https://crema-app.com — open it and today's pours are right there. An account is
+asked for when you act (post, like, follow), never to look.
 
 This is a **static, self-contained web app** — plain HTML/CSS/JS, **no build step, no bundler, no dependencies**. The code is organised as native **ES modules** under [`src/`](src/) in clean layers (data → store → domain → ui), so it can grow into a real product. It installs as a **PWA** when served over HTTPS.
 

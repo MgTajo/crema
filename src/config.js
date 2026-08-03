@@ -11,9 +11,9 @@
    The service_role key must NEVER appear in this file or any other
    file the browser can fetch. It bypasses RLS entirely.
 
-   Both values are required: Crema has no offline/demo mode. With
-   either one blank the app can only show the sign-in screen and say
-   it isn't configured.
+   Both values are required, for guests as much as for members: there is
+   no bundled sample feed to fall back on. With either one blank the app
+   can only show the sign-in screen and say it isn't configured.
    ============================================================ */
 
 export const SUPABASE_URL = 'https://diabtvahplwoipvrprvb.supabase.co';

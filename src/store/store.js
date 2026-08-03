@@ -30,13 +30,23 @@ export const KEY='crema_v11';
 let persistence=makePersistence(null,KEY);
 
 /* The auth session, or null when signed out. Exported as a live binding
-   so views can read it without importing the auth client. */
+   so views can read it without importing the auth client.
+
+   Null no longer means "there is no app". A signed-out visitor is a
+   *guest*: they read today's public feed and the pours on it, and every
+   attempt to act asks them to sign in (ui.gate below, ui/actions.js).
+   So `session` answers "who is this", never "is there anything to
+   show" — the selectors below work either way. */
 export let session=null;
 
 export let state;
 /* `navStack` is the tabs you can come back to, oldest first — the other
    half of the back button, alongside `ovStack`. See ui/history.js. */
-export const ui={route:'home', filter:'today', ovStack:[], navStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
+/* `gate` is the sign-in screen showing *instead of* the guest feed. It
+   is only ever true while signed out, and it is a screen rather than a
+   sheet for the same reason it always was: sheets can be popped by
+   accident, and half-finished sign-ups can't be. */
+export const ui={route:'home', filter:'today', gate:false, ovStack:[], navStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
 
 /* A brand-new account: nothing invented, nothing borrowed. Everything
    visible after this comes from the user or from the backend. */
@@ -201,9 +211,21 @@ export async function hydrateSocial(){
 function applyCounts(counts,list,field){ list.forEach(x=>{ x[field]=counts[x.id]|0; }); }
 
 /* Which of these posts you liked, saved or reacted to. Per-viewer, so it
-   can't ride along on the cached feed query. */
+   can't ride along on the cached feed query.
+
+   A guest has none of those, but the reaction *tallies* are public
+   counts and still theirs to see — a busy pour showing three empty
+   reaction slots would misrepresent it, and the counts are half of what
+   makes the feed look alive to someone deciding whether to join. */
 async function markMine(list){
-  if(!session||!list.length) return list;
+  if(!list.length) return list;
+  if(!session){
+    try{
+      const { counts }=await fetchReactions(list.map(p=>p.id), null);
+      list.forEach(p=>{ p.reactions=counts[p.id]||noReactions(); });
+    }catch(e){ console.warn('reactions failed',e); }
+    return list;
+  }
   try{
     const ids=list.map(p=>p.id);
     const [liked,savedIds,reactions]=await Promise.all([
@@ -219,9 +241,9 @@ async function markMine(list){
 /* The same, for one post that arrived outside a feed page — opened from
    the podium, a notification, or someone's profile grid. */
 export async function hydrateReactions(list){
-  if(!session||!list||!list.length) return;
+  if(!list||!list.length) return;
   try{
-    const { counts, mine }=await fetchReactions(list.map(p=>p.id), session.user.id);
+    const { counts, mine }=await fetchReactions(list.map(p=>p.id), session?session.user.id:null);
     list.forEach(p=>{ p.reactions=counts[p.id]||noReactions(); p.myReactions=mine[p.id]||[]; });
   }catch(e){ console.warn('reactions failed',e); }
 }
@@ -238,13 +260,19 @@ export async function hydrateReactions(list){
    your own. */
 export const startOfToday = () => { const d=new Date(); d.setHours(0,0,0,0); return d.toISOString(); };
 function feedArgs(){
+  /* A guest gets Today and only Today: every public pour since their own
+     midnight. There is no Following tab to honour, no block list of
+     their own to apply, and no uid for anything to be marked as theirs.
+     The same request a member's Today tab makes, minus the viewer —
+     which is also exactly what RLS will hand the `anon` role, so the
+     server agrees with the screen rather than being talked into it. */
+  if(!session) return { myUid:null, authors:null, blocked:null, since:startOfToday(), publicOnly:true };
   const uid=session.user.id;
   if(ui.filter==='following') return { myUid:uid, authors:[...followeeIds(),uid], blocked:social.blocks };
   return { myUid:uid, authors:null, blocked:social.blocks, since:startOfToday(), publicOnly:true };
 }
 
 export async function loadFeed(){
-  if(!session) return false;
   feed.loading=true;
   try{
     const list=await fetchFeed(feedArgs());
@@ -258,7 +286,7 @@ export async function loadFeed(){
 }
 
 export async function loadMoreFeed(){
-  if(!session||feed.loading||feed.done||!feed.cursor) return false;
+  if(feed.loading||feed.done||!feed.cursor) return false;
   feed.loading=true;
   try{
     const list=await fetchFeed({ ...feedArgs(), before:feed.cursor });
@@ -270,8 +298,10 @@ export async function loadMoreFeed(){
 }
 
 /* Point the store at the signed-in user's own store and load their world.
-   Signing out drops back to an empty state behind the sign-in gate.
-   Every sign-in and sign-out goes through this one function. */
+   Signing out drops back to an empty state and the guest feed — the
+   public Today page, which needs no account and so needs none of the
+   per-user hydration below. Every sign-in and sign-out goes through this
+   one function. */
 export async function useSession(next){
   session = next;
   persistence = makePersistence(next, KEY);
@@ -282,7 +312,11 @@ export async function useSession(next){
   discover.list=[]; discover.loaded=false;
   mine.list=[]; mine.loaded=false;
   saved.list=[]; saved.loaded=false;
-  if(next){ await hydrateSocial(); await loadFeed(); }
+  /* Following is a signed-in tab, so a sign-out has to leave it — or the
+     segment would sit on a tab the guest feed can't be. */
+  if(!next) ui.filter='today';
+  if(next) await hydrateSocial();
+  await loadFeed();
 }
 
 /* Posts we have fetched but that aren't on the current feed page — the

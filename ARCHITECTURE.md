@@ -57,12 +57,24 @@ warns rather than blocks. **No view, overlay, component or action changed for an
 `makePersistence(session, KEY)` scopes that store to the signed-in user's id, so two accounts
 on one browser never see each other's data. `useSession()` swaps it and reloads.
 
-## The gate — there is no signed-out app
+## The gate — gated on intent, not on entry
 
-`app.js` restores the session before the first paint. Without one it paints
-[`ui/gate.js`](src/ui/gate.js) into the same `#view` mount point the screens use, with no tab
-bar to leave it by, and stops. Sign-in is a *screen*, not an overlay, because overlays can be
-popped. Everything a user sees afterwards belongs to a row in Postgres that belongs to them.
+`app.js` restores the session before the first paint, but a missing one is no longer a dead
+end. A visitor with no session is a **guest**: they get today's public feed, the sheet for any
+pour on it, and the thread under it. Everything else — posting, liking, following, their own
+profile, the Following tab, Explore, Cafés — raises the sign-in sheet the moment they reach
+for it. `guestWall()` in [`ui/actions.js`](src/ui/actions.js) is the single choke point, and it
+lists what a guest *may* do rather than what they may not, so an action added later is closed
+until someone opens it.
+
+This costs no new permissions. The `anon` role already reads exactly this much — `posts` is
+`visibility = 'public'`, `profiles`/`likes`/`comments`/`reactions` are `using (true)`, and
+every insert policy is `with check (auth.uid() = …)`, which no guest satisfies. The screen and
+the database agree without either being talked into it.
+
+Signing in is still a *screen*, not an overlay, because overlays can be popped and a
+half-finished sign-up shouldn't be; `ui.gate` says whether it is showing, and back returns to
+the feed the guest was reading rather than leaving the app.
 
 The session (access + refresh token) lives in `localStorage` and is discarded **only** when the
 auth server actually rejects the refresh token — a 4xx. An offline or 5xx refresh keeps the

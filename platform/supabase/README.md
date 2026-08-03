@@ -1,8 +1,9 @@
 # Supabase setup
 
 Everything in this folder is run by hand, once, in the order below. The app **requires** it:
-there is no demo mode, so an account, a feed and the café/bean/challenge directory all come
-from these tables.
+there is no bundled sample data, so the feed, the accounts and the café/bean/challenge
+directory all come from these tables. That includes what a signed-out visitor sees — the
+guest feed is the `anon` role reading the same rows through the same RLS policies.
 
 > **Run every command on this page from `platform/`, not from the repo root.** The Supabase
 > CLI locates a project by looking for a `supabase/` directory next to the working directory,

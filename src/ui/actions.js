@@ -50,6 +50,9 @@ function goBack(){
      dropping someone into. Back holds still here. */
   if(top&&top.type==='onboard') return true;
   if(ui.ovStack.length){ popOv(); return true; }
+  /* The sign-in screen is a screen, not a sheet, but a guest stepped
+     into it from the feed and back belongs there — not out of the app. */
+  if(!currentUser()&&ui.gate){ ui.gate=false; ui.auth=null; render(); return true; }
   /* Posting, blocking and signing out all drop you on Home without
      asking the trail about it, so the tab we came from can be the tab we
      are already on. Skip those rather than spending a back press on a
@@ -60,12 +63,58 @@ function goBack(){
   }
   return false;
 }
-initHistory({ depth: () => ui.ovStack.length + ui.navStack.length, step: goBack });
+initHistory({ depth: () => ui.ovStack.length + ui.navStack.length + (ui.gate?1:0), step: goBack });
+
+/* ============================================================ GUEST WALL */
+/* Signed out, Crema is readable and nothing else: today's public pours,
+   the sheet for any one of them, and the thread under it. Every other
+   intent raises the sign-in sheet instead of doing nothing or, worse,
+   firing a request that RLS will refuse.
+
+   Gate on *intent*, never on entry — a stranger sees real coffee before
+   Crema asks them for anything. That is the whole difference between
+   this and the sign-in wall it replaces.
+
+   The readable actions are listed rather than the gated ones, so an
+   action added later is closed until someone decides otherwise. */
+const GUEST_READS=new Set(['open-post','recipe','share-post','close-ov','reload','toast','none',
+                           'guest-signin','guest-back']);
+
+/* Which line the sheet should lead with, per intent. */
+const GUEST_ASK={
+  like:'like', react:'react', save:'save', 'menu-save':'save',
+  'add-cmt':'comment', 'cmt-like':'comment', 'cmt-reply':'comment', 'mention-pick':'comment',
+  follow:'follow', 'accept-follow':'follow', 'decline-follow':'follow', 'open-flist':'follow',
+  'open-create':'post', brew:'post',
+  'open-user':'people', 'open-tag':'explore', 'open-challenge':'explore', 'open-challenges':'explore',
+  'open-cafe':'cafe', 'follow-cafe':'cafe', directions:'cafe',
+  'open-notifs':'notifs',
+  'open-settings':'profile', 'open-passport':'profile', 'open-scoring':'profile',
+  'open-streak':'profile', ptab:'profile',
+  'open-menu':'general', 'menu-report':'general', 'menu-block':'general'
+};
+const NAV_ASK={ explore:'explore', cafes:'cafe', profile:'profile' };
+
+/* True when the click was swallowed and the sheet raised instead. */
+function guestWall(a,t){
+  if(currentUser()) return false;
+  /* The sign-in screen runs its own actions, and they are the point. */
+  if(ui.gate) return false;
+  if(GUEST_READS.has(a)) return false;
+  if(a==='filter') { if(t.dataset.f==='today') return false; pushOv({type:'signin',why:'following'}); return true; }
+  if(a==='nav'){
+    if(t.dataset.r==='home') return false;
+    pushOv({type:'signin',why:NAV_ASK[t.dataset.r]||'general'}); return true;
+  }
+  pushOv({type:'signin',why:GUEST_ASK[a]||'general'});
+  return true;
+}
 
 /* ============================================================ ACTIONS */
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-action]'); if(!t) return;
   const a=t.dataset.action, id=t.dataset.id;
+  if(guestWall(a,t)) return;
   switch(a){
     case 'nav':{ navTo(t.dataset.r);
       /* points move when other people like your pours, so re-read them
@@ -172,6 +221,14 @@ document.addEventListener('click',e=>{
       ui.obError=''; ui.obStep=Math.min(2,(ui.obStep||1)+1); renderOverlay(); break;}
     case 'ob-back': syncOb(); ui.obError=''; ui.obStep=Math.max(1,(ui.obStep||1)-1); renderOverlay(); break;
     case 'ob-finish': finishOnboarding(); break;
+
+    /* Into the sign-in screen from the guest feed, and back out of it.
+       Both repaint everything: the app bar, the tab bar and the view all
+       differ between the two. */
+    case 'guest-signin':{ ui.gate=true; ui.ovStack=[];
+      ui.auth={ mode:t.dataset.m==='in'?'in':'up', email:'', error:'', notice:'', busy:false };
+      render(); break;}
+    case 'guest-back':{ ui.gate=false; ui.auth=null; render(); break;}
 
     case 'auth-mode':{ syncAuth(); ui.auth.mode=t.dataset.m||'in'; ui.auth.error=''; ui.auth.notice=''; renderView(); break;}
     case 'auth-submit': doAuth(); break;
@@ -568,16 +625,19 @@ async function finishOnboarding(){
   ui.ovStack=[]; render(); toast('Welcome to Crema ☕');
 }
 
-/* The single place the app reacts to signing in or out. */
+/* The single place the app reacts to signing in or out. Signing out is
+   no longer a dead end: useSession(null) has just loaded today's public
+   feed, so `gate:false` lands them on it as a guest. */
 onAuthChange(async s=>{
   await useSession(s);
   if(s) await syncProfile();
   applyMe(); applyTheme();
-  ui.ovStack=[]; ui.navStack.length=0; ui.route='home'; ui.auth=null; render();
+  ui.ovStack=[]; ui.navStack.length=0; ui.route='home'; ui.auth=null; ui.gate=false; render();
   if(s){
     if(!state.onboarded){ ui.obStep=1; pushOv({type:'onboard'}); }
     else toast('Signed in ☕');
   }
+  else toast('Signed out — you can still look around');
 });
 
 export { syncProfile };
@@ -964,9 +1024,18 @@ async function declineFollow(id){
 }
 /* Opening a post loads its thread. The feed only carries a count, so
    the comment bodies are fetched on demand rather than with every card. */
-async function openPost(id){
+/* Exported for app.js: a deep link (#p/<id>, or a tapped notification)
+   opens the same sheet the feed does, and has to load the same thread
+   with it. Pushing the overlay descriptor alone leaves a post that has
+   comments sitting on "Loading comments…" for good — which is the first
+   thing a stranger arriving from a shared link would see. */
+export async function openPost(id){
   pushOv({type:'post',id});
-  const u=currentUser(); if(!u) return;
+  /* A guest opens the same sheet with the same thread — comments and
+     reactions are public rows, and a pour with its conversation cut off
+     is the least persuasive version of itself. `u` being null only
+     costs the parts that are per-viewer. */
+  const u=currentUser();
   const p=findPost(id); if(!p) return;
   /* Still showing this post? Everything below is a round trip, and the
      sheet can be gone by the time one lands. */
@@ -981,10 +1050,12 @@ async function openPost(id){
   if(p.comments.length) return;
   try{
     const rows=await social.fetchComments(id);
-    p.comments=rows.map(r=>social.commentOf(r,u.id));
+    p.comments=rows.map(r=>social.commentOf(r,u?u.id:null));
     p.commentN=p.comments.length;
-    const mine=new Set(await social.fetchMyCommentLikes(rows.map(r=>r.id)));
-    p.comments.forEach(c=>{ c.likedByMe=mine.has(c.id); });
+    if(u){
+      const mine=new Set(await social.fetchMyCommentLikes(rows.map(r=>r.id)));
+      p.comments.forEach(c=>{ c.likedByMe=mine.has(c.id); });
+    }
     if(showing()) renderOverlay();
     /* A mention only becomes a link once we know whose handle it is, and
        the thread can name people who are nowhere else on this screen.

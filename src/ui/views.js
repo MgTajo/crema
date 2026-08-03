@@ -22,7 +22,14 @@ import { arm } from './history.js';
 
 export function renderAppbar(){
   const bar=$('#appbar');
-  if(!session){ bar.innerHTML=`<div class="title" data-action="reload" title="Reload Crema">${logoMark()} Crema</div>`; return; }
+  if(!session){
+    /* On the sign-in screen the only move is back to what they were
+       reading — no bell, no streak, nothing that needs an account. */
+    if(ui.gate){ bar.innerHTML=`<button class="iconbtn" data-action="guest-back" aria-label="Back to today's pours">${icon('back',20)}</button><div class="title">${logoMark()} Crema</div>`; return; }
+    bar.innerHTML=`<div class="title" data-action="reload" title="Reload Crema">${logoMark()} Crema</div>
+      <div class="actions"><button class="btn sm" data-action="guest-signin" data-m="in">Sign in</button></div>`;
+    return;
+  }
   const unread=state.notifications.some(n=>!n.read);
   const bell=`<button class="iconbtn" data-action="open-notifs" aria-label="Notifications">${icon('bell',20)}${unread?'<span class="ndot"></span>':''}</button>`;
   if(ui.route==='home'){
@@ -43,10 +50,10 @@ export function renderAppbar(){
 export function renderHome(){
   const list=feedPosts();
   const empty = feed.loading&&!feed.loaded
-    ? `<div class="empty"><div class="big">☕</div>Loading your feed…</div>`
+    ? `<div class="empty"><div class="big">☕</div>Loading ${session?'your feed':'today\'s pours'}…</div>`
     : ui.filter==='following'
       ? `<div class="empty"><div class="big">👥</div>No pours from people you follow yet.<br>Find baristas on Explore.</div>`
-      : `<div class="empty"><div class="big">🌅</div>Nobody has poured today yet.<br>Tap ＋ and be the first.</div>`;
+      : `<div class="empty"><div class="big">🌅</div>Nobody has poured today yet.<br>${session?'Tap ＋ and be the first.':'Come back in the morning.'}</div>`;
   return `<div class="pad">
     ${followRequestsBlock()}
     ${streakBlock()}
@@ -55,6 +62,24 @@ export function renderHome(){
       <button class="${ui.filter==='following'?'on':''}" data-action="filter" data-f="following">Following</button>
     </div>
     ${list.length?list.map(postCard).join(''):empty}
+    ${guestPitch()}
+  </div>`;
+}
+
+/* The one thing on a guest's screen that asks for anything, and it sits
+   *under* the feed — after the pours have made whatever case they are
+   going to make. Everything above this is the product working.
+
+   The sign-in sheet (ui/overlays) catches guests who reach for a button;
+   this catches the ones who just read to the bottom and would otherwise
+   have nothing to tap. */
+function guestPitch(){
+  if(session) return '';
+  return `<div class="gpitch">
+    <b>Every cup, kept.</b>
+    <p>Your streak, your beans, and the people who care about the same 30 seconds of the morning that you do.</p>
+    <button class="btn block" data-action="guest-signin" data-m="up">Create your account</button>
+    <div class="alt">Already have one? <b data-action="guest-signin" data-m="in">Sign in</b></div>
   </div>`;
 }
 
@@ -268,16 +293,21 @@ export function renderBadges(){
 /* ----- tabbar & master render ----- */
 export function renderTabbar(){
   const bar=$('#tabbar');
-  /* No tab bar on the sign-in screen: there is nowhere else to go. */
-  if(!session){ bar.innerHTML=''; bar.hidden=true; return; }
+  /* No tab bar on the sign-in screen: there is nowhere else to go.
+     A guest keeps it, though — the tabs are the shape of the app, and
+     one that shows what it has is more honest than one that hides it.
+     Every tab but Home asks them to sign in when tapped. */
+  if(!session&&ui.gate){ bar.innerHTML=''; bar.hidden=true; return; }
   bar.hidden=false;
   const t=(r,ic,icF,label)=>`<button class="tab ${ui.route===r?'on':''}" data-action="nav" data-r="${r}"><span class="ic">${icon(ui.route===r&&icF?icF:ic,25)}</span><span>${label}</span></button>`;
   bar.innerHTML=t('home','home','homeF','Home')+t('explore','compass','compass','Explore')+`<button class="tab plus" data-action="open-create" aria-label="New coffee"><span class="fab">${icon('plus',26)}</span></button>`+t('cafes','cafe','cafe','Cafés')+t('profile','user','userF','You');
 }
 export function renderView(){
-  const v=$('#view'), route=session?ui.route:'gate';
+  /* Signed out there are two screens, not one: the guest feed, and the
+     sign-in gate they can step into and back out of. */
+  const v=$('#view'), route=session?ui.route:(ui.gate?'gate':'guest');
   const reset=v.dataset.route!==route; v.dataset.route=route;
-  v.innerHTML = !session?renderGate()
+  v.innerHTML = !session?(ui.gate?renderGate():renderHome())
     : ui.route==='home'?renderHome() : ui.route==='explore'?renderExplore() : ui.route==='cafes'?renderCafes() : renderProfile();
   if(reset) v.scrollTop=0;
 }

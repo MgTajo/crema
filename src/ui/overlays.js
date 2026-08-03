@@ -61,8 +61,46 @@ export function renderOverlay(){
     T==='settings'?overlaySettings():
     T==='onboard'?overlayOnboard():
     T==='password'?overlayPassword():
+    T==='signin'?overlaySignin(top.why):
     T==='create'?overlayCreate():'';
   if(keep){ const next=ov.querySelector('.ov-body'); if(next) next.scrollTop=keep; }
+}
+
+/* ---------- the guest wall ----------
+   One sheet, raised by whatever a signed-out visitor just reached for.
+   It names *that* thing rather than saying "sign in to continue": the
+   ask lands better when it is the answer to something they were already
+   trying to do, and they were — that is why the sheet is here.
+
+   `why` comes from ui/actions.js, which maps every gated intent onto one
+   of these. An unmapped intent falls through to the general line rather
+   than to a blank sheet. */
+const GUEST_ASK={
+  like:     ['Sign in to like this','A heart is the smallest way to say you saw it.'],
+  react:    ['Sign in to react','Say which part you loved — the art, the spot, the coffee.'],
+  comment:  ['Sign in to join in','Comments are people talking about coffee. Bring yours.'],
+  save:     ['Sign in to keep this','Save a pour and its recipe is one tap away tomorrow morning.'],
+  follow:   ['Sign in to follow','Follow someone and their mornings show up in your feed.'],
+  post:     ['Sign in to log your coffee','A photo, the drink, and you\'re done. Day one of the streak.'],
+  following:['Sign in for your own feed','Following is the coffee of the people you picked.'],
+  profile:  ['Sign in for your profile','Your pours, your streak, your beans, your level.'],
+  people:   ['Sign in to see people','Profiles, followers, and who poured what.'],
+  explore:  ['Sign in to explore','Today\'s podium, this week\'s challenges, people to follow.'],
+  cafe:     ['Sign in for cafés','Follow the places you drink at and see what gets poured there.'],
+  notifs:   ['Sign in for your inbox','Likes, comments and follows land here.'],
+  general:  ['Create your Crema account','Free, and about a minute. Then everything here is yours too.']
+};
+function overlaySignin(why){
+  const [h,s]=GUEST_ASK[why]||GUEST_ASK.general;
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="Sign in">
+    <div class="ov-body" style="padding:26px 20px 22px;text-align:center">
+      ${logoMark(46)}
+      <h2 style="font-family:var(--serif);font-weight:400;font-size:25px;letter-spacing:-.02em;margin:12px 0 6px">${esc(h)}</h2>
+      <p style="color:var(--ink2);font-size:14px;line-height:1.55;margin:0 auto 20px;max-width:280px">${esc(s)}</p>
+      <button class="btn block" data-action="guest-signin" data-m="up">Create your account</button>
+      <button class="btn ghost block" style="margin-top:9px" data-action="guest-signin" data-m="in">I already have one</button>
+      <div style="margin-top:16px;font-size:13px;color:var(--muted);cursor:pointer" data-action="close-ov">Keep looking around</div>
+    </div></div>`;
 }
 
 function overlayPost(id){
@@ -86,10 +124,18 @@ function overlayPost(id){
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ Brew this recipe</button></div></div></div>`:''}
       <div style="padding:14px 14px 4px;font-weight:700;font-family:var(--serif);font-size:16px">${commentCount(p)} comments</div>
       <div id="cmt-list">${p.comments.length?p.comments.map((c,i)=>commentRow(c,p.id,i)).join(''):
-        (commentCount(p)?`<div class="empty" style="padding:24px">Loading comments…</div>`:`<div class="empty" style="padding:24px">Be the first to comment.</div>`)}</div>
+        (commentCount(p)?`<div class="empty" style="padding:24px">Loading comments…</div>`
+          :`<div class="empty" style="padding:24px">${session?'Be the first to comment.':'No comments yet.'}</div>`)}</div>
     </div>
     <div class="mentions" id="cmt-mentions" hidden></div>
-    <div class="composer">${avatar('me')}<input id="cmt-input" placeholder="Add a comment… use @ to name someone" data-enter="add-cmt" data-id="${p.id}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Add a comment"><button class="send" data-action="add-cmt" data-id="${p.id}" aria-label="Send">${icon('sendF',20)}</button></div>
+    ${session
+      ? `<div class="composer">${avatar('me')}<input id="cmt-input" placeholder="Add a comment… use @ to name someone" data-enter="add-cmt" data-id="${p.id}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Add a comment"><button class="send" data-action="add-cmt" data-id="${p.id}" aria-label="Send">${icon('sendF',20)}</button></div>`
+      /* A guest gets the thread and a bar that says why they can't add to
+         it, rather than a text field that takes their sentence and then
+         asks who they are. This one goes straight to the gate: it has
+         already made the ask the sheet would have made. */
+      : `<div class="composer guest" data-action="guest-signin" data-m="up" role="button" tabindex="0">
+          <span>Sign in to join the conversation</span><b>Sign in</b></div>`}
   </div>`;
 }
 
