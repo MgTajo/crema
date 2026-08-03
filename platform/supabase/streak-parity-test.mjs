@@ -6,7 +6,7 @@
 
    This transliterates the plpgsql loop line by line and fuzzes it
    against the real implementation over random pour histories. */
-import { streakFrom } from '../src/domain/streak.js';
+import { streakFrom } from '../../src/domain/streak.js';
 
 const REST_AFTER = 7; // rest_after constant in the plpgsql
 

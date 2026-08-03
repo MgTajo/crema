@@ -3,7 +3,14 @@
 .vscode/
 .idea/
 node_modules/
-supabase/.temp/
+platform/supabase/.temp/
+
+# machine-local Claude Code hooks (absolute paths to this Mac's tooling)
+.claude/settings.json
+
+# brand, marketing and go-to-market material — kept out of a public repo,
+# which is also the web root: anything committed here is served at crema-app.com
+business/
 
 # generated code graph (graphify) — machine-local, rebuild with `graphify update .`
 graphify-out/
@@ -14,15 +21,15 @@ graphify-out/
 *.keystore
 *.jks
 *.pem
-android-twa/**/keystore-secrets.DO-NOT-COMMIT.txt
-android-twa/**/signing-key-info.txt
-android-twa/local.properties
-android-twa/.gradle/
-android-twa/app/build/
-android-twa/build/
-android-twa/*.aab
-android-twa/*.apk
-android-twa/*.idsig
+platform/android-twa/**/keystore-secrets.DO-NOT-COMMIT.txt
+platform/android-twa/**/signing-key-info.txt
+platform/android-twa/local.properties
+platform/android-twa/.gradle/
+platform/android-twa/app/build/
+platform/android-twa/build/
+platform/android-twa/*.aab
+platform/android-twa/*.apk
+platform/android-twa/*.idsig
 
 # unzipped AAB module, left behind when inspecting a bundle
-android-twa/base/
+platform/android-twa/base/

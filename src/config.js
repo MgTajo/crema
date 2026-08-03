@@ -4,7 +4,7 @@
 
    The publishable key is *designed* to ship in client code: it only
    ever grants the `anon` role, and Row Level Security is what actually
-   protects the data (see supabase/schema.sql). It is committed on
+   protects the data (see platform/supabase/schema.sql). It is committed on
    purpose — the app is a static site, so there is no build step to
    inject it at deploy time.
 

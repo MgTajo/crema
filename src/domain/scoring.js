@@ -2,7 +2,7 @@
 /* ============================================================
    domain/scoring — progression & badge rules.
 
-   Points and levels are computed in Postgres (supabase/step-1.9.sql)
+   Points and levels are computed in Postgres (platform/supabase/step-1.9.sql)
    and ride along on the profile row. Everything here presents that
    number: which level a score sits in, and how far the next one is.
    LEVELS is the shared curve.
@@ -50,7 +50,7 @@ export const POINT_RULES=[
   ['Someone likes your pour','+2'],
   /* Not the podium's own ranking math — that weighs a like and a comment
      equally, 1 point each, purely to decide who's in 1st/2nd/3rd for the
-     day (supabase/step-1.18.sql, podium_top()). This is the separate
+     day (platform/supabase/step-1.18.sql, podium_top()). This is the separate
      payout once a day is over: three rows, one per place, added by
      user_points() the same way a finished challenge is. */
   ['1st place on today\'s podium','+15'],

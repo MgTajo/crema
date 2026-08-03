@@ -3,7 +3,7 @@
    data/notifications — the inbox, backed by real rows.
 
    Rows are created by Postgres triggers on likes/comments/follows
-   (see supabase/step-1.8.sql), never by the client — there is no
+   (see platform/supabase/step-1.8.sql), never by the client — there is no
    insert policy, so a client cannot forge one. Reads are owner-only.
 
    The inbox UI already renders an array of {u, text, time, read, …};

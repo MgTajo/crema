@@ -163,7 +163,7 @@ export function likeButton(p,size=22){
 
    Your own pour shows the tally without the buttons, exactly as the like
    count does. The counts mean "other people said so", and the database
-   refuses a self-reaction anyway (supabase/step-1.19.sql). */
+   refuses a self-reaction anyway (platform/supabase/step-1.19.sql). */
 export function reactionBar(p){
   const mine=p.myReactions||[], n=p.reactions||{}, own=p.user==='me';
   const cells=REACTIONS.map(([k,ic,label,hint])=>{

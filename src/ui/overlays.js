@@ -252,7 +252,7 @@ function overlayTag(pat){
    A challenge is a rule, and the only thing worth showing about a rule
    is how close you are to satisfying it. So both sheets are progress
    bars: no join button, no entry picker, no votes. See
-   supabase/step-1.17.sql for where the number comes from — it is
+   platform/supabase/step-1.17.sql for where the number comes from — it is
    computed in Postgres from the pours you already logged, which is why
    the client never tries to recompute it.
 

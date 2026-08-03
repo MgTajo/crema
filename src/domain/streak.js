@@ -6,7 +6,7 @@
    yesterday, …) and returns numbers. No state, no DOM, no clock beyond
    the one that produced the indices — so the same rules run unchanged
    in a React Native app, or in Postgres if the reminder job ever needs
-   to agree with the client (it does — see supabase/step-1.16.sql).
+   to agree with the client (it does — see platform/supabase/step-1.16.sql).
 
    Two rules, and they are the whole feature:
 

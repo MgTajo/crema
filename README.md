@@ -2,7 +2,7 @@
 
 A prototype social network for coffee lovers — post any coffee (latte art or not), log recipes, track your skill, join challenges, and discover cafés. *Strava for the morning ritual.*
 
-**Live app:** https://mgtajo.github.io/crema/ — sign-in required; there is no demo mode.
+**Live app:** https://crema-app.com — sign-in required; there is no demo mode.
 
 This is a **static, self-contained web app** — plain HTML/CSS/JS, **no build step, no bundler, no dependencies**. The code is organised as native **ES modules** under [`src/`](src/) in clean layers (data → store → domain → ui), so it can grow into a real product. It installs as a **PWA** when served over HTTPS.
 
@@ -19,13 +19,24 @@ up debugging a cached copy of a module you just edited. A server is required any
 service worker / PWA install.
 
 The app talks to a Supabase project (EU) configured in [`src/config.js`](src/config.js) and to
-R2 for photos — see [supabase/README.md](supabase/README.md) for the one-time setup.
+R2 for photos — see [platform/supabase/README.md](platform/supabase/README.md) for the one-time setup.
 
 ## Project structure
 
+The repo holds two things: the **web app**, which GitHub Pages serves straight from the
+repo root and so cannot move into a subfolder, and the **platform** work behind it. Brand
+and go-to-market material lives in an untracked `business/` folder — the repo is public and
+doubles as the web root, so it is deliberately not committed (see [`.gitignore`](.gitignore)).
+
 ```
+── the web app (served at crema-app.com — these paths are the live URLs) ──
 index.html        markup + mount points; loads styles.css and src/app.js
 styles.css        all styling (theme tokens, components)
+sw.js             service worker (precache list; bump the cache name on deploy)
+manifest.webmanifest · icon-192.png · icon-512.png    PWA install
+assets/           stock photography for café cards
+impressum/ · privacy/ · child-safety/                 legal pages (legal.css, legal.js)
+.well-known/      assetlinks.json — proves the domain to the Android TWA
 src/
   app.js          composition root & boot
   core/util.js    pure helpers (format, dom, time)
@@ -35,9 +46,15 @@ src/
   store/          persistence.js (the swappable backend seam) · store.js (state + selectors)
   domain/         art.js (latte-art SVG) · scoring.js (scores & badges)
   ui/             gate.js (sign-in screen) · icons · components · views · overlays · actions
+devserver.py      local static server with no-store (see "Run locally")
+
+── platform/ — everything that ships the app but isn't served by it ──
+platform/supabase/      schema, the ordered step-1.x migration chain, Edge Functions, tests.
+                        Run its CLI commands from platform/ — see platform/supabase/README.md
+platform/android-twa/   Play Store wrapper (Bubblewrap/Gradle), signing material, resign.sh
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for how the layers map onto a real backend + native iOS/Android app, and [ROADMAP.md](ROADMAP.md) for the step-by-step plan to get there.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the layers map onto a real backend + native iOS/Android app.
 
 ## What's inside
 
@@ -69,13 +86,21 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how the layers map onto a real backen
 
 ## Deploy
 
-Any static host works. This repo auto-deploys to **GitHub Pages** from `main` (Settings → Pages → main / root):
+This repo auto-deploys to **GitHub Pages** from `main`, served from the repo **root**
+(Settings → Pages → main / root), on the custom domain in [`CNAME`](CNAME):
 
 ```bash
 git add -A && git commit -m "your change" && git push   # live in ~1 min
 ```
 
-Alternatives: Netlify Drop (drag the folder), Vercel / Cloudflare Pages (framework preset "Other").
+Because the root *is* the web root, the app's files have to stay there — `index.html`,
+`styles.css`, `sw.js`, `manifest.webmanifest`, the icons, `src/`, `assets/` and the legal
+pages. Moving any of them into a subfolder changes its public URL and breaks the service
+worker's precache list, the manifest scope and the TWA's `assetlinks.json`. `platform/` is
+published as dead weight but referenced by nothing, which is harmless.
+
+On another static host (Netlify, Vercel, Cloudflare Pages, preset "Other") point the publish
+directory at the repo root, and exclude `platform/` if the host lets you.
 
 ## Notes
 

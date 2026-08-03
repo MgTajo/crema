@@ -3,7 +3,7 @@
    data/media — post photos, from the browser to R2 to the screen.
 
    Upload: the client never holds an R2 credential. It asks the
-   `upload-url` Edge Function (supabase/functions/upload-url) for a
+   `upload-url` Edge Function (platform/supabase/functions/upload-url) for a
    short-lived presigned PUT URL scoped to its own key — derived
    server-side from the caller's JWT, not from anything the client
    sends — then PUTs bytes straight to R2. Bytes never transit Supabase.

@@ -319,7 +319,7 @@ export function applyMe(){
    drink with art the user never claimed. */
 /* Editing is for fixing what you meant to say, not for rewriting
    history: your own pour, on the day you poured it, and never the photo.
-   The database enforces the same rule — see supabase/step-1.12.sql. */
+   The database enforces the same rule — see platform/supabase/step-1.12.sql. */
 export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
 
 /* Which brand slot a remembered coffee belongs in. The bean field only

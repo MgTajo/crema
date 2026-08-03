@@ -9,7 +9,7 @@
    the voting. It shipped behind "Coming soon" and stayed there.
 
    A challenge is now a rule the database checks against the coffee you
-   were already logging (supabase/step-1.17.sql). There is nothing to
+   were already logging (platform/supabase/step-1.17.sql). There is nothing to
    join and nothing to submit, so there is nothing here to POST: this
    module only reads.
 

@@ -275,7 +275,7 @@ export async function rest(path,{ method='GET', body, prefer, signal }={}){
 }
 
 /* ---------- columns a hand-run migration hasn't added yet ----------
-   The SQL in supabase/ is run by hand, and the app deploys itself on
+   The SQL in platform/supabase/ is run by hand, and the app deploys itself on
    push, so there is always a window where the code knows about a column
    the database doesn't. PostgREST answers 400/42703 for it and the whole
    query dies — one unrun migration would take down the feed, not just
@@ -316,7 +316,7 @@ export function optionalColumns(names){
         catch(e){
           const lost = blame(e);
           if(!lost) throw e;
-          console.warn(`column ${lost} is missing — run the pending migration in supabase/`);
+          console.warn(`column ${lost} is missing — run the pending migration in platform/supabase/`);
           gone.add(lost);
         }
       }

@@ -88,7 +88,7 @@ export function setNotifyPrefs(uid, me){
    The database can't work this out on its own: it sees a UTC timestamp
    and nothing else, so without this "log a coffee on five different
    days" and "before 8am" would be measured in UTC and be wrong for
-   everyone outside it (supabase/step-1.17.sql). Written on sign-in
+   everyone outside it (platform/supabase/step-1.17.sql). Written on sign-in
    rather than once at signup so it follows people who travel or move.
 
    Its own optionalColumns(), so a deploy that lands before step-1.17
@@ -177,7 +177,7 @@ export async function pushProfile(uid, me){
    handle. `key` is an R2 object key, or null to go back to initials. */
 export function pushAvatar(uid, key){
   return opt.run(has=>{
-    if(!has('avatar_key')) throw new Error('Profile photos need supabase/step-1.13.sql');
+    if(!has('avatar_key')) throw new Error('Profile photos need platform/supabase/step-1.13.sql');
     return { path:`profiles?id=eq.${uid}`, method:'PATCH', body:{ avatar_key: key || null } };
   });
 }

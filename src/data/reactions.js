@@ -5,7 +5,7 @@
    A heart says "yes"; a reaction says which part. They sit next to the
    like and are worth nothing on purpose: no points, no podium, no
    leaderboard. Nothing in domain/scoring.js reads them, and the
-   supabase/step-1.19.sql that creates the table adds no trigger that
+   platform/supabase/step-1.19.sql that creates the table adds no trigger that
    touches `profiles.points`.
 
    One row per (person, pour, kind), so the same photo can be both
@@ -28,7 +28,7 @@ import { rest } from './supabase.js';
    sitting there in a foreign palette.
 
    The `kind` keys are what the database stores and are deliberately
-   unchanged — supabase/step-1.19.sql constrains them and builds its
+   unchanged — platform/supabase/step-1.19.sql constrains them and builds its
    notification wording from them ("loved your latte art", "loved where
    you had it", "loved your choice of coffee"), which is still exactly
    what these three say.
@@ -70,7 +70,7 @@ export async function fetchReactions(postIds, myUid){
      the shrug happens here instead: no reactions, everything else fine. */
   let rows;
   try{ rows = await rest(`reactions?select=post_id,kind,user_id&post_id=in.${inList(postIds)}&limit=2000`); }
-  catch(e){ console.warn('reactions unavailable — run supabase/step-1.19.sql',e); return empty; }
+  catch(e){ console.warn('reactions unavailable — run platform/supabase/step-1.19.sql',e); return empty; }
   const counts={}, mine={};
   (rows||[]).forEach(r=>{
     const c = counts[r.post_id] || (counts[r.post_id]=noReactions());

@@ -4,6 +4,11 @@ Everything in this folder is run by hand, once, in the order below. The app **re
 there is no demo mode, so an account, a feed and the café/bean/challenge directory all come
 from these tables.
 
+> **Run every command on this page from `platform/`, not from the repo root.** The Supabase
+> CLI locates a project by looking for a `supabase/` directory next to the working directory,
+> and this one lives at `platform/supabase/`. So: `cd platform` first, and every `supabase …`
+> command and every `supabase/…` path below then resolves as written.
+
 ## 1. Run the schema
 
 Supabase dashboard → **SQL Editor** → paste and run:
@@ -271,7 +276,7 @@ settings exist, so nothing breaks in between.
 ### Generate the VAPID keypair
 
 The keypair identifies Crema to every browser push service. The **public** half is already in
-[`src/config.js`](../src/config.js) and is meant to ship in client code; the **private** half
+[`src/config.js`](../../src/config.js) and is meant to ship in client code; the **private** half
 must never enter the repo:
 
 ```bash
@@ -364,7 +369,7 @@ push service answers 404/410 for are deleted automatically — that is normal ch
 
 This is why every nudge push carries is also visible inside the app (the streak block on Home,
 the notification inbox): a large share of the audience is on an iPhone in a Safari tab and will
-never receive one. `iosNeedsInstall()` in [`src/data/push.js`](../src/data/push.js) detects that
+never receive one. `iosNeedsInstall()` in [`src/data/push.js`](../../src/data/push.js) detects that
 case and the reminders sheet asks for the Home Screen instead of showing a toggle that cannot work.
 
 ## A trap worth knowing about
