@@ -17,12 +17,31 @@
 --     → Apple/Google/Mozilla push service
 --     → your device
 --
--- The in-app inbox is filled by link 1. So an inbox that works and a
--- phone that stays silent means the break is at link 2 or later, and
--- almost always at net.http_post: pg_net fires and forgets, so a 401 or
--- 403 from the Edge Function never reaches the trigger, never rolls
--- anything back, and never appears in any log you would think to check.
--- Section 5 is that log.
+-- A reaction takes the same road and differs only in its first step —
+-- notify_on_reaction() (step-1.19) instead of notify_on_like(), writing
+-- "loved your latte art" / "loved where you had it" / "loved your choice
+-- of coffee". Everything from `notifications` onward is shared, which is
+-- why step-1.16 put push on that table rather than on likes: a reaction
+-- reaches the phone by the same trigger a like does, and so does
+-- anything added later. Same for @mentions (comments_mention_notify).
+--
+-- Two consequences worth holding on to while reading the verdicts:
+--
+--   · likes push but reactions don't → the break is the WRITER, not
+--     push. reactions_notify is missing (section 3) and step-1.19.sql
+--     needs running. Push itself is fine.
+--   · nothing pushes, but the in-app inbox fills up → the writers are
+--     fine and the break is link 2 or later, almost always at
+--     net.http_post: pg_net fires and forgets, so a 401 or 403 from the
+--     Edge Function never reaches the trigger, never rolls anything
+--     back, and never appears in any log you would think to check.
+--     Section 5 is that log.
+--
+-- One thing that is not a fault, and looks exactly like one: you cannot
+-- react to your own pour (RLS, step-1.19) and nobody is notified about
+-- their own activity (every notify_* function returns early when actor =
+-- owner). Testing a reaction on your own post produces silence by
+-- design. Use a second account.
 -- ============================================================
 
 -- ---------- 1. is there anything to send TO? ----------
@@ -52,17 +71,46 @@ select '2. switches' as check, handle, notify_social, notify_streak, notify_dige
   from profiles
  order by handle;
 
--- ---------- 3. is the trigger actually attached and enabled? ----------
+-- ---------- 3. are the triggers attached and enabled? ----------
+-- Two kinds here, and the difference matters when only one sort of thing
+-- fails to arrive:
+--
+--   · the WRITERS — one per kind of event, each turning a like, comment,
+--     follow, reaction or @mention into a `notifications` row;
+--   · the CARRIER — `notifications_push`, the single trigger that takes
+--     ANY such row to a phone.
+--
+-- So: nothing arrives at all → the carrier or sections 4-5. One kind
+-- arrives and another doesn't → that kind's writer, and the migration
+-- that installs it never ran.
+--
+-- Listed expected-first and joined outward, because a trigger that was
+-- never created has no row in pg_trigger at all: querying pg_trigger
+-- directly makes the missing one invisible, which is precisely the one
+-- being looked for.
+--
 -- tgenabled: O = enabled, D = disabled, R/A = replica-only.
-select '3. trigger' as check,
-       t.tgname,
-       t.tgenabled,
-       case when t.tgenabled = 'O' then 'ok'
+select '3. triggers' as check,
+       e.tgname,
+       e.turns                                    as what_it_does,
+       coalesce(t.tgenabled, '-')                 as tgenabled,
+       case when t.tgname is null then 'MISSING — ' || e.installed_by || ' has not been run'
+            when t.tgenabled = 'O' then 'ok'
             when t.tgenabled = 'D' then 'DISABLED'
             else 'replica-only — will not fire on a normal write' end as verdict
-  from pg_trigger t
- where t.tgname in ('notifications_push','likes_notify','comments_notify','follows_notify')
- order by t.tgname;
+  from (values
+         ('likes_notify',            'step-1.8.sql',  'a like → an inbox row'),
+         ('comments_notify',         'step-1.8.sql',  'a comment → an inbox row'),
+         ('follows_notify',          'step-1.8.sql',  'a follow or request → an inbox row'),
+         ('follows_accept_notify',   'step-1.15.sql', 'an accepted request → an inbox row'),
+         ('follows_decline_notify',  'step-1.15.sql', 'a declined request → an inbox row'),
+         ('reactions_notify',        'step-1.19.sql', 'a reaction → an inbox row'),
+         ('comments_mention_notify', 'step-1.19.sql', 'an @mention → an inbox row'),
+         ('notifications_push',      'step-1.16.sql', 'ANY inbox row → the phone')
+       ) as e(tgname, installed_by, turns)
+  left join pg_trigger t
+         on t.tgname = e.tgname and not t.tgisinternal
+ order by (e.tgname = 'notifications_push'), e.tgname;
 
 -- ---------- 4. does Postgres know where to send it? ----------
 -- Both must be present. push_send() returns quietly with a notice when

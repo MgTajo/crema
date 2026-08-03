@@ -422,6 +422,18 @@ covering places and ordinals, idempotency, overtaking, falling off and
 climbing back, deletes, a pour turning private, and the two things that
 must stay unreachable from a client.
 
+`local-test/reaction-push-test.sql` covers the other kind of question —
+not "is the row right" but "does it reach a phone". It follows a reaction
+from the `reactions` insert through `notify_on_reaction()` (step-1.19) to
+the payload handed to `net.http_post` (step-1.16): the wording per kind,
+the actor's name in front of it, the `#p/<id>` deep link, the tag that
+collapses three reactions from one person into one banner, the reminder
+switch that suppresses the phone but not the inbox, and the fact that
+reacting to your own pour is refused twice over and notifies nobody.
+Because `net.http_post` is a table-backed fake, that last hop is the
+honest place to stop: it proves Postgres built and addressed the right
+push, and claims nothing about Apple's push service.
+
 ## Local development
 
 ```bash
