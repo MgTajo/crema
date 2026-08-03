@@ -13,7 +13,7 @@ import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, challenges,
          beanPassport, canEdit, streakInfo } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
-import { pushSupported, iosNeedsInstall, pushPermission } from '../data/push.js';
+import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
@@ -522,8 +522,16 @@ function remindersBlock(){
      Safari can't send notifications from a browser tab on iPhone.`);
   if(!pushSupported()) return note(
     `This browser can't send notifications. The streak nudge still appears on Home when you open Crema.`);
-  if(pushPermission()==='denied') return note(
-    `Notifications are blocked for Crema in your browser settings. Allow them there and this comes back.`);
+  /* Where to go and fix it depends on how Crema is running. Installed
+     from Play, the Trusted Web Activity inherits the Android app's
+     notification permission, so "your browser settings" is advice that
+     leads nowhere — the switch is in Android's own app settings, and on
+     Android 13+ it is a permission that can be declined at install or
+     revoked later for an app that goes unused. */
+  if(pushPermission()==='denied') return note(standalone()
+    ? `Notifications are switched off for Crema in your device settings.
+       On Android: Settings → Apps → Crema → Notifications. Turn them on there and this comes back.`
+    : `Notifications are blocked for Crema in your browser settings. Allow them there and this comes back.`);
 
   if(!p.enabled) return `
     <p style="font-size:13px;color:var(--ink2);line-height:1.55;margin:0 0 10px">

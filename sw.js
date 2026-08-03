@@ -7,7 +7,7 @@
    `activate` then purges every other cache. With code served
    network-first (below) a bump is no longer required for code changes —
    it is the lever for evicting a bad cache. */
-const C = 'crema-v24';
+const C = 'crema-v25';
 const ASSETS = ['./manifest.webmanifest','./styles.css',
   './src/app.js','./src/config.js','./src/core/util.js',
   './src/data/assets.js','./src/data/catalog.js','./src/data/world.js',
@@ -116,17 +116,50 @@ self.addEventListener('notificationclick', e => {
   })());
 });
 
+/* The VAPID public key, the same value as VAPID_PUBLIC_KEY in
+   src/config.js. Duplicated rather than imported because this worker is
+   a classic script, not a module, and the one place that needs it —
+   pushsubscriptionchange below — can fire with no page open to ask.
+
+   If the two ever drift, the app repairs it rather than breaking: at
+   subscribe time enablePush() (src/data/push.js) compares the live
+   subscription's applicationServerKey against config.js and takes a
+   fresh subscription when they differ. Change one, change both. */
+const VAPID_PUBLIC_KEY = 'BG6-xot5uE9TXxaK4JkMntrlmbGCRO1SXZG6_zDWJ9J7I7vGQ60aorseelDTIEoJrOd6SAWwyABMOvgtDJCZZnk';
+function vapidBytes(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
 /* A subscription can be rotated out from under us by the push service.
    The worker can't authenticate to PostgREST on its own (no session), so
    it re-subscribes and tells whichever page is open to store the new
-   endpoint; if none is, the next boot's syncPush() catches it. */
+   endpoint; if none is, the next boot's syncPush() catches it.
+
+   It must not depend on `e.oldSubscription` to do that. The event is
+   allowed to arrive with it null, and in Chrome — the engine behind both
+   the web app and the Play build's Trusted Web Activity — that is the
+   common case, not the rare one. Bailing there was silent and permanent:
+   no subscription, no re-subscribe, and the reminders sheet drops back to
+   "Remind me" as if the user had never turned anything on. The key we
+   would have read off the old subscription is a constant we already know,
+   so read it from there and always re-subscribe. */
 self.addEventListener('pushsubscriptionchange', e => {
   e.waitUntil((async () => {
-    const key = e.oldSubscription && e.oldSubscription.options
-      && e.oldSubscription.options.applicationServerKey;
-    if (!key) return;
-    const sub = await self.registration.pushManager
-      .subscribe({ userVisibleOnly: true, applicationServerKey: key }).catch(() => null);
+    /* The spec lets the browser hand us the replacement outright. Use it
+       when it does — re-subscribing over the top would only churn the
+       endpoint again. */
+    let sub = e.newSubscription || null;
+    if (!sub) {
+      const key = (e.oldSubscription && e.oldSubscription.options
+                   && e.oldSubscription.options.applicationServerKey)
+                  || vapidBytes(VAPID_PUBLIC_KEY);
+      sub = await self.registration.pushManager
+        .subscribe({ userVisibleOnly: true, applicationServerKey: key }).catch(() => null);
+    }
     if (!sub) return;
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     all.forEach(c => c.postMessage({ type: 'push-resubscribed' }));

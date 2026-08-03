@@ -634,6 +634,11 @@ onAuthChange(async s=>{
   applyMe(); applyTheme();
   ui.ovStack=[]; ui.navStack.length=0; ui.route='home'; ui.auth=null; ui.gate=false; render();
   if(s){
+    /* Same as the boot path in app.js. Without it a sign-in that happens
+       inside a running page leaves ui.push.enabled false, and the
+       reminders sheet offers "Remind me" to a device that is already
+       subscribed — reading as off when it is on. Never prompts. */
+    initPush().catch(()=>{});
     if(!state.onboarded){ ui.obStep=1; pushOv({type:'onboard'}); }
     else toast('Signed in ☕');
   }
