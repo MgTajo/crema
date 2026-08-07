@@ -14,15 +14,17 @@ export const DRINK_ART=Object.fromEntries(DRINKS.map(d=>[d,MILK_DRINKS.has(d)]))
 export const HAS_MILK=new Set([...MILK_DRINKS,'Iced latte']);   // drinks where milk type matters
 export const MILK_LIST=['Whole milk','Semi-skimmed','Skimmed','Lactose-free','Oat','Barista oat','Almond','Soy','Coconut'];
 
-/* The free tier's whole drink list — the everyday six. Everything else
-   in DRINKS still exists (posts made with them keep showing correctly),
-   but only Premium accounts can pick one for a new pour. */
-export const FREE_DRINKS=['Cappuccino','Espresso','Americano','Flat white','Cortado','Filter'];
+/* Every drink here is free to pick. It used to be an everyday six with
+   the rest behind Premium, which put a paywall between someone and an
+   honest record of what they drank — a Mocha you can't say you had makes
+   the log wrong, not the account upgraded. Premium's line is the shelf
+   (pins, your own drink names), never the truth. */
 
-/* Sentinel for a Premium user's own drink type — same trick as
-   ADD_BEAN/MY_BEANS below: picking it swaps the dropdown for a text
-   field, and the name they type is remembered (state.customDrinks) so
-   it rejoins the dropdown as a normal choice next time, for them only. */
+/* Sentinel for a Premium user's own drink type: picking it swaps the
+   dropdown for a text field, and the name they type is remembered
+   (state.customDrinks) so it rejoins the dropdown as a normal choice
+   next time, for them only. Naming a drink nobody else has is
+   personalization — that part stays Premium. */
 export const ADD_DRINK='＋ Add your own drink…';
 
 /* ---------- machines: brand → model (pick brand first, then model) ---------- */
@@ -88,7 +90,15 @@ export function splitMachine(combined){
   return { brand, model:s.slice(brand.length).trim() };
 }
 
-export const ADD_BEAN='＋ Add your own coffee…';
+/* A handful of machines that cover a lot of kitchens, shown before any
+   search has been typed. Deliberately spread across price and method —
+   a super-automatic, a moka pot and an AeroPress belong on the same
+   shortlist, because "popular" here means "likely yours", not "best". */
+export const POPULAR_MACHINES=[
+  ['Sage','Bambino Plus'],['DeLonghi','Dedica'],['Rancilio','Silvia'],['Gaggia','Classic Evo Pro'],
+  ['Bialetti','Moka Express'],['AeroPress','Original'],['Hario','V60'],['Philips','Series 3200 LatteGo'],
+  ['Jura','ENA 8'],['Sage','Barista Express'],['Lelit','Bianca'],['Moccamaster','KBGV Select']];
+
 /* [level, name, points needed to reach it]. Each step costs roughly 1.5x
    the one before, so Level 2 is ten pours away and Level 10 is a real
    milestone. This table mirrors level_for_points() in
@@ -104,8 +114,8 @@ export const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Ken
 /* Specific coffee brands you can actually buy in Germany.
    c = country the coffee comes from (for the flag); loc: 'DE' local,
    'INT' international. `roaster` drives the brand step of the picker
-   (beanBrands/beansByBrand below) — pick the brand off the shelf first,
-   then which of their coffees, the way you actually buy beans.
+   (beanBrands below) — one shortcut into the search, for people who
+   recognize the bag on the shelf before they can name the coffee.
 
    2026-07-29 — reweighted to ~95% supermarket-shelf beans (Rewe/Edeka/Aldi/
    Lidl/Kaufland and the big roasters that stock them), since that's what
@@ -206,18 +216,118 @@ export function beanCatalog(name){
     .sort((a,b)=>b.n.length-a.n.length)[0] || null;
 }
 
-/* Sentinel brand value for a user's own logged coffees — they have no
-   roaster of record, so they get their own picker slot instead of one
-   of the real brands below. */
-export const MY_BEANS='__mine__';
-
-/* Brand-first lookup: a supermarket shelf (and a specialty roaster's
-   lineup) both work the same way — you recognize the brand before you
-   know which of their coffees you want. One entry per roaster, in
-   catalog order, so the picker's brand list stays stable. */
+/* One entry per roaster, in catalog order, so the picker's "browse by
+   roaster" list stays stable. Browsing is a shortcut into the search,
+   not a step you have to pass through. */
 export function beanBrands(){
   const seen=new Set(), out=[];
   BEANS.forEach(b=>{ if(!seen.has(b.roaster)){ seen.add(b.roaster); out.push({name:b.roaster,loc:b.loc,c:b.c}); } });
   return out;
 }
-export function beansByBrand(roaster){ return BEANS.filter(b=>b.roaster===roaster); }
+
+/* Coffees worth offering before anyone has typed anything: the bags that
+   are actually on a German supermarket shelf this morning.
+
+   Read through popularBeans(), never directly — BEANS is refilled from
+   the server at startup (data/remote.js), so any name here may simply
+   not be in the catalogue the app is running on. Offering a coffee the
+   catalogue doesn't have would hand back a pick with no roaster and no
+   bean page behind it, so unknown names drop out and the head of the
+   real catalogue stands in if none survive. */
+const POPULAR_BEAN_NAMES=['Krönung','Prodomo','Qualità Rossa','BellaCrema LaCrema',
+  'Bellarom Caffè Crema','Espresso Sizilianisch Kräftig','Classico','Moreno Caffè Crema'];
+export function popularBeans(){
+  const have=new Set(BEANS.map(b=>b.n));
+  const hits=POPULAR_BEAN_NAMES.filter(n=>have.has(n));
+  return hits.length?hits:BEANS.slice(0,8).map(b=>b.n);
+}
+
+/* ============================================================
+   Finding one thing in a catalogue that only ever grows.
+
+   Neither list can ever be complete — there are more machines than we
+   will ever type out and a new roastery every week — so the answer is
+   never a longer dropdown. It is: search what we do have, flatly, and
+   let people add what we don't (see the picker in ui/overlays.js).
+   ============================================================ */
+
+/* Fold a string down to something two people spell the same way.
+
+   German is the whole reason this is not just toLowerCase(): the
+   catalogue says Krönung and Mövenpick, and a phone keyboard at 7am
+   types "kronung" or "kroenung". Both transliterations collapse to the
+   same thing here, and because the SAME fold runs over the haystack and
+   the needle, the two can't drift apart. */
+export function norm(s){
+  return (s||'').toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')   // ö → o, à → a
+    .replace(/ß/g,'ss')
+    .replace(/oe/g,'o').replace(/ae/g,'a').replace(/ue/g,'u')
+    .replace(/[^a-z0-9]+/g,' ').trim();
+}
+
+/* One flat row per machine — "Rancilio Silvia", not Rancilio → Silvia.
+   Searching the pair together is the point: nobody remembers that Silvia
+   is a Rancilio or that Bellarom is Lidl's, and a brand-first list makes
+   knowing that the price of finding your own machine. */
+let _machineIdx=null;
+export function machineIndex(){
+  if(_machineIdx) return _machineIdx;
+  const out=[];
+  MACHINE_BRANDS.forEach(b=>{
+    if(b==='Other') return;
+    const models=MACHINES[b]||[];
+    if(!models.length) out.push({brand:b,model:'',label:b,sub:''});
+    else models.forEach(m=>out.push({brand:b,model:m,label:b+' '+m,sub:b}));
+  });
+  out.forEach(x=>{ x.hay=norm(x.label); });
+  return (_machineIdx=out);
+}
+
+/* Rebuilt rather than remembered when the coffee list changes under it:
+   BEANS is refilled in place from the server (data/remote.js apply()),
+   and an index built before that lands would leave the picker searching
+   a catalogue the app is no longer using — every coffee the server added
+   invisible, every one it dropped still offered. */
+let _beanIdx=null;
+export function invalidateBeanIndex(){ _beanIdx=null; }
+export function beanIndex(){
+  if(_beanIdx) return _beanIdx;
+  const out=BEANS.map(b=>({
+    brand:b.roaster, name:b.n, label:b.n, sub:b.roaster,
+    /* Origin and tasting notes are searchable too, so "ethiopia" or
+       "fruity" finds a bag whose name gives none of that away. */
+    hay:norm([b.n,b.roaster,b.c,b.origin,(b.notes||[]).join(' ')].join(' '))
+  }));
+  return (_beanIdx=out);
+}
+
+/* Rank by how early the match lands, not just whether it does: typing
+   "sil" should put Silvia above Silvano Evo above anything that merely
+   contains those letters. Every token has to appear somewhere, so
+   "sage bar" narrows instead of widening. */
+function rankHits(items,q,limit){
+  const nq=norm(q);
+  if(!nq) return items.slice(0,limit);
+  const toks=nq.split(' ').filter(Boolean);
+  const out=[];
+  items.forEach(it=>{
+    if(!toks.every(t=>it.hay.includes(t))) return;
+    const words=it.hay.split(' ');
+    const score = it.hay===nq ? 0
+      : it.hay.startsWith(nq) ? 1
+      : words.some(w=>w.startsWith(toks[0])) ? 2 : 3;
+    out.push({it,score});
+  });
+  return out.sort((a,b)=>a.score-b.score || a.it.label.length-b.it.label.length
+                       || a.it.label.localeCompare(b.it.label))
+    .slice(0,limit).map(x=>x.it);
+}
+export function searchMachines(q,limit=60){ return rankHits(machineIndex(),q,limit); }
+export function searchBeans(q,limit=60){ return rankHits(beanIndex(),q,limit); }
+
+/* Does the catalogue already hold exactly this? Decides whether the
+   picker offers "add it as your own" — offering to add a coffee that is
+   already on the list one row above reads as the search being broken. */
+export const machineKnown = label => machineIndex().some(x=>x.hay===norm(label));
+export const beanKnown     = label => beanIndex().some(x=>norm(x.name)===norm(label));

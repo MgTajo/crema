@@ -8,15 +8,16 @@
 import { $, esc, fmt, cap, initials, seedOf, withUnit, daysAgo } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
-import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, flag } from '../data/catalog.js';
+import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, MACHINE_BRANDS, POPULAR_MACHINES, popularBeans,
+         beanBrands, beanCatalog, machineIndex, searchMachines, searchBeans, machineKnown, beanKnown, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, challenges,
-         beanPassport, canEdit, streakInfo } from '../store/store.js';
+         beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
 import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 import { arm } from './history.js';
@@ -25,21 +26,32 @@ export function pushOv(o){ui.ovStack.push(o); renderOverlay(); arm();}
 export function popOv(){ui.ovStack.pop(); renderOverlay(); if(!ui.ovStack.length){renderView(); renderAppbar();} arm();}
 
 /* Which sheet the DOM currently holds, so a repaint of the same one can
-   be told from a different one opening. */
+   be told from a different one opening, and where each sheet still on
+   the stack was scrolled to. */
 let painted=null;
+const scrolls=new Map();
+const ovKey=o=>o.type+':'+(o.id||'');
 
 export function renderOverlay(){
   const ov=$('#overlay'), top=ui.ovStack[ui.ovStack.length-1];
-  if(!top){ov.className='overlay'; ov.innerHTML=''; painted=null; return;}
+  if(!top){ov.className='overlay'; ov.innerHTML=''; painted=null; scrolls.clear(); return;}
   /* Replacing the sheet's HTML destroys the element that was scrolled,
      and a fresh one always starts at the top — which is why picking a
      machine halfway down the recipe form, or a milk in Settings, threw
-     you back to the first field. Remember where the body was and put it
-     back, but only when the SAME sheet is being repainted: a different
-     sheet is a different document and belongs at its top. */
-  const key=top.type+':'+(top.id||'');
+     you back to the first field.
+
+     Remembered per sheet, not just for the one on screen: opening the
+     machine picker from the bottom of the create form covers it with a
+     second sheet, and coming back has to land on the field that was
+     tapped rather than at the photo. Positions are keyed by sheet and
+     dropped as soon as that sheet leaves the stack, so reopening a sheet
+     later still starts at its top. */
+  const key=ovKey(top);
   const body=ov.querySelector('.ov-body');
-  const keep=(key===painted&&body)?body.scrollTop:0;
+  if(painted&&body) scrolls.set(painted,body.scrollTop);
+  const live=new Set(ui.ovStack.map(ovKey));
+  [...scrolls.keys()].forEach(k=>{ if(!live.has(k)) scrolls.delete(k); });
+  const keep=scrolls.get(key)||0;
   painted=key;
   ov.className='overlay show';
   const T=top.type;
@@ -62,6 +74,7 @@ export function renderOverlay(){
     T==='onboard'?overlayOnboard():
     T==='password'?overlayPassword():
     T==='signin'?overlaySignin(top.why):
+    T==='picker'?overlayPicker():
     T==='create'?overlayCreate():'';
   if(keep){ const next=ov.querySelector('.ov-body'); if(next) next.scrollTop=keep; }
 }
@@ -601,13 +614,7 @@ function overlaySettings(){
       ${machinePicker('sp',m.machineBrand,m.machineModel)}
       <button class="btn block" data-action="save-profile">Save profile</button>
       <div class="rlabel" style="margin-top:18px">Crema Premium</div>
-      ${m.premium
-        ? `<div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">✦</div><div style="flex:1">Premium active<div style="font-size:11.5px;color:var(--muted);font-weight:500">Add your own coffees · early features</div></div><span class="lvlchip" style="background:var(--gold);color:var(--on-crema);border-color:transparent">ACTIVE</span></div>
-           <button class="btn ghost block" data-action="toggle-premium">Turn Premium off</button>`
-        : `<div style="background:linear-gradient(135deg,var(--st1),var(--st2));border:1px solid var(--st3);border-radius:var(--r-sm);padding:14px;margin-bottom:2px">
-             <b style="font-family:var(--serif);font-size:16px;color:var(--st4)">✦ Crema Premium</b>
-             <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 12px">Add your own coffees, and get early access to new features. Free while Crema is young — billing comes later.</div>
-             <button class="btn block" data-action="toggle-premium">Turn Premium on</button></div>`}
+      ${premiumBlock(m)}
       <div class="rlabel" style="margin-top:18px">Appearance</div>
       <div class="seg">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(x=>`<button class="${th===x[0]?'on':''}" data-action="set-theme" data-t="${x[0]}">${x[1]}</button>`).join('')}</div>
       <div class="rlabel" style="margin-top:18px">Reminders</div>
@@ -620,6 +627,35 @@ function overlaySettings(){
       <a class="mrow" href="/impressum/" target="_blank" rel="noopener"><div class="mi">📄</div>Impressum</a>
       <a class="mrow" href="/privacy/" target="_blank" rel="noopener"><div class="mi">🔒</div>Datenschutz / Privacy Policy</a>
     </div></div>`;
+}
+
+/* The Premium block in Settings — the switch every 🔒 in the app points
+   at, so it has to answer the question those locks raise: what is behind
+   this, and what does it cost right now?
+
+   It lists what Premium is rather than naming it, and says the free
+   period in full sentences twice. Everything that makes a coffee log
+   true — every drink, every machine, every coffee, including the ones
+   we've never heard of — is deliberately NOT on this list: it is free,
+   permanently, and a paywall in front of an honest record would be a
+   worse product before it was ever a better business. */
+function premiumBlock(m){
+  const perks=[['📌','Pin your gear & coffees','Hold the ones you use at the top of every picker'],
+               ['🥤','Name your own drink types','Ristretto, Bombón, whatever you actually order'],
+               ['✦','Early access','New features land here first']];
+  const list=perks.map(p=>`<div class="pm-perk"><span>${p[0]}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('');
+  if(m.premium) return `
+    <div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">✦</div>
+      <div style="flex:1">Premium active<div style="font-size:11.5px;color:var(--muted);font-weight:500">Free for now — you will be asked before anything costs money</div></div>
+      <span class="lvlchip" style="background:var(--gold);color:var(--on-crema);border-color:transparent">ACTIVE</span></div>
+    <div class="pm-card" style="margin:4px 0 8px">${list}</div>
+    <button class="btn ghost block" data-action="toggle-premium">Turn Premium off</button>`;
+  return `<div class="pm-card on">
+    <b style="font-family:var(--serif);font-size:16px;color:var(--st4)">✦ Crema Premium</b>
+    <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 10px">Free for a limited time while Crema is young — switch it on right here, no card, no trial countdown. Billing comes later, and we will ask first.</div>
+    ${list}
+    <button class="btn block" style="margin-top:10px" data-action="toggle-premium">Turn Premium on — free</button>
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">Logging your coffee — any drink, any machine, any bean — stays free for everyone, always.</div></div>`;
 }
 
 /* Profile photo, in Settings next to the name it belongs to. Entirely
@@ -697,6 +733,103 @@ function overlayOnboard(){
   return `<div class="ov-back"></div><div class="sheet" role="dialog" aria-label="Welcome"><div class="ov-body" style="padding:26px 22px">${dots}${body}</div></div>`;
 }
 
+/* ============================================================
+   The picker sheet — one control for both open-ended catalogues.
+
+   There are more espresso machines than we will ever list and a new
+   roastery every week, so the sheet is built around never needing the
+   list to be complete:
+
+     Yours      what you already use — most mornings it ends here
+     Popular    a shortlist for the first ever pour
+     Browse     brands, which just prefill the search
+     Search     flat over brand + model, umlaut-folded (see norm())
+     ＋ Add      whatever you typed, free, one tap, no second form
+
+   The search box doubles as the add field on purpose: someone who has
+   typed their bag's name in full has already done the work, and asking
+   them to retype it into a text input below is the moment they give up
+   and log the wrong coffee.
+   ============================================================ */
+function pickerRow(kind,value,sub,cur,pinnable){
+  const on=value===cur;
+  return `<div class="pk-row${on?' on':''}" data-action="pick" data-kind="${kind}" data-v="${esc(value)}">
+    <span class="pk-i">${icon(kind==='machine'?'mach':'bean',17)}</span>
+    <span class="pk-t"><b>${esc(value)}</b>${sub?`<span>${esc(sub)}</span>`:''}</span>
+    ${pinnable?`<button class="pk-pin${isPinned(kind,value)?' on':''}" data-action="pin" data-kind="${kind}" data-v="${esc(value)}"
+       aria-label="${isPinned(kind,value)?'Unpin':'Pin to the top'}">📌</button>`:''}
+    ${on?`<span class="pk-on">✓</span>`:''}</div>`;
+}
+const pkSection=(title,body,note)=>body?`<div class="pk-sec"><div class="pk-h">${title}${note?`<span>${note}</span>`:''}</div>${body}</div>`:'';
+
+export function pickerList(){
+  const p=ui.picker; if(!p) return '';
+  const isM=p.kind==='machine', q=(p.q||'').trim(), cur=p.current||'';
+  const sub=v=>{ if(isM) return ''; const c=beanCatalog(v); return c?c.roaster:'Your own coffee'; };
+  let h='';
+
+  if(q){
+    const hits=isM?searchMachines(q):searchBeans(q);
+    h+=pkSection(`${hits.length} match${hits.length===1?'':'es'}`,
+      hits.map(x=>pickerRow(p.kind,isM?x.label:x.name,x.sub,cur,false)).join(''));
+    /* Nothing found, or rows that aren't what they meant — either way
+       the way out is the same, and it is never a dead end. The line
+       under it has to match what is on screen: telling someone their
+       coffee is "not in the list" directly below three matching rows
+       reads as the search being broken, not as an offer. */
+    const exact=isM?machineKnown(q):beanKnown(q);
+    if(!exact) h+=`<div class="pk-add" data-action="pick-new" data-kind="${p.kind}">
+      <span class="pk-i">＋</span>
+      <span class="pk-t"><b>Add “${esc(q)}”</b><span>${hits.length
+        ? `Not one of these? Save it as your own ${isM?'machine':'coffee'}`
+        : `Not in the list — save it as your own ${isM?'machine':'coffee'}`}</span></span></div>`;
+    if(!hits.length) h+=`<div class="pk-empty">Nothing in the catalogue matches that. Yours works just as well — it lands on your ${isM?'gear':'shelf'} and is there next time.</div>`;
+    return h;
+  }
+
+  const yours=isM?myMachines():myCoffees();
+  /* Nothing to pin when there is one of something — the affordance would
+     only ever say no. It appears with the second entry, which is also
+     the first moment the order of this list matters. */
+  const canPin=yours.length>1;
+  h+=pkSection('Yours', yours.map(v=>pickerRow(p.kind,v,sub(v),cur,canPin)).join(''),
+    canPin?'most recent first':'');
+  if(!state.me.premium&&canPin)
+    h+=`<div class="pk-note" data-action="open-settings"><span>📌</span>
+      <span>Pin the ones you use most to hold them at the top — Premium, <u>free for now, switch it on in Settings</u>.</span></div>`;
+
+  const pop=isM
+    ? POPULAR_MACHINES.map(([b,m])=>({v:b+' '+m,s:b}))
+    : popularBeans().map(n=>({v:n,s:sub(n)}));
+  h+=pkSection(yours.length?'Common ones':'Popular',
+    pop.filter(x=>!yours.includes(x.v)).map(x=>pickerRow(p.kind,x.v,x.s,cur,false)).join(''));
+
+  /* Browsing is a search someone hasn't typed yet, so a brand doesn't
+     open a sub-list — it fills the box and the results are already
+     there, one screen, one mental model. */
+  const brands=isM?MACHINE_BRANDS.filter(b=>b!=='Other'):beanBrands().map(b=>b.name);
+  h+=pkSection(isM?'Browse by brand':'Browse by roaster',
+    `<div class="pk-brands">${brands.map(b=>`<button class="chip" data-action="pk-brand" data-b="${esc(b)}">${esc(b)}</button>`).join('')}</div>`);
+
+  h+=`<div class="pk-add" data-action="pk-focus"><span class="pk-i">＋</span>
+    <span class="pk-t"><b>Not on the list?</b><span>Type it above and add it as your own — free</span></span></div>`;
+  if(cur) h+=`<div class="pk-clear" data-action="pick" data-kind="${p.kind}" data-v="">Clear this field</div>`;
+  return h;
+}
+
+function overlayPicker(){
+  const p=ui.picker||{kind:'machine',q:''}, isM=p.kind==='machine';
+  const n=isM?machineIndex().length:BEANS.length;
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${isM?'Choose a machine':'Choose a coffee'}">
+    <div class="grab"></div>
+    <div class="ov-bar" style="border:0"><b>${isM?'Machine or brewer':'Coffee'}</b><button class="iconbtn" data-action="close-ov" aria-label="Close">${icon('x',20)}</button></div>
+    <div class="pk-search"><span>${icon('search',17)}</span>
+      <input id="pk-q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"
+        placeholder="${isM?`Search ${n} machines & brewers`:`Search ${n} coffees`}" value="${esc(p.q||'')}"></div>
+    <div class="ov-body" id="pk-list">${pickerList()}<div style="height:20px"></div></div>
+  </div>`;
+}
+
 /* Who gets to see this pour. Two plain choices, phrased as who rather
    than as a setting — "Followers only" says what happens; "Private"
    would suggest nobody sees it. Whichever you pick becomes the default
@@ -720,7 +853,7 @@ function visibilityPicker(c){
 function overlayCreate(){
   const c=ui.create||freshCreate(), isArt=!!DRINK_ART[c.drink], editing=!!c.editId;
   const pats=[['heart','Heart'],['rosetta','Rosetta'],['tulip','Tulip'],['swan','Swan'],['abstract','Abstract art']];
-  const mkList=(base,cur)=>{const l=base.slice(); if(cur&&cur!==ADD_BEAN&&!l.includes(cur))l.push(cur); return l;};
+  const mkList=(base,cur)=>{const l=base.slice(); if(cur&&!l.includes(cur))l.push(cur); return l;};
   const sel=(list,cur,ph,extra)=>`<option value=""${cur?'':' selected'}>${ph}</option>`+list.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')+(extra?`<option${cur===extra?' selected':''}>${extra}</option>`:'');
   const chosenCafe=(c.source==='cafe'&&c.cafe)?CAFES.find(x=>x.id===c.cafe):null;
   const milkOpts=chosenCafe?chosenCafe.menu.milks:MILK_LIST;
@@ -742,7 +875,7 @@ function overlayCreate(){
       </div>`}
       <div class="field sel"><label>Drink</label><select id="c-drink">${drinkOptions(c.drink)}</select></div>
       ${c.drink===ADD_DRINK?`<div class="field"><label>Your drink</label><input id="c-drink-custom" placeholder="e.g. Ristretto" value="${esc(c.drinkCustom)}"></div>`:''}
-      ${!state.me.premium?`<div style="font-size:11.5px;color:var(--muted);margin:-4px 2px 11px">🔒 More drink types, and adding your own, are a <b style="color:var(--crema-deep);cursor:pointer" data-action="open-settings">Premium</b> feature.</div>`:''}
+      ${premiumNote('Naming a drink of your own')}
       ${isArt?`<div class="field"><label>Latte art <span style="text-transform:none;letter-spacing:0;color:var(--muted)">· only if you poured one — tap to toggle</span></label>
         <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div>
         ${c.pattern?'':`<div style="font-size:11.5px;color:var(--muted);margin:6px 2px 0">No art? Leave these alone — your ${esc((c.drink||'coffee').toLowerCase())} posts without a pattern.</div>`}</div>`:''}
@@ -763,10 +896,7 @@ function overlayCreate(){
       : `<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">Pick a café above to load the beans and gear they use.</div>`)
       : `
       <div class="rlabel">Recipe <span>· optional — add only what you know</span></div>
-      <div class="rlabel" style="margin-top:0">Coffee / beans</div>
-      ${beanPicker('c',c.beanBrand,c.bean)}
-      ${c.bean===ADD_BEAN?`<div class="field"><label>Your coffee</label><input id="c-bean-custom" placeholder="e.g. House Espresso" value="${esc(c.beanCustom)}"></div>`:''}
-      ${!state.me.premium?`<div style="font-size:11.5px;color:var(--muted);margin:-4px 2px 11px">🔒 Adding your own coffee is a <b style="color:var(--crema-deep);cursor:pointer" data-action="open-settings">Premium</b> feature.</div>`:''}
+      ${beanPicker('c',c.bean)}
       ${machinePicker('c',c.machineBrand,c.machineModel)}
       <div class="rowfields">
         <div class="field"><label>Dose in</label><input id="c-dose" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.dose,'g'))}"></div>

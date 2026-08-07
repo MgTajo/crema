@@ -14,7 +14,7 @@
    ============================================================ */
 import { daysAgo, isToday } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
-import { beanCatalog, MY_BEANS } from '../data/catalog.js';
+import { beanCatalog, combineMachine } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, PODIUM, handleToUid } from '../data/world.js';
 import { fetchFeed, fetchMine, fetchSavedPosts } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
@@ -67,6 +67,10 @@ export function freshState(){
     lastBean:'',
     cafeFollow:{},
     customBeans:[], customDrinks:[],
+    /* Premium's shelf: gear and coffees held at the top of their picker
+       on purpose, rather than drifting down as recents age out. Free
+       accounts get the automatic recents and nothing to maintain. */
+    pins:{machines:[],beans:[]},
     onboarded:false, theme:'auto',
     /* notify* mirror the column defaults, now all three on (step-1.19.sql
        flipped the streak nudge and the recap from off); the profile row
@@ -81,6 +85,7 @@ export function freshState(){
 export async function load(){try{const s=await persistence.read(); state=(s&&s.me)?s:freshState();
   ['posts','customBeans','customDrinks','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
   ['follows','cafeFollow','followPending'].forEach(k=>{if(!state[k])state[k]={};});
+  if(!state.pins||!Array.isArray(state.pins.machines)||!Array.isArray(state.pins.beans)) state.pins={machines:[],beans:[]};
   /* Retired in step 1.17: challenges are no longer something you join or
      submit to, so the two maps that tracked that are dropped from any
      state persisted before it. */
@@ -356,19 +361,14 @@ export function applyMe(){
    The database enforces the same rule — see platform/supabase/step-1.12.sql. */
 export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
 
-/* Which brand slot a remembered coffee belongs in. The bean field only
-   ever stored the coffee's own name, so the picker's first step has to
-   be worked back out of it — the catalogue's roaster if it is one of
-   theirs, your own-coffees slot if you added it yourself. Same unpacking
-   brewAgain() and editMyPost() do for a stored recipe. */
-function brandOfBean(bean){
-  if(!bean) return '';
-  const cat=beanCatalog(bean);
-  return cat ? cat.roaster : ((state.customBeans||[]).includes(bean) ? MY_BEANS : '');
-}
-export function freshCreate(){const bean=state.lastBean||'';
+/* The sheet carries the coffee's own name and nothing else — the roaster
+   is looked up from it when one is needed. It used to carry a separate
+   brand too, because the picker made you choose the brand before the
+   coffee; the searchable picker asks for one thing, so one thing is
+   stored. */
+export function freshCreate(){
   return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',drinkCustom:'',pattern:null,caption:'',img:null,source:'home',cafe:'',
-  bean,beanBrand:brandOfBean(bean),beanCustom:'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
+  bean:state.lastBean||'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 /* ---------- derived selectors (read-only views over state) ----------
    The feed's copy of a post wins over the profile's: it is the one
@@ -387,6 +387,46 @@ export function myPosts(){
 /* the user's own beans passport — grows from the beans they log, not the global catalog */
 export function myBeans(){const seen=new Set(),out=[];myPosts().forEach(p=>{const b=p.recipe&&p.recipe.bean;if(b&&!seen.has(b)){seen.add(b);out.push(b);}});state.customBeans.forEach(b=>{if(b&&!seen.has(b)){seen.add(b);out.push(b);}});return out;}
 export function myCountries(){return [...new Set(myBeans().map(n=>{const c=beanCatalog(n);return c&&c.c;}).filter(Boolean))];}
+
+/* ---------- the "Yours" shelf, top of every picker ----------
+   Almost every pour is made on the machine you made yesterday's on, with
+   the bag that is still open. That makes memory — not search, and
+   certainly not a 200-row dropdown — the fastest way to name either one,
+   so both pickers open on this list and most mornings never scroll past
+   it.
+
+   Pins first (Premium put them there deliberately), then what you last
+   used, then the rest of your own history. Everything here is a plain
+   display string, exactly as it is stored on a recipe. */
+function shelf(pinned,...rest){
+  const seen=new Set(), out=[];
+  const push=v=>{ const s=(v||'').trim(); if(s&&!seen.has(s)){ seen.add(s); out.push(s); } };
+  (pinned||[]).forEach(push);
+  rest.forEach(l=>(l||[]).forEach(push));
+  return out;
+}
+export function myMachines(){
+  return shelf((state.pins&&state.pins.machines)||[],
+    [combineMachine(state.me.machineBrand,state.me.machineModel)],
+    myPosts().map(p=>p.recipe&&p.recipe.machine));
+}
+export function myCoffees(){
+  return shelf((state.pins&&state.pins.beans)||[],
+    [state.lastBean], beanPassport().map(b=>b.name));
+}
+/* Pinning is Premium; the picker shows the lock rather than hiding it,
+   because a shelf you can see is the argument for the feature. */
+export function isPinned(kind,name){
+  const l=(state.pins&&state.pins[kind==='machine'?'machines':'beans'])||[];
+  return l.includes(name);
+}
+export function togglePin(kind,name){
+  if(!state.pins) state.pins={machines:[],beans:[]};
+  const k=kind==='machine'?'machines':'beans', l=state.pins[k], i=l.indexOf(name);
+  if(i>=0) l.splice(i,1); else l.unshift(name);
+  save();
+  return i<0;
+}
 
 
 /* Every bean you have logged, most-poured first, with what the catalog

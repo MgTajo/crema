@@ -632,6 +632,58 @@
   .field textarea{resize:none; height:66px}
   .field.sel{position:relative}
   .field.sel:after{content:"▾"; position:absolute; right:15px; bottom:13px; color:var(--muted); pointer-events:none; font-size:13px}
+  /* a field whose value comes from the searchable picker sheet — looks
+     like the inputs around it, behaves like a button */
+  .pickfield{width:100%; display:flex; align-items:center; gap:10px; text-align:left; border:1px solid var(--line2); background:var(--surface); border-radius:var(--r-sm); padding:11px 13px 11px 15px; font-family:var(--sans); font-size:14.5px; color:var(--muted); cursor:pointer; transition:border-color .15s, box-shadow .15s}
+  @media(hover:hover){ .pickfield:hover{border-color:var(--crema)} }
+  .pickfield.has{color:var(--ink)}
+  .pickfield .pf-v{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pickfield .pf-v small{display:block; font-size:11.5px; color:var(--muted); margin-top:2px; font-weight:500}
+  .pickfield .pf-go{flex:none; font-family:var(--mono); font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:.1em; color:var(--crema-deep); background:var(--crema-soft); border-radius:999px; padding:6px 10px}
+
+  /* the picker sheet: a sticky search box over a sectioned list */
+  .pk-search{flex:none; display:flex; align-items:center; gap:10px; padding:2px 14px 12px; background:var(--cream); border-bottom:1px solid var(--line)}
+  .pk-search span{flex:none; color:var(--muted); display:grid; place-items:center}
+  .pk-search input{flex:1; min-width:0; border:1px solid var(--line2); background:var(--surface); border-radius:999px; padding:12px 16px; font-family:var(--sans); font-size:15px; outline:0; color:var(--ink); -webkit-appearance:none; appearance:none}
+  .pk-search input:focus{border-color:var(--crema); box-shadow:0 0 0 3px var(--crema-soft)}
+  .pk-sec{padding:4px 0 2px}
+  .pk-h{display:flex; align-items:baseline; gap:8px; font-family:var(--mono); font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); padding:14px 16px 7px}
+  .pk-h span{font-family:var(--sans); font-size:11.5px; text-transform:none; letter-spacing:0}
+  .pk-row{display:flex; align-items:center; gap:11px; padding:12px 16px; border-bottom:1px solid var(--line); cursor:pointer}
+  @media(hover:hover){ .pk-row:hover{background:var(--surface2)} }
+  .pk-row.on{background:var(--crema-soft)}
+  .pk-i{flex:none; width:26px; text-align:center; color:var(--crema); font-size:16px}
+  .pk-t{flex:1; min-width:0}
+  .pk-t b{display:block; font-size:14.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .pk-t span{display:block; font-size:12px; color:var(--muted); margin-top:1px}
+  .pk-on{flex:none; color:var(--crema); font-weight:700}
+  .pk-pin{flex:none; background:none; border:0; cursor:pointer; font-size:14px; padding:6px; opacity:.28; filter:grayscale(1); transition:opacity .15s, filter .15s}
+  .pk-pin.on{opacity:1; filter:none}
+  .pk-brands{display:flex; flex-wrap:wrap; gap:7px; padding:2px 16px 12px}
+  .pk-brands .chip{cursor:pointer; border:1px solid var(--line2); background:var(--surface); font-size:12.5px}
+  @media(hover:hover){ .pk-brands .chip:hover{background:var(--surface2)} }
+  .pk-add{display:flex; align-items:center; gap:11px; margin:12px 14px 4px; padding:13px 14px; border:1px dashed var(--line2); border-radius:var(--r-sm); background:var(--surface); cursor:pointer}
+  .pk-add .pk-i{color:var(--crema-deep); font-size:18px}
+  .pk-add b{font-size:14.5px}
+  .pk-empty{font-size:12.5px; color:var(--muted); line-height:1.55; padding:6px 18px 10px}
+  .pk-clear{text-align:center; font-size:13px; color:var(--muted); padding:16px; cursor:pointer}
+  .pk-note{display:flex; gap:8px; align-items:flex-start; margin:8px 14px 2px; padding:11px 13px; border-radius:var(--r-sm); background:var(--surface2); font-size:12px; line-height:1.5; color:var(--ink2); cursor:pointer}
+  .pk-note span:first-child{flex:none}
+  .pk-note u{text-decoration-color:var(--line2); text-underline-offset:2px}
+
+  /* every locked thing in the app says the same two things the same way:
+     what Premium adds here, and that it costs nothing right now */
+  .pnote{display:flex; gap:8px; align-items:flex-start; margin:-4px 0 12px; padding:10px 12px; border-radius:var(--r-sm); background:var(--st1); border:1px solid var(--st3); font-size:11.5px; line-height:1.5; color:var(--ink2); cursor:pointer}
+  :root[data-theme="dark"] .pnote{background:var(--surface2); border-color:var(--line2)}
+  .pnote b{color:var(--st4); font-weight:600}
+  .pnote u{text-decoration-color:var(--st3); text-underline-offset:2px}
+  .pchip{display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:9.5px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:var(--st4); background:var(--st1); border:1px solid var(--st3); border-radius:999px; padding:4px 8px; cursor:pointer}
+  .pm-card{background:linear-gradient(135deg,var(--st1),var(--st2)); border:1px solid var(--st3); border-radius:var(--r-sm); padding:14px}
+  .pm-perk{display:flex; gap:10px; align-items:flex-start; padding:7px 0}
+  .pm-perk span{flex:none; width:22px; text-align:center; font-size:15px}
+  .pm-perk b{display:block; font-size:13.5px; font-weight:600; color:var(--ink)}
+  .pm-perk i{display:block; font-style:normal; font-size:11.5px; color:var(--ink2); margin-top:1px}
+
   .patpick{display:flex; gap:8px}
   .patpick button{flex:1; background:var(--surface); border:1px solid var(--line2); border-radius:var(--r-sm); padding:7px 2px 9px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; transition:all .15s}
   .patpick button svg{width:44px; height:44px}

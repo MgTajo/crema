@@ -17,7 +17,7 @@
 import { BACKEND, REFERENCE_TTL_MS } from '../config.js';
 import { rest } from './supabase.js';
 import { CAFES, CHALLENGES } from './world.js';
-import { BEANS } from './catalog.js';
+import { BEANS, invalidateBeanIndex } from './catalog.js';
 
 const CACHE_KEY = 'crema_reference_v1';
 
@@ -58,7 +58,7 @@ function projectPins(list){
 /* Refill the exported arrays without replacing them. */
 function apply({cafes,beans,challenges}){
   if(cafes){ projectPins(cafes); CAFES.length=0; CAFES.push(...cafes); }
-  if(beans&&beans.length){ BEANS.length=0; BEANS.push(...beans); }
+  if(beans&&beans.length){ BEANS.length=0; BEANS.push(...beans); invalidateBeanIndex(); }
   if(challenges){ CHALLENGES.length=0; CHALLENGES.push(...challenges); }
 }
 

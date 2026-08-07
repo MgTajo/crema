@@ -11,7 +11,7 @@
    view-model methods; the store calls it makes stay the same.
    ============================================================ */
 import { $, $$, esc, fmt, withUnit } from '../core/util.js';
-import { DRINKS, DRINK_ART, HAS_MILK, ADD_BEAN, ADD_DRINK, BEANS, MY_BEANS, beanCatalog, combineMachine, splitMachine } from '../data/catalog.js';
+import { DRINKS, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, beanCatalog, combineMachine, splitMachine } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf, handleToUid } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
@@ -24,12 +24,12 @@ import * as social from '../data/social.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, loadChallenges, canEdit,
-         feed, hydrateReactions } from '../store/store.js';
+         feed, hydrateReactions, myMachines, myCoffees, togglePin } from '../store/store.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
 import { render, renderView, renderAppbar } from './views.js';
-import { pushOv, popOv, renderOverlay } from './overlays.js';
+import { pushOv, popOv, renderOverlay, pickerList } from './overlays.js';
 import { initHistory } from './history.js';
 
 /* ============================================================ BACK */
@@ -200,6 +200,29 @@ document.addEventListener('click',e=>{
       if(!w) copyText(url,'Maps link copied 🔗'); break;}
 
     case 'cafe-filter': ui.cafeF[t.dataset.f]=!ui.cafeF[t.dataset.f]; renderView(); break;
+
+    /* ---------- the machine / coffee picker ----------
+       The sheet underneath is a form with unsaved text in it, so its
+       fields are harvested before a second sheet covers it — same
+       sync-then-repaint contract every other action here follows. */
+    case 'open-picker': openPicker(t.dataset.kind,t.dataset.pfx); break;
+    case 'pk-brand':{ const q=$('#pk-q'); ui.picker.q=t.dataset.b||''; if(q){q.value=ui.picker.q; q.focus();} paintPicker(); break;}
+    case 'pk-focus':{ const q=$('#pk-q'); if(q) q.focus(); break;}
+    case 'pick': choosePicked(t.dataset.v||''); break;
+    /* Adding what they typed is the same act as picking it — the value
+       just isn't one of ours. Free on purpose: no catalogue will ever
+       hold everyone's bag, and a lock here means logging the wrong
+       coffee or not logging at all. */
+    case 'pick-new':{ const q=($('#pk-q')?$('#pk-q').value:(ui.picker&&ui.picker.q)||'').trim();
+      if(!q) break;
+      if(ui.picker.kind==='bean'&&!BEANS.some(b=>b.n===q)&&!state.customBeans.includes(q)) state.customBeans.push(q);
+      choosePicked(q); break;}
+    case 'pin':{
+      const kind=t.dataset.kind, v=t.dataset.v||'';
+      if(!state.me.premium){ toast('Pinning is Premium — free right now, switch it on in Settings'); break; }
+      toast(togglePin(kind,v)?'Pinned to the top 📌':'Unpinned');
+      paintPicker(); break;}
+
     case 'cpat':{ syncCreate(); ui.create.pattern=(ui.create.pattern===t.dataset.p)?null:t.dataset.p; renderOverlay(); break;}
     case 'csource':{ syncCreate(); ui.create.source=t.dataset.s; if(t.dataset.s==='home')ui.create.cafe=''; renderOverlay(); break;}
     /* Remembered here rather than at submit time, so it sticks even if
@@ -368,13 +391,16 @@ document.addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='c-photo-cam'||id==='c-photo-lib'){ if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]); return; }
   if(id==='sp-avatar'){ if(e.target.files&&e.target.files[0]) uploadAvatar(e.target.files[0]); return; }
-  if(id==='c-mbrand'){ syncCreate(); ui.create.machineModel=''; renderOverlay(); return; }
-  if(id==='c-bbrand'){ syncCreate(); ui.create.bean=ui.create.beanBrand===ADD_BEAN?ADD_BEAN:''; renderOverlay(); return; }
-  if(id==='c-bean'){ syncCreate(); renderOverlay(); return; }
   if(id==='c-drink'||id==='c-cafe'){ syncCreate(); renderOverlay(); return; }
-  if(id==='c-mmodel'||id==='c-mother'||id==='c-milk'){ syncCreate(); return; }
-  if(id==='ob-mbrand'){ syncOb(); state.me.machineModel=''; renderOverlay(); return; }
-  if(id==='sp-mbrand'){ syncSettings(); state.me.machineModel=''; renderOverlay(); return; }
+  if(id==='c-milk'){ syncCreate(); return; }
+});
+/* The picker's search box. `input` rather than `change`, because results
+   that arrive when you stop typing are a list you have to wait for
+   instead of one you steer. */
+document.addEventListener('input',e=>{
+  if(e.target.id!=='pk-q'||!ui.picker) return;
+  ui.picker.q=e.target.value;
+  paintPicker();
 });
 /* infinite scroll — the feed is paginated on created_at (step 1.5).
    #view is a stable element; renderView() only replaces its innerHTML. */
@@ -717,33 +743,68 @@ async function openFlist(kind){
   }catch(e){ console.warn('follow lists failed',e); }
 }
 
+/* The machine and the coffee are no longer read back out of the DOM:
+   the picker sheet writes them straight into state when they are chosen,
+   because a field that is a button has no value to harvest. Everything
+   else still comes off the form. */
 function syncCreate(){ if(!ui.create) ui.create=freshCreate();
   const g=i=>{const el=$('#'+i); return el?el.value:undefined;}, c=ui.create;
-  ['caption','drink','drink-custom','cafe','bean','bbrand','bean-custom','milk','dose','yield','time','temp','mbrand'].forEach(f=>{
-    const v=g('c-'+f); if(v!==undefined) c[f==='drink-custom'?'drinkCustom':f==='bean-custom'?'beanCustom':f==='bbrand'?'beanBrand':f==='mbrand'?'machineBrand':f]=v;});
-  /* "Add your own coffee" leaves the Coffee select with nothing to hold
-     the sentinel — it renders empty and disabled — so reading it back
-     would erase the very thing that says a custom name is being typed,
-     and the bean would vanish on submit. The brand select is the
-     authority for that state, exactly as the change handler treats it. */
-  if(c.beanBrand===ADD_BEAN) c.bean=ADD_BEAN;
-  if(c.machineBrand==='Other'){const mo=g('c-mother'); if(mo!==undefined) c.machineModel=mo;}
-  else{const mm=g('c-mmodel'); if(mm!==undefined) c.machineModel=mm;}}
+  ['caption','drink','drink-custom','cafe','milk','dose','yield','time','temp'].forEach(f=>{
+    const v=g('c-'+f); if(v!==undefined) c[f==='drink-custom'?'drinkCustom':f]=v;});
+  /* At a café the bean comes from their menu, so that one IS a select. */
+  if(c.source==='cafe'){ const b=g('c-bean'); if(b!==undefined) c.bean=b; }}
 function syncOb(){ const g=i=>{const el=$('#'+i); return el?el.value:undefined;};
   const n=g('ob-name'); if(n!==undefined&&n.trim()) state.me.name=n.trim();
   const h=g('ob-handle'); if(h!==undefined) state.me.handle=h.trim();
   const c=g('ob-city'); if(c!==undefined&&c.trim()) state.me.city=c.trim();
-  const mb=g('ob-mbrand'); if(mb!==undefined) state.me.machineBrand=mb;
-  if(state.me.machineBrand==='Other'){const mo=g('ob-mother'); if(mo!==undefined) state.me.machineModel=mo;}
-  else{const mm=g('ob-mmodel'); if(mm!==undefined) state.me.machineModel=mm;}
   const d=g('ob-drink'); if(d!==undefined) state.me.favDrink=d;
   const mk=g('ob-milk'); if(mk!==undefined) state.me.favMilk=mk; }
 function syncSettings(){ const g=i=>{const el=$('#'+i); return el?el.value:undefined;};
   const set=(id,k)=>{const v=g(id); if(v!==undefined) state.me[k]=v;};
-  set('sp-name','name'); set('sp-handle','handle'); set('sp-bio','bio'); set('sp-city','city'); set('sp-milk','favMilk');
-  const mb=g('sp-mbrand'); if(mb!==undefined) state.me.machineBrand=mb;
-  if(state.me.machineBrand==='Other'){const mo=g('sp-mother'); if(mo!==undefined) state.me.machineModel=mo;}
-  else{const mm=g('sp-mmodel'); if(mm!==undefined) state.me.machineModel=mm;} }
+  set('sp-name','name'); set('sp-handle','handle'); set('sp-bio','bio'); set('sp-city','city'); set('sp-milk','favMilk'); }
+
+/* ---------- machine / coffee picker ----------
+   `pfx` says which form asked ('c' the create sheet, 'sp' Settings, 'ob'
+   onboarding), and is the only thing the sheet needs to know to put the
+   answer back where it came from. Its form is synced first: the picker
+   opens on top of a half-typed post, and repainting that sheet on the
+   way back would otherwise drop the caption. */
+function openPicker(kind,pfx){
+  if(pfx==='c') syncCreate(); else if(pfx==='sp') syncSettings(); else if(pfx==='ob') syncOb();
+  const c=pfx==='c'?(ui.create||freshCreate()):null;
+  const current = kind==='machine'
+    ? combineMachine(pfx==='c'?c.machineBrand:state.me.machineBrand, pfx==='c'?c.machineModel:state.me.machineModel)
+    : (c?c.bean:'');
+  ui.picker={kind,pfx,q:'',current:current||''};
+  pushOv({type:'picker',id:kind+':'+pfx});
+  /* Straight to the keyboard only when there is nothing to tap: with a
+     shelf on screen the common case is one tap, and a keyboard covering
+     it would hide the very rows that make this fast. */
+  const q=$('#pk-q');
+  if(q&&!(kind==='machine'?myMachines():myCoffees()).length) q.focus();
+}
+/* Repaint just the list. The search field is left alone on purpose —
+   re-rendering the sheet would replace the input mid-word and take the
+   caret and the keyboard with it. */
+export function paintPicker(){
+  const l=$('#pk-list'); if(l&&ui.picker) l.innerHTML=pickerList()+'<div style="height:20px"></div>';
+}
+function choosePicked(v){
+  const p=ui.picker; if(!p) return;
+  const val=(v||'').trim();
+  if(p.kind==='machine'){
+    /* Stored as brand + model still; an unknown name is 'Other', which
+       is exactly how splitMachine reads one back off a saved recipe. */
+    const m=val?splitMachine(val):{brand:'',model:''};
+    if(p.pfx==='c'){ const c=ui.create||(ui.create=freshCreate()); c.machineBrand=m.brand; c.machineModel=m.model; }
+    else { state.me.machineBrand=m.brand; state.me.machineModel=m.model; }
+  }else{
+    const c=ui.create||(ui.create=freshCreate()); c.bean=val;
+  }
+  if(p.pfx!=='c') save();
+  ui.picker=null;
+  popOv();
+}
 
 function handleUpload(file){
   if(!file.type||!file.type.startsWith('image/')){toast('That file isn\'t an image'); return;}
@@ -1201,7 +1262,6 @@ function editMyPost(id){
   const p=findPost(id); if(!p) return;
   if(!canEdit(p)){ popOv(); toast('Pours can only be edited on the day you posted them'); return; }
   const r=p.recipe||{}, c=freshCreate();
-  const cat=r.bean&&beanCatalog(r.bean);
   const cafe=p.cafe?CAFES.find(x=>x.name===p.cafe):null;
   Object.assign(c,{
     editId:p.id, img:p.img,
@@ -1210,7 +1270,6 @@ function editMyPost(id){
     drink:p.drink||c.drink, pattern:p.art?(p.pattern||null):null,
     caption:p.caption||'', source:cafe?'cafe':'home', cafe:cafe?cafe.id:'',
     bean:r.bean||'',
-    beanBrand: cat?cat.roaster:(r.bean&&state.customBeans.includes(r.bean))?MY_BEANS:'',
     /* prefill from the post, never from the profile: an edit shows what
        was posted, not what you usually drink */
     milk:r.milk||'', dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||'',
@@ -1248,13 +1307,8 @@ async function saveEdit(c){
 function brewAgain(id){
   const p=findPost(id); if(!p) return; const r=p.recipe||{};
   ui.create=freshCreate();
-  /* The bean field only ever stored the coffee's own name, never its
-     roaster — the brand picker needs that back too, or a re-logged
-     recipe shows no brand and the bean list stays empty and disabled. */
-  const cat=r.bean&&beanCatalog(r.bean);
-  const beanBrand=cat?cat.roaster:(r.bean&&state.customBeans.includes(r.bean))?MY_BEANS:'';
   Object.assign(ui.create,{drink:p.drink||ui.create.drink, pattern:p.pattern||ui.create.pattern,
-    bean:r.bean||'', beanBrand, milk:r.milk||ui.create.milk,
+    bean:r.bean||'', milk:r.milk||ui.create.milk,
     dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||''});
   /* The recipe stores one combined "Brand Model" string; the picker needs
      the two halves back or it silently falls back to your own machine. */
@@ -1318,8 +1372,11 @@ function composeFromSheet(c){
     if(cafe.menu&&cafe.menu.machine) recipe.machine=cafe.menu.machine;
     if(HAS_MILK.has(drink)&&c.milk) recipe.milk=c.milk;
   }else{
-    let bean=c.bean===ADD_BEAN?(state.me.premium?T(c.beanCustom):''):T(c.bean);
-    if(c.bean===ADD_BEAN && state.me.premium && bean && !BEANS.some(b=>b.n===bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
+    /* A coffee the catalogue has never heard of is still the coffee they
+       drank — it is kept, and kept on their own list so the picker offers
+       it back tomorrow. Free: see the note in data/catalog.js. */
+    const bean=T(c.bean);
+    if(bean && !BEANS.some(b=>b.n===bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
     if(bean) recipe.bean=bean;
     /* A bag of coffee outlasts a single pour, so the next create sheet
        opens on this one already chosen (freshCreate). Only pours you

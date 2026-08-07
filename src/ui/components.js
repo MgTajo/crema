@@ -6,7 +6,7 @@
    store selectors but never mutate state or touch the DOM directly.
    ============================================================ */
 import { esc, fmt, seedOf, initials } from '../core/util.js';
-import { MACHINES, MACHINE_BRANDS, BEANS, ADD_BEAN, MY_BEANS, DRINKS, FREE_DRINKS, ADD_DRINK, beanBrands, beansByBrand, flag } from '../data/catalog.js';
+import { BEANS, ADD_DRINK, DRINKS, beanCatalog, combineMachine, flag } from '../data/catalog.js';
 import { USERS, handleToUid, CAFES, userOf } from '../data/world.js';
 import { state, allPosts, findPost } from '../store/store.js';
 import { REACTIONS } from '../data/reactions.js';
@@ -47,60 +47,68 @@ export function avatar(uid,cls=''){
 }
 export function cafeThumb(c){return `<div class="cafe-thumb" style="background:${c.color}">${initials(c.name)}</div>`;}
 
-/* brand → model machine picker (used in create, onboarding & settings) */
+/* ----- catalogue fields -----
+   A machine and a coffee are both "one row out of a list nobody can
+   finish writing", so both are the same control: a field that shows what
+   is chosen and opens a searchable sheet (overlayPicker) when tapped.
+
+   It replaced two chained <select>s each. The old shape asked you to
+   know the brand before the thing — that Silvia is a Rancilio, that
+   Bellarom is Lidl's — and then to scroll 45 brands on a phone wheel to
+   say so. `pfx` is which form is asking ('c' create, 'sp' settings,
+   'ob' onboarding); the sheet writes its answer straight back there. */
+function pickerField(pfx,kind,label,value,sub,ph){
+  const has=!!(value||'').trim();
+  return `<div class="field">
+    <label>${label}</label>
+    <button type="button" class="pickfield${has?' has':''}" data-action="open-picker" data-kind="${kind}" data-pfx="${pfx}">
+      <span class="pf-v">${has?esc(value):esc(ph)}${has&&sub?`<small>${esc(sub)}</small>`:''}</span>
+      <span class="pf-go">${has?'Change':'Search'}</span>
+    </button></div>`;
+}
+/* Machine picker (used in create, onboarding & settings). Brand and
+   model are still stored apart — combineMachine/splitMachine are
+   unchanged — the two are simply chosen in one step now. */
 export function machinePicker(pfx,brand,model){
-  const models=(brand&&MACHINES[brand])||[];
-  return `<div class="rowfields">
-    <div class="field sel"><label>Machine brand</label><select id="${pfx}-mbrand"><option value=""${brand?'':' selected'}>Choose brand…</option>${MACHINE_BRANDS.map(b=>`<option${b===brand?' selected':''}>${esc(b)}</option>`).join('')}</select></div>
-    <div class="field sel"><label>Model</label><select id="${pfx}-mmodel"${brand&&brand!=='Other'?'':' disabled'}><option value=""${model?'':' selected'}>${brand&&brand!=='Other'?'Choose model…':'—'}</option>${models.map(m=>`<option${m===model?' selected':''}>${esc(m)}</option>`).join('')}</select></div>
-  </div>${brand==='Other'?`<div class="field"><label>Your machine</label><input id="${pfx}-mother" placeholder="e.g. Custom lever setup" value="${esc(model||'')}"></div>`:''}`;
+  const label=combineMachine(brand,model);
+  return pickerField(pfx,'machine','Machine / brewer',label,
+    brand==='Other'&&label?'Your own':'', 'Search machines & brewers…');
 }
-/* Brand → coffee bean picker: pick the brand off the shelf first, then
-   which of their coffees, same as buying beans in a supermarket (or
-   picking a specialty roaster's espresso vs. filter blend). Mirrors
-   machinePicker's brand→model shape. Own-bean option gated behind
-   Premium; previously-added own coffees get their own brand slot. */
-export function beanPicker(pfx,brand,bean){
-  const brands=beanBrands();
-  const bopt=b=>`<option${b.name===brand?' selected':''}>${esc(b.name)}</option>`;
-  const known=brand===MY_BEANS?state.customBeans.map(n=>({n})):(brand&&brand!==ADD_BEAN)?beansByBrand(brand):[];
-  /* A coffee that's already on the post but isn't in the list it belongs
-     to — an older pour, a café's bean, a name from before the catalogue
-     had it — stays on the list anyway. Otherwise reopening that post in
-     the sheet shows an empty Coffee field and saving quietly drops what
-     it used to say. */
-  const beans=(bean&&bean!==ADD_BEAN&&!known.some(b=>b.n===bean))?known.concat({n:bean}):known;
-  const copt=b=>`<option value="${esc(b.n)}"${b.n===bean?' selected':''}>${esc(b.n)}</option>`;
-  const hasSecond=(!!brand&&brand!==ADD_BEAN)||beans.length>0;
-  return `<div class="rowfields">
-    <div class="field sel"><label>Brand</label><select id="${pfx}-bbrand">
-      <option value=""${brand?'':' selected'}>Not sure / choose…</option>
-      <optgroup label="Local · roasted in Germany">${brands.filter(b=>b.loc!=='INT').map(bopt).join('')}</optgroup>
-      <optgroup label="International · sold in Germany">${brands.filter(b=>b.loc==='INT').map(bopt).join('')}</optgroup>
-      ${state.customBeans.length?`<option value="${esc(MY_BEANS)}"${brand===MY_BEANS?' selected':''}>Your own coffees</option>`:''}
-      ${state.me.premium?`<option value="${esc(ADD_BEAN)}"${brand===ADD_BEAN?' selected':''}>${ADD_BEAN}</option>`:''}
-    </select></div>
-    <div class="field sel"><label>Coffee</label><select id="${pfx}-bean"${hasSecond?'':' disabled'}>
-      <option value=""${bean?'':' selected'}>${hasSecond?'Choose…':'—'}</option>
-      ${beans.map(copt).join('')}
-    </select></div>
-  </div>`;
+/* Coffee picker. Takes just the name: the roaster is looked up from the
+   catalogue for the subtitle rather than being a second thing to pick,
+   and a coffee you added yourself simply has no roaster to show. */
+export function beanPicker(pfx,bean){
+  const cat=bean&&beanCatalog(bean);
+  return pickerField(pfx,'bean','Coffee / beans',bean,
+    cat?cat.roaster:(bean?'Your own coffee':''), 'Search coffees, or add yours…');
 }
-/* Drink-type dropdown: the free tier only ever sees the everyday six
-   (FREE_DRINKS); Premium unlocks the rest of DRINKS, plus this user's
-   own custom ones tacked on the end (state.customDrinks — visible only
-   to them, never to anyone else's picker), plus the option to add
-   another. Mirrors beanPicker's own-coffee gating, just flat since a
-   drink type has no brand step. `allowAdd:false` drops the "add your
-   own" sentinel for pickers (onboarding) that don't have a text field
-   to catch it. */
+/* Drink-type dropdown. Every drink in DRINKS is free — sixteen names is
+   a list, not a catalogue, and gating it made people log the wrong
+   coffee. What stays Premium is naming one of your own
+   (state.customDrinks — visible only to them, never to anyone else's
+   picker). `allowAdd:false` drops that sentinel for pickers
+   (onboarding) that have no text field to catch it. */
 export function drinkOptions(current,{allowAdd=true}={}){
-  const base=state.me.premium?DRINKS:DRINKS.filter(d=>FREE_DRINKS.includes(d));
+  const base=DRINKS;
   const list=base.concat(state.customDrinks.filter(d=>!base.includes(d)));
   if(current&&current!==ADD_DRINK&&!list.includes(current)) list.push(current);
   return list.map(d=>`<option${d===current?' selected':''}>${esc(d)}</option>`).join('')
     +(allowAdd&&state.me.premium?`<option value="${esc(ADD_DRINK)}"${current===ADD_DRINK?' selected':''}>${ADD_DRINK}</option>`:'');
 }
+/* ----- Premium, wherever it is met -----
+   Every locked thing says the same two things in the same shape: what
+   Premium would give you here, and that it currently costs nothing.
+   Crema is young and Premium is switched on by hand in Settings, so a
+   lock that only said "Premium" would read as a wall in front of a door
+   that is standing open — and someone who walks away from that never
+   finds out the feature exists. Tapping goes straight to the switch. */
+export function premiumNote(what){
+  if(state.me.premium) return '';
+  return `<div class="pnote" data-action="open-settings">
+    <span class="pn-lock">🔒</span>
+    <span><b>${esc(what)}</b> is a Premium feature — <u>free for now, switch it on in Settings</u>.</span></div>`;
+}
+
 /* ----- follow buttons -----
    A follow has three states since step-1.15: none → requested →
    following. Every follow button in the app renders through here so they
