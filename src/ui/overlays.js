@@ -535,6 +535,12 @@ function remindersBlock(){
     t('Add Crema to your Home Screen to get reminders: tap Share, then <b>Add to Home Screen</b>. Safari cannot send notifications from a browser tab on iPhone.'));
   if(!pushSupported()) return note(
     t('This browser cannot send notifications. The streak nudge still appears on Home when you open Crema.'));
+  /* A live subscription outranks anything Notification.permission says.
+     Under Play's Trusted Web Activity that string is delegated and reads
+     'default' on a cold start while pushes keep arriving, so asking it
+     first is how a device that is subscribed ends up being offered
+     "Remind me" every launch. */
+  if(p.enabled) return switches();
   /* Where to go and fix it depends on how Crema is running. Installed
      from Play, the Trusted Web Activity inherits the Android app's
      notification permission, so "your browser settings" is advice that
@@ -545,20 +551,22 @@ function remindersBlock(){
     ? t('Notifications are switched off for Crema in your device settings. On Android: Settings, then Apps, then Crema, then Notifications. Turn them on there and this comes back.')
     : t('Notifications are blocked for Crema in your browser settings. Allow them there and this comes back.'));
 
-  if(!p.enabled) return `
+  return `
     <p style="font-size:13px;color:var(--ink2);line-height:1.55;margin:0 0 10px">
       ${t('One nudge in the evening if your streak is about to lapse. Nothing else unless you ask for it.')}</p>
     <button class="btn block" data-action="push-on"${p.busy?' disabled':''}>${p.busy?t('Just a moment…'):t('Remind me')}</button>`;
 
-  const sw=(action,on,label,sub)=>`<div class="mrow" data-action="${action}">
-    <div class="mi">${on?'🔔':'🔕'}</div>
-    <div style="flex:1">${label}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${sub}</div></div>
-    <span class="swch${on?' on':''}"></span></div>`;
+  function switches(){
+    const sw=(action,on,label,sub)=>`<div class="mrow" data-action="${action}">
+      <div class="mi">${on?'🔔':'🔕'}</div>
+      <div style="flex:1">${label}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${sub}</div></div>
+      <span class="swch${on?' on':''}"></span></div>`;
 
-  return `${sw('toggle-notify-social',state.me.notifySocial,t('Likes, comments &amp; follows'),t('When someone reacts to your coffee'))}
-    ${sw('toggle-notify-streak',state.me.notifyStreak,t('Streak reminder'),t('Evenings, only when your streak is at risk'))}
-    ${sw('toggle-notify-digest',state.me.notifyDigest,t('Weekly recap'),t('Monday morning, only if you poured that week'))}
-    <button class="btn ghost block" style="margin-top:10px" data-action="push-off"${p.busy?' disabled':''}>${t('Turn off on this device')}</button>`;
+    return `${sw('toggle-notify-social',state.me.notifySocial,t('Likes, comments &amp; follows'),t('When someone reacts to your coffee'))}
+      ${sw('toggle-notify-streak',state.me.notifyStreak,t('Streak reminder'),t('Evenings, only when your streak is at risk'))}
+      ${sw('toggle-notify-digest',state.me.notifyDigest,t('Weekly recap'),t('Monday morning, only if you poured that week'))}
+      <button class="btn ghost block" style="margin-top:10px" data-action="push-off"${p.busy?' disabled':''}>${t('Turn off on this device')}</button>`;
+  }
 }
 
 /* The bean passport — every coffee you have logged, in one place.

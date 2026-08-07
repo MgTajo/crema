@@ -644,7 +644,10 @@ export async function initPush(){
   const u=currentUser(); if(!u) return;
   ui.push=ui.push||{};
   ui.push.enabled=await pushEnabled().catch(()=>false);
-  if(ui.push.enabled){ syncPush(u.id).catch(()=>{}); return; }
+  /* Re-render: this also runs from onAuthChange and from the worker's
+     push-resubscribed message, where a reminders sheet can already be
+     open and showing the pre-boot guess. */
+  if(ui.push.enabled){ renderOverlay(); syncPush(u.id).catch(()=>{}); return; }
   /* Permission granted but no subscription. That is the normal state in
      the Play build — the Android wrapper asks for notification
      permission itself, so someone can have said yes on install and still

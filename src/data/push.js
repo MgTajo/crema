@@ -70,12 +70,22 @@ async function currentSubscription(){
   return reg.pushManager.getSubscription();
 }
 
-/* Is this device set up to receive pushes right now? Both halves have to
-   be true — permission can be granted while the subscription is gone
-   (cleared site data), and a subscription can outlive a revoked
-   permission. */
+/* Is this device set up to receive pushes right now?
+
+   The live subscription is the answer, not Notification.permission. In
+   the Play build Crema runs as a Trusted Web Activity, where notification
+   permission is delegated to the Android app: the web content's
+   Notification.permission reads 'default' on a cold start even though the
+   subscription is alive and pushes are arriving. Requiring 'granted' here
+   meant every launch decided reminders were off, and tapping "Remind me"
+   appeared to fix it instantly — the delegated requestPermission() returns
+   granted and the existing subscription is reused — only to forget again
+   next launch. That was the whole bug.
+
+   An explicit 'denied' still wins: the browser will not deliver, whatever
+   subscription happens to be lying around. */
 export async function pushEnabled(){
-  if(pushPermission()!=='granted') return false;
+  if(pushPermission()==='denied') return false;
   return !!(await currentSubscription());
 }
 
