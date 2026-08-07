@@ -26,6 +26,12 @@ import { render } from './ui/views.js';
 import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile, initPush, openPost } from './ui/actions.js';
+import { applyLang } from './i18n.js';
+
+/* Before anything paints: <html lang> has to match the copy the first
+   render is about to write, or the browser offers to translate a page
+   that is already in the reader's language. */
+applyLang();
 
 /* top-level await: the session decides what the first paint even is. */
 const auth = await initAuth();

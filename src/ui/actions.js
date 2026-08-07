@@ -28,6 +28,7 @@ import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
+import { t, tn, setLang } from '../i18n.js';
 import { render, renderView, renderAppbar, CAFE_MAIL } from './views.js';
 import { pushOv, popOv, renderOverlay, pickerList } from './overlays.js';
 import { initHistory } from './history.js';
@@ -77,8 +78,12 @@ initHistory({ depth: () => ui.ovStack.length + ui.navStack.length + (ui.gate?1:0
 
    The readable actions are listed rather than the gated ones, so an
    action added later is closed until someone decides otherwise. */
+/* `set-lang` is on this list because asking someone to create an account
+   before they may read the app in their own language is the wrong order:
+   the switch changes nothing on the server and belongs to the device, not
+   to a profile. */
 const GUEST_READS=new Set(['open-post','recipe','share-post','close-ov','reload','toast','none',
-                           'guest-signin','guest-back']);
+                           'guest-signin','guest-back','set-lang']);
 
 /* Which line the sheet should lead with, per intent. */
 const GUEST_ASK={
@@ -96,15 +101,15 @@ const GUEST_ASK={
 const NAV_ASK={ explore:'explore', cafes:'cafe', profile:'profile' };
 
 /* True when the click was swallowed and the sheet raised instead. */
-function guestWall(a,t){
+function guestWall(a,el){
   if(currentUser()) return false;
   /* The sign-in screen runs its own actions, and they are the point. */
   if(ui.gate) return false;
   if(GUEST_READS.has(a)) return false;
-  if(a==='filter') { if(t.dataset.f==='today') return false; pushOv({type:'signin',why:'following'}); return true; }
+  if(a==='filter') { if(el.dataset.f==='today') return false; pushOv({type:'signin',why:'following'}); return true; }
   if(a==='nav'){
-    if(t.dataset.r==='home') return false;
-    pushOv({type:'signin',why:NAV_ASK[t.dataset.r]||'general'}); return true;
+    if(el.dataset.r==='home') return false;
+    pushOv({type:'signin',why:NAV_ASK[el.dataset.r]||'general'}); return true;
   }
   pushOv({type:'signin',why:GUEST_ASK[a]||'general'});
   return true;
@@ -112,28 +117,28 @@ function guestWall(a,t){
 
 /* ============================================================ ACTIONS */
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-action]'); if(!t) return;
-  const a=t.dataset.action, id=t.dataset.id;
-  if(guestWall(a,t)) return;
+  const el=e.target.closest('[data-action]'); if(!el) return;
+  const a=el.dataset.action, id=el.dataset.id;
+  if(guestWall(a,el)) return;
   switch(a){
-    case 'nav':{ navTo(t.dataset.r);
+    case 'nav':{ navTo(el.dataset.r);
       /* points move when other people like your pours, so re-read them
          when you look at your own profile rather than only after posting */
       if(ui.route==='profile') refreshScore();
       break;}
-    case 'filter':{ if(ui.filter===t.dataset.f) break; ui.filter=t.dataset.f; feed.cursor=null; feed.done=false; renderView();
+    case 'filter':{ if(ui.filter===el.dataset.f) break; ui.filter=el.dataset.f; feed.cursor=null; feed.done=false; renderView();
       /* signed in the Following tab is a different server query, not a
          client-side filter over one page */
       if(currentUser()) loadFeed().then(()=>renderView());
       break;}
     case 'open-post': openPost(id); break;
     case 'open-cafe': pushOv({type:'cafe',id}); break;
-    case 'open-bean':{ if(BEANS.find(b=>b.n===id)) pushOv({type:'bean',id}); else toast('No details for that bean yet'); break;}
+    case 'open-bean':{ if(BEANS.find(b=>b.n===id)) pushOv({type:'bean',id}); else toast(t('No details for that bean yet')); break;}
     case 'open-user':{ if(!id)break; if(id==='me') navTo('profile'); else openUser(id); break;}
     case 'open-notifs':{ const had=state.notifications.some(n=>!n.read); state.notifications.forEach(n=>n.read=true); if(had){save(); renderAppbar();} pushOv({type:'notifs'});
       const u=currentUser(); if(u&&had) markAllRead(u.id).catch(err=>console.warn('mark read failed',err));
       break;}
-    case 'notif-go':{ const n=state.notifications[+t.dataset.idx]; if(!n)break;
+    case 'notif-go':{ const n=state.notifications[+el.dataset.idx]; if(!n)break;
       if(n.post) openNotifiedPost(n.post);
       else if(n.challenge) pushOv({type:'challenge',id:n.challenge});
       else if(n.cafe) pushOv({type:'cafe',id:n.cafe});
@@ -159,37 +164,37 @@ document.addEventListener('click',e=>{
     case 'clear-search':{ ui.searchQ=''; renderView(); break;}
 
     case 'like': toggleLike(id); break;
-    case 'react': toggleReaction(id,t.dataset.k); break;
+    case 'react': toggleReaction(id,el.dataset.k); break;
     case 'save': toggleSave(id); break;
     case 'follow': toggleFollow(id); break;
     case 'accept-follow': acceptFollow(id); break;
     case 'decline-follow': declineFollow(id); break;
     case 'follow-cafe': toggleCafeFollow(id); break;
     case 'recipe':{const el=$('#rp-'+id); if(el){el.classList.toggle('open'); const o=el.classList.contains('open'); t.innerHTML=t.innerHTML.replace(o?'▾':'▴',o?'▴':'▾');} break;}
-    case 'ptab':{ ui.profTab=t.dataset.t; renderView();
+    case 'ptab':{ ui.profTab=el.dataset.t; renderView();
       /* the saves are rows, not a filter over the feed page */
       if(ui.profTab==='saved'&&!saved.loaded) loadSaved().then(ok=>{ if(ok) renderView(); });
       break;}
 
 
-    case 'cmt-like':{ const p=findPost(t.dataset.pid); const c=p&&p.comments[+t.dataset.idx]; if(!c)break;
+    case 'cmt-like':{ const p=findPost(el.dataset.pid); const c=p&&p.comments[+el.dataset.idx]; if(!c)break;
       c.likedByMe=!c.likedByMe; c.likes=(c.likes||0)+(c.likedByMe?1:-1); save();
       t.classList.toggle('on',c.likedByMe); t.innerHTML=icon(c.likedByMe?'heartF':'heart',15)+'<span>'+(c.likes||'')+'</span>';
-      const u=currentUser(), cid=t.dataset.cid;
+      const u=currentUser(), cid=el.dataset.cid;
       if(u&&cid){ const want=c.likedByMe;
         (want?social.likeComment(u.id,cid):social.unlikeComment(u.id,cid)).catch(err=>{
           if(err.status===409) return; console.warn('comment like failed',err);
           c.likedByMe=!want; c.likes=(c.likes||0)+(want?-1:1); renderOverlay(); }); }
       break;}
-    case 'cmt-reply':{ const inp=$('#cmt-input'); if(inp){inp.value='@'+(t.dataset.handle||'').replace('@','')+' '; inp.focus(); paintMentions(null);} break;}
-    case 'mention-pick': pickMention(t.dataset.h); break;
+    case 'cmt-reply':{ const inp=$('#cmt-input'); if(inp){inp.value='@'+(el.dataset.handle||'').replace('@','')+' '; inp.focus(); paintMentions(null);} break;}
+    case 'mention-pick': pickMention(el.dataset.h); break;
     case 'add-cmt': addComment(id); break;
 
     case 'share-post': sharePost(id); break;
-    case 'menu-copy': copyText(postLink(id),'Link copied 🔗'); popOv(); break;
+    case 'menu-copy': copyText(postLink(id),t('Link copied 🔗')); popOv(); break;
     case 'menu-save': toggleSave(id); popOv(); break;
     case 'menu-report': popOv(); pushOv({type:'report',id}); break;
-    case 'report-send': sendReport(id,t.dataset.reason); break;
+    case 'report-send': sendReport(id,el.dataset.reason); break;
     case 'menu-block': blockUser(id); break;
     case 'menu-delete': deleteMyPost(id); break;
     case 'menu-edit': editMyPost(id); break;
@@ -197,9 +202,9 @@ document.addEventListener('click',e=>{
     case 'directions':{ const c=CAFES.find(x=>x.id===id); if(!c)break;
       const url='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(c.name+', '+c.area+', '+c.city);
       let w=null; try{w=window.open(url,'_blank','noopener');}catch(err){}
-      if(!w) copyText(url,'Maps link copied 🔗'); break;}
+      if(!w) copyText(url,t('Maps link copied 🔗')); break;}
 
-    case 'cafe-filter': ui.cafeF[t.dataset.f]=!ui.cafeF[t.dataset.f]; renderView(); break;
+    case 'cafe-filter': ui.cafeF[el.dataset.f]=!ui.cafeF[el.dataset.f]; renderView(); break;
 
     /* ---------- the café pilot ask ----------
        The button is a real <a href="mailto:…">, so it works on its own
@@ -207,22 +212,22 @@ document.addEventListener('click',e=>{
        bound swallows the navigation silently, which looks like a dead
        button — so the address is copyable right underneath, and that
        row is the fallback rather than a second-guessing of the first. */
-    case 'cafe-lead': toast('Opening your mail app ✉️'); break;
+    case 'cafe-lead': toast(t('Opening your mail app ✉️')); break;
     case 'copy-cafe-mail': copyText(CAFE_MAIL,'hello@crema-app.com copied ✉️'); break;
     case 'share-crema':{
       const link=location.href.split('#')[0];
-      if(navigator.share) navigator.share({title:'Crema',text:'Coffee, brewed social — log what you pour.',url:link}).catch(()=>{});
-      else copyText(link,'Link copied 🔗');
+      if(navigator.share) navigator.share({title:'Crema',text:t('Coffee, brewed social. Log what you pour.'),url:link}).catch(()=>{});
+      else copyText(link,t('Link copied 🔗'));
       break;}
 
     /* ---------- the machine / coffee picker ----------
        The sheet underneath is a form with unsaved text in it, so its
        fields are harvested before a second sheet covers it — same
        sync-then-repaint contract every other action here follows. */
-    case 'open-picker': openPicker(t.dataset.kind,t.dataset.pfx); break;
-    case 'pk-brand':{ const q=$('#pk-q'); ui.picker.q=t.dataset.b||''; if(q){q.value=ui.picker.q; q.focus();} paintPicker(); break;}
+    case 'open-picker': openPicker(el.dataset.kind,el.dataset.pfx); break;
+    case 'pk-brand':{ const q=$('#pk-q'); ui.picker.q=el.dataset.b||''; if(q){q.value=ui.picker.q; q.focus();} paintPicker(); break;}
     case 'pk-focus':{ const q=$('#pk-q'); if(q) q.focus(); break;}
-    case 'pick': choosePicked(t.dataset.v||''); break;
+    case 'pick': choosePicked(el.dataset.v||''); break;
     /* Adding what they typed is the same act as picking it — the value
        just isn't one of ours. Free on purpose: no catalogue will ever
        hold everyone's bag, and a lock here means logging the wrong
@@ -232,29 +237,34 @@ document.addEventListener('click',e=>{
       if(ui.picker.kind==='bean'&&!BEANS.some(b=>b.n===q)&&!state.customBeans.includes(q)) state.customBeans.push(q);
       choosePicked(q); break;}
     case 'pin':{
-      const kind=t.dataset.kind, v=t.dataset.v||'';
-      if(!state.me.premium){ toast('Pinning is Premium — free right now, switch it on in Settings'); break; }
-      toast(togglePin(kind,v)?'Pinned to the top 📌':'Unpinned');
+      const kind=el.dataset.kind, v=el.dataset.v||'';
+      if(!state.me.premium){ toast(t('Pinning is Premium, free right now. Switch it on in Settings.')); break; }
+      toast(togglePin(kind,v)?t('Pinned to the top 📌'):t('Unpinned'));
       paintPicker(); break;}
 
-    case 'cpat':{ syncCreate(); ui.create.pattern=(ui.create.pattern===t.dataset.p)?null:t.dataset.p; renderOverlay(); break;}
-    case 'csource':{ syncCreate(); ui.create.source=t.dataset.s; if(t.dataset.s==='home')ui.create.cafe=''; renderOverlay(); break;}
+    case 'cpat':{ syncCreate(); ui.create.pattern=(ui.create.pattern===el.dataset.p)?null:el.dataset.p; renderOverlay(); break;}
+    case 'csource':{ syncCreate(); ui.create.source=el.dataset.s; if(el.dataset.s==='home')ui.create.cafe=''; renderOverlay(); break;}
     /* Remembered here rather than at submit time, so it sticks even if
        the sheet is abandoned — the choice was still made. */
-    case 'cvis':{ syncCreate(); ui.create.visibility=t.dataset.v; state.lastVisibility=t.dataset.v; save(); renderOverlay(); break;}
+    case 'cvis':{ syncCreate(); ui.create.visibility=el.dataset.v; state.lastVisibility=el.dataset.v; save(); renderOverlay(); break;}
     case 'submit-post': submitPost(); break;
     case 'drop-photo':{ syncCreate(); ui.create.img=null; ui.create.uploadFailed=false; renderOverlay(); break;}
 
-    case 'set-theme': state.theme=t.dataset.t; save(); applyTheme(); renderOverlay(); break;
+    case 'set-theme': state.theme=el.dataset.t; save(); applyTheme(); renderOverlay(); break;
+    /* Language is a whole-app repaint, not a patch: every screen, sheet
+       and app-bar title is built from t() at render time, so switching it
+       means painting the lot again. It is stored outside `state` (see
+       src/i18n.js), so it survives a sign-out and a guest can set it. */
+    case 'set-lang': if(setLang(el.dataset.l)) render(); break;
     case 'save-profile': saveProfile(); break;
     case 'drop-avatar': dropAvatar(); break;
     case 'toggle-premium':{ state.me.premium=!state.me.premium; save(); renderOverlay();
-      toast(state.me.premium?'Premium unlocked ✦':'Premium turned off');
+      toast(state.me.premium?t('Premium unlocked ✦'):t('Premium turned off'));
       const u=currentUser(); if(u) pushProfile(u.id,state.me).catch(err=>console.warn('premium sync failed',err));
       break;}
 
     case 'ob-next':{ syncOb();
-      if(!(state.me.name||'').trim()){ ui.obError='Tell us your name first.'; renderOverlay(); break; }
+      if(!(state.me.name||'').trim()){ ui.obError=t('Tell us your name first.'); renderOverlay(); break; }
       ui.obError=''; ui.obStep=Math.min(2,(ui.obStep||1)+1); renderOverlay(); break;}
     case 'ob-back': syncOb(); ui.obError=''; ui.obStep=Math.max(1,(ui.obStep||1)-1); renderOverlay(); break;
     case 'ob-finish': finishOnboarding(); break;
@@ -263,25 +273,25 @@ document.addEventListener('click',e=>{
        Both repaint everything: the app bar, the tab bar and the view all
        differ between the two. */
     case 'guest-signin':{ ui.gate=true; ui.ovStack=[];
-      ui.auth={ mode:t.dataset.m==='in'?'in':'up', email:'', error:'', notice:'', busy:false };
+      ui.auth={ mode:el.dataset.m==='in'?'in':'up', email:'', error:'', notice:'', busy:false };
       render(); break;}
     case 'guest-back':{ ui.gate=false; ui.auth=null; render(); break;}
 
-    case 'auth-mode':{ syncAuth(); ui.auth.mode=t.dataset.m||'in'; ui.auth.error=''; ui.auth.notice=''; renderView(); break;}
+    case 'auth-mode':{ syncAuth(); ui.auth.mode=el.dataset.m||'in'; ui.auth.error=''; ui.auth.notice=''; renderView(); break;}
     case 'auth-submit': doAuth(); break;
-    case 'auth-oauth': doOAuth(t.dataset.p); break;
+    case 'auth-oauth': doOAuth(el.dataset.p); break;
     case 'sign-out': doSignOut(); break;
     case 'open-password': ui.pw={error:'',busy:false}; pushOv({type:'password'}); break;
     case 'pw-save': savePassword(); break;
-    case 'toast': toast(t.dataset.msg||'Coming soon'); break;
+    case 'toast': toast(el.dataset.msg||t('Coming soon')); break;
     default: break;
   }
 });
 document.addEventListener('keydown',e=>{ if(e.key!=='Enter') return;
-  const t=e.target.closest('[data-enter]'); if(!t) return; e.preventDefault();
-  if(t.dataset.enter==='add-cmt') addComment(t.dataset.id);
-  else if(t.dataset.enter==='auth-submit') doAuth();
-  else if(t.dataset.enter==='pw-save') savePassword(); });
+  const el=e.target.closest('[data-enter]'); if(!el) return; e.preventDefault();
+  if(el.dataset.enter==='add-cmt') addComment(el.dataset.id);
+  else if(el.dataset.enter==='auth-submit') doAuth();
+  else if(el.dataset.enter==='pw-save') savePassword(); });
 /* Recipe fields wear their unit as you type — "18" becomes "18g" the
    moment you type it, not just after you've moved on. Reapplied on
    every keystroke, with the caret parked back where you left it (by
@@ -489,39 +499,39 @@ function syncAuth(){ if(!ui.auth) ui.auth={mode:'in',error:'',notice:'',busy:fal
 
 function authError(e){
   const m=(e&&e.message)||'';
-  if(/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Couldn\'t reach Crema. Check your connection and try again.';
-  if(/Invalid login credentials/i.test(m)) return 'That email and password don\'t match.';
-  if(/already registered|already been registered/i.test(m)) return 'That email already has an account — sign in instead.';
-  if(/Password should be at least/i.test(m)) return 'Pick a longer password — at least 8 characters.';
-  if(/Email not confirmed/i.test(m)) return 'Confirm your email address first — check your inbox.';
-  if(/rate limit|too many/i.test(m)) return 'Too many attempts just now. Wait a minute and try again.';
-  return m || 'Something went wrong. Try again.';
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m)) return t('Crema is out of reach. Check your connection and try again.');
+  if(/Invalid login credentials/i.test(m)) return t('That email and password do not match.');
+  if(/already registered|already been registered/i.test(m)) return t('That email already has an account. Sign in instead.');
+  if(/Password should be at least/i.test(m)) return t('Pick a longer password, at least 8 characters.');
+  if(/Email not confirmed/i.test(m)) return t('Confirm your email address first. Check your inbox.');
+  if(/rate limit|too many/i.test(m)) return t('Too many attempts just now. Wait a minute and try again.');
+  return m || t('Something went wrong. Try again.');
 }
 
 async function doAuth(){
   syncAuth();
   const a=ui.auth, email=(a.email||'').trim(), pw=($('#au-pw')||{}).value||'';
-  if(!email){ a.error='Enter your email address.'; renderView(); return; }
+  if(!email){ a.error=t('Enter your email address.'); renderView(); return; }
 
   if(a.mode==='forgot'){
     a.busy=true; a.error=''; a.notice=''; renderView();
     try{
       await sendPasswordReset(email);
       a.busy=false; a.mode='in';
-      a.notice='Reset link sent. Open it on this device and you can set a new password.';
+      a.notice=t('Reset link sent. Open it on this device and you can set a new password.');
     }catch(e){ a.busy=false; a.error=authError(e); }
     renderView(); return;
   }
 
-  if(!pw){ a.error='Enter your password.'; renderView(); return; }
-  if(a.mode==='up'&&pw.length<8){ a.error='Pick a password of at least 8 characters.'; renderView(); return; }
+  if(!pw){ a.error=t('Enter your password.'); renderView(); return; }
+  if(a.mode==='up'&&pw.length<8){ a.error=t('Pick a password of at least 8 characters.'); renderView(); return; }
   a.busy=true; a.error=''; a.notice=''; renderView();
   try{
     if(a.mode==='up'){
       const { confirmationRequired } = await signUp(email,pw);
       if(confirmationRequired){
         a.busy=false; a.mode='in';
-        a.notice='Account created. Confirm your email address, then sign in.';
+        a.notice=t('Account created. Confirm your email address, then sign in.');
         renderView(); return;
       }
     } else {
@@ -538,17 +548,17 @@ async function doOAuth(provider){
 }
 
 async function doSignOut(){
-  if(!confirm('Sign out of Crema on this device?')) return;
+  if(!confirm(t('Sign out of Crema on this device?'))) return;
   await signOut();
 }
 
 async function savePassword(){
   const p=ui.pw||(ui.pw={error:'',busy:false});
   const a=($('#pw-new')||{}).value||'', b=($('#pw-again')||{}).value||'';
-  if(a.length<8){ p.error='At least 8 characters, please.'; renderOverlay(); return; }
-  if(a!==b){ p.error='Those two don\'t match.'; renderOverlay(); return; }
+  if(a.length<8){ p.error=t('At least 8 characters, please.'); renderOverlay(); return; }
+  if(a!==b){ p.error=t('Those two do not match.'); renderOverlay(); return; }
   p.busy=true; p.error=''; renderOverlay();
-  try{ await updatePassword(a); popOv(); toast('Password changed 🔑'); }
+  try{ await updatePassword(a); popOv(); toast(t('Password changed 🔑')); }
   catch(e){ p.busy=false; p.error=authError(e); renderOverlay(); }
 }
 
@@ -569,7 +579,7 @@ async function syncProfile(){
        only this line tells it where the user is. Fire-and-forget: a
        failed timezone write is not worth a toast. */
     setTimezone(u.id).catch(err=>console.warn('timezone sync failed',err));
-  }catch(e){ console.warn('profile sync failed',e); toast('Couldn\'t load your profile — retrying next time'); }
+  }catch(e){ console.warn('profile sync failed',e); toast(t('Your profile did not load. We will try again next time.')); }
 }
 
 /* ---------- reminders ----------
@@ -593,23 +603,23 @@ async function turnPushOn(){
     try{ await setNotifyPrefs(u.id,state.me); }
     catch(e){ console.warn('notification prefs failed',e); }
     renderOverlay();
-    toast('Reminders on ☕');
+    toast(t('Reminders on ☕'));
     return;
   }
 
   renderOverlay();
   toast(
-    r.reason==='denied'      ? 'Notifications are blocked in your browser settings'
-  : r.reason==='ios-install' ? 'Add Crema to your Home Screen first'
-  : r.reason==='dismissed'   ? 'No reminders — you can turn them on any time'
-  : 'Couldn\'t turn on reminders — try again');
+    r.reason==='denied'      ? t('Notifications are blocked in your browser settings')
+  : r.reason==='ios-install' ? t('Add Crema to your Home Screen first')
+  : r.reason==='dismissed'   ? t('No reminders. You can turn them on any time.')
+  : t('Reminders would not turn on. Try again.'));
 }
 
 async function turnPushOff(){
   ui.push=ui.push||{}; ui.push.busy=true; renderOverlay();
   await disablePush();
   ui.push.busy=false; ui.push.enabled=false; renderOverlay();
-  toast('Reminders off on this device');
+  toast(t('Reminders off on this device'));
 }
 
 /* Optimistic: the switch flips at once and the write follows. A failed
@@ -623,7 +633,7 @@ async function toggleNotify(key){
   catch(e){
     console.warn('notification prefs failed',e);
     state.me[key]=!state.me[key]; save(); renderOverlay();
-    toast('Couldn\'t save that — try again');
+    toast(t('That did not save. Try again.'));
   }
 }
 
@@ -651,18 +661,18 @@ export async function initPush(){
    thing a new account does, so a failure here has to be visible. */
 async function finishOnboarding(){
   syncOb();
-  if(!(state.me.name||'').trim()){ ui.obStep=1; ui.obError='Tell us your name first.'; renderOverlay(); return; }
+  if(!(state.me.name||'').trim()){ ui.obStep=1; ui.obError=t('Tell us your name first.'); renderOverlay(); return; }
   const u=currentUser();
   if(u){
     try{ await pushProfile(u.id,state.me); }
     catch(e){
-      if(e.status===409){ ui.obStep=1; ui.obError='That username is taken — try another.'; renderOverlay(); return; }
+      if(e.status===409){ ui.obStep=1; ui.obError=t('That username is taken. Try another.'); renderOverlay(); return; }
       console.warn('profile save failed',e);
-      toast('Saved on this device — we\'ll sync your profile shortly');
+      toast(t('Saved on this device. We will sync your profile shortly.'));
     }
   }
   state.onboarded=true; ui.obError=''; save(); applyMe();
-  ui.ovStack=[]; render(); toast('Welcome to Crema ☕');
+  ui.ovStack=[]; render(); toast(t('Welcome to Crema ☕'));
 }
 
 /* The single place the app reacts to signing in or out. Signing out is
@@ -680,9 +690,9 @@ onAuthChange(async s=>{
        subscribed — reading as off when it is on. Never prompts. */
     initPush().catch(()=>{});
     if(!state.onboarded){ ui.obStep=1; pushOv({type:'onboard'}); }
-    else toast('Signed in ☕');
+    else toast(t('Signed in ☕'));
   }
-  else toast('Signed out — you can still look around');
+  else toast(t('Signed out. You can still look around.'));
 });
 
 export { syncProfile };
@@ -700,14 +710,14 @@ async function refreshScore(){
 
 async function saveProfile(){
   syncSettings();
-  if(!(state.me.name||'').trim()){ toast('Add your name first'); return; }
+  if(!(state.me.name||'').trim()){ toast(t('Add your name first')); return; }
   state.me.name=(state.me.name||'').trim(); state.me.city=(state.me.city||'').trim(); state.me.handle=(state.me.handle||'').trim();
   save(); applyMe(); renderView();
-  const u=currentUser(); if(!u){ popOv(); toast('Profile updated ✓'); return; }
-  try{ await pushProfile(u.id,state.me); popOv(); toast('Profile updated ✓'); }
+  const u=currentUser(); if(!u){ popOv(); toast(t('Profile updated ✓')); return; }
+  try{ await pushProfile(u.id,state.me); popOv(); toast(t('Profile updated ✓')); }
   catch(e){
-    if(e.status===409){ toast('That username is taken — try another'); return; }
-    console.warn('profile sync failed',e); popOv(); toast('Saved here — we\'ll sync it shortly');
+    if(e.status===409){ toast(t('That username is taken. Try another.')); return; }
+    console.warn('profile sync failed',e); popOv(); toast(t('Saved here. We will sync it shortly.'));
   }
 }
 
@@ -738,12 +748,12 @@ async function openUser(uid){
    inbox used to do. */
 async function openNotifiedPost(id){
   if(findPost(id)){ openPost(id); return; }
-  const u=currentUser(); if(!u){ toast('Couldn\'t open that pour'); return; }
+  const u=currentUser(); if(!u){ toast(t('That pour would not open')); return; }
   try{
     const p=await fetchPost(id,u.id);
-    if(!p){ toast('That pour is gone'); return; }
+    if(!p){ toast(t('That pour is gone')); return; }
     cachePosts([p]); openPost(id);
-  }catch(e){ console.warn('notification post failed',e); toast('Couldn\'t open that pour'); }
+  }catch(e){ console.warn('notification post failed',e); toast(t('That pour would not open')); }
 }
 
 async function openFlist(kind){
@@ -821,7 +831,7 @@ function choosePicked(v){
 }
 
 function handleUpload(file){
-  if(!file.type||!file.type.startsWith('image/')){toast('That file isn\'t an image'); return;}
+  if(!file.type||!file.type.startsWith('image/')){toast(t('That file is not an image')); return;}
   const reader=new FileReader();
   reader.onload=ev=>{const img=new Image();
     img.onload=()=>{
@@ -832,7 +842,7 @@ function handleUpload(file){
          trip to see your own photo. If the upload fails this stays the
          final value: the post still goes out, with the photo inline. */
       ui.create.img=cv.toDataURL('image/jpeg',0.82); ui.create.uploadFailed=false;
-      renderOverlay(); toast('Photo added 📸');
+      renderOverlay(); toast(t('Photo added 📸'));
       const u=currentUser(); if(!u) return;
       const target=ui.create;
       ui.create.uploading=true; renderOverlay();
@@ -844,12 +854,12 @@ function handleUpload(file){
         }).catch(err=>{
           console.warn('upload failed',err);
           if(ui.create===target){ ui.create.uploading=false; ui.create.uploadFailed=true; renderOverlay(); }
-          toast('Couldn\'t upload that photo — tap Post to retry');
+          toast(t('That photo did not upload. Tap Post to retry.'));
         });
       },'image/jpeg',0.82);
     };
-    img.onerror=()=>toast('Could not read that image'); img.src=ev.target.result;};
-  reader.onerror=()=>toast('Could not read that file');
+    img.onerror=()=>toast(t('That image could not be read')); img.src=ev.target.result;};
+  reader.onerror=()=>toast(t('That file could not be read'));
   reader.readAsDataURL(file);
 }
 
@@ -871,8 +881,8 @@ function squareCanvas(img, size=512){
   return cv;
 }
 function uploadAvatar(file){
-  if(!file.type||!file.type.startsWith('image/')){ toast('That file isn\'t an image'); return; }
-  if(!currentUser()){ toast('Sign in to add a photo'); return; }
+  if(!file.type||!file.type.startsWith('image/')){ toast(t('That file is not an image')); return; }
+  if(!currentUser()){ toast(t('Sign in to add a photo')); return; }
   const reader=new FileReader();
   reader.onload=ev=>{
     const img=new Image();
@@ -889,18 +899,18 @@ function uploadAvatar(file){
           await pushAvatar(u.id,key);
           state.me.avatar=key; save(); applyMe();
           ui.avatarBusy=false; renderOverlay(); renderView();
-          toast('Photo updated 📸');
+          toast(t('Photo updated 📸'));
           /* only once the row points at the new one — an orphan in R2 is
              cheap, a profile pointing at a deleted object is not */
           if(previous) deleteImage(previous);
         }catch(err){
           console.warn('avatar upload failed',err);
           ui.avatarBusy=false; renderOverlay();
-          toast(err&&/step-1\.13/.test(err.message||'') ? 'Profile photos aren\'t switched on yet' : 'Couldn\'t upload that photo — try again');
+          toast(err&&/step-1\.13/.test(err.message||'') ? t('Profile photos are not switched on yet') : t('That photo did not upload. Try again.'));
         }
       },'image/jpeg',0.85);
     };
-    img.onerror=()=>toast('Could not read that image');
+    img.onerror=()=>toast(t('That image could not be read'));
     img.src=ev.target.result;
   };
   reader.onerror=()=>toast('Could not read that file');
@@ -909,18 +919,18 @@ function uploadAvatar(file){
 async function dropAvatar(){
   const previous=state.me.avatar||''; if(!previous) return;
   syncSettings();
-  const u=currentUser(); if(!u){ toast('Sign in first'); return; }
+  const u=currentUser(); if(!u){ toast(t('Sign in first')); return; }
   ui.avatarBusy=true; renderOverlay();
   try{
     await pushAvatar(u.id,null);
     state.me.avatar=''; save(); applyMe();
     ui.avatarBusy=false; renderOverlay(); renderView();
-    toast('Back to your initials');
+    toast(t('Back to your initials'));
     deleteImage(previous);
   }catch(err){
     console.warn('avatar removal failed',err);
     ui.avatarBusy=false; renderOverlay();
-    toast('Couldn\'t remove that photo — try again');
+    toast(t('That photo did not come off. Try again.'));
   }
 }
 
@@ -933,7 +943,7 @@ function toggleLike(id){
   const p=findPost(id); if(!p) return;
   /* Liking your own pour is refused by RLS (step-1.10.sql); the button
      isn't rendered either, so this only guards a stray dispatch. */
-  if(p.user==='me'){ toast('You can\'t like your own pour'); return; }
+  if(p.user==='me'){ toast(t('You cannot like your own pour')); return; }
   p.likedByMe=!p.likedByMe; p.likes+=p.likedByMe?1:-1; save();
   paintLike(p);
   if(p.likedByMe){const hp=$('#hp-'+id); if(hp){hp.classList.remove('go'); void hp.offsetWidth; hp.classList.add('go');}}
@@ -943,7 +953,7 @@ function toggleLike(id){
     if(err.status===409) return;                    // already liked; local state is right
     console.warn('like failed',err);
     p.likedByMe=!want; p.likes+=want?-1:1; save(); paintLike(p);
-    toast('Couldn\'t save that like');
+    toast(t('That like did not save'));
   });
 }
 /* Reactions repaint their own row rather than the whole card: the card
@@ -957,7 +967,7 @@ function toggleReaction(id,kind){
   const p=findPost(id); if(!p||!kind) return;
   /* Refused by RLS as well (step-1.19.sql); the buttons aren't rendered
      on your own pour either, so this only guards a stray dispatch. */
-  if(p.user==='me'){ toast('Reactions are for other people\'s coffee'); return; }
+  if(p.user==='me'){ toast(t('Reactions are for other people\'s coffee')); return; }
   if(!p.reactions) p.reactions=noReactions();
   if(!p.myReactions) p.myReactions=[];
   const had=p.myReactions.indexOf(kind)>=0;
@@ -973,7 +983,7 @@ function toggleReaction(id,kind){
     if(had) p.myReactions=p.myReactions.concat(kind);
     else p.myReactions=p.myReactions.filter(k=>k!==kind);
     p.reactions[kind]=Math.max(0,(p.reactions[kind]|0)+(had?1:-1));
-    save(); paintReactions(p); toast('Couldn\'t save that reaction');
+    save(); paintReactions(p); toast(t('That reaction did not save'));
   });
 }
 function paintSave(p){
@@ -984,7 +994,7 @@ function toggleSave(id){
   if(p.saved){ if(!saved.list.some(x=>x.id===p.id)) saved.list.unshift(p); }
   else saved.list=saved.list.filter(x=>x.id!==p.id);
   paintSave(p);
-  toast(p.saved?'Saved to your collection 🔖':'Removed from saved');
+  toast(p.saved?t('Saved to your collection 🔖'):t('Removed from saved'));
   const u=currentUser(); if(!u) return;
   const want=p.saved;
   (want?social.savePost(u.id,id):social.unsavePost(u.id,id)).catch(err=>{
@@ -993,7 +1003,7 @@ function toggleSave(id){
     p.saved=!want;
     if(p.saved){ if(!saved.list.some(x=>x.id===p.id)) saved.list.unshift(p); }
     else saved.list=saved.list.filter(x=>x.id!==p.id);
-    save(); paintSave(p); toast('Couldn\'t update your collection');
+    save(); paintSave(p); toast(t('Your collection did not update'));
   });
 }
 /* Reads the state rather than being told it, because there are three
@@ -1037,14 +1047,14 @@ function toggleFollow(id){
     state.followPending[id]=true;
   }
   save(); paintFollow(id);
-  toast(undo ? (wasPending?'Request withdrawn':'Unfollowed') : `Follow request sent to ${who}`);
+  toast(undo ? (wasPending?t('Request withdrawn'):t('Unfollowed')) : t('Follow request sent to {who}',{who}));
 
   const u=currentUser(); if(!u) return;
   (undo?social.unfollow(u.id,id):social.follow(u.id,id)).catch(err=>{
     if(err.status===409) return;
     console.warn('follow failed',err);
     state.follows[id]=wasFollowing; state.followPending[id]=wasPending;
-    save(); paintFollow(id); toast('Couldn\'t update that follow');
+    save(); paintFollow(id); toast(t('That follow did not update'));
   });
 }
 
@@ -1070,7 +1080,7 @@ async function acceptFollow(id){
     if(storeSocial.listsLoaded && !storeSocial.following.some(x=>x.id===id)) storeSocial.following.push(req.user);
   }
   save(); renderView(); renderAppbar();
-  toast(wasFollowing ? `${first} can see your pours now` : `You and ${first} now follow each other`);
+  toast(wasFollowing ? t('{name} can see your pours now',{name:first}) : t('You and {name} now follow each other',{name:first}));
   try{
     await social.acceptFollow(u.id,id);
     /* they can see followers-only pours from here on, and so do we —
@@ -1086,7 +1096,7 @@ async function acceptFollow(id){
       storeSocial.counts.following=Math.max(0,(storeSocial.counts.following|0)-1);
       storeSocial.following=storeSocial.following.filter(x=>x.id!==id);
     }
-    save(); renderView(); toast('Couldn\'t accept that — try again');
+    save(); renderView(); toast(t('That did not go through. Try again.'));
   }
 }
 
@@ -1094,12 +1104,12 @@ async function declineFollow(id){
   const u=currentUser(); if(!u) return;
   const req=storeSocial.requests.find(r=>r.id===id); if(!req) return;
   storeSocial.requests=storeSocial.requests.filter(r=>r.id!==id);
-  renderView(); renderAppbar(); toast('Request declined');
+  renderView(); renderAppbar(); toast(t('Request declined'));
   try{ await social.declineFollow(u.id,id); }
   catch(err){
     console.warn('decline failed',err);
     storeSocial.requests.unshift(req); renderView();
-    toast('Couldn\'t decline that — try again');
+    toast(t('That did not go through. Try again.'));
   }
 }
 /* Opening a post loads its thread. The feed only carries a count, so
@@ -1151,7 +1161,7 @@ function addComment(id){
   const c={u:'me',t:text,ago:'now',likes:0};
   p.comments.push(c); if(p.commentN!=null) p.commentN++; save();
   const list=$('#cmt-list'); if(list){if(list.querySelector('.empty')) list.innerHTML=''; list.insertAdjacentHTML('beforeend',commentRow(c,p.id,p.comments.length-1));}
-  inp.value=''; paintMentions(null); toast('Comment added 💬');
+  inp.value=''; paintMentions(null); toast(t('Comment added 💬'));
   const u=currentUser(); if(!u) return;
   social.addComment(u.id,id,text)
     .then(row=>{ if(row) c.id=row.id; refreshChallenges(); })
@@ -1160,17 +1170,17 @@ function addComment(id){
       const i=p.comments.indexOf(c); if(i>=0) p.comments.splice(i,1);
       if(p.commentN!=null) p.commentN--;
       renderOverlay();
-      toast(/too many comments/i.test(err.message)?'Slow down a moment — too many comments at once':'Couldn\'t post that comment');
+      toast(/too many comments/i.test(err.message)?t('Slow down a moment. That is too many comments at once.'):t('That comment did not post'));
     });
 }
 
 function toggleCafeFollow(id){
   const on=state.cafeFollow[id]=!state.cafeFollow[id]; save(); renderOverlay();
-  toast(on?'Following café ☕':'Unfollowed');
+  toast(on?t('Following café ☕'):t('Unfollowed'));
   const u=currentUser(); if(!u) return;
   (on?social.followCafe(u.id,id):social.unfollowCafe(u.id,id)).catch(err=>{
     if(err.status===409) return; console.warn('cafe follow failed',err);
-    state.cafeFollow[id]=!on; save(); renderOverlay(); toast('Couldn\'t update that follow');
+    state.cafeFollow[id]=!on; save(); renderOverlay(); toast(t('That follow did not update'));
   });
 }
 
@@ -1210,7 +1220,7 @@ export async function refreshChallenges(){
        right; this is the in-the-moment version for someone who is
        looking at the screen when it lands. */
     const c=CHALLENGES.find(x=>x.done);
-    toast(won===1&&c?`Challenge complete: ${c.title} · +${c.points} 🎯`:`${won} challenges complete! 🎯`);
+    toast(won===1&&c?t('Challenge complete: {title} · +{n} 🎯',{title:c.title,n:c.points}):t('{n} challenges complete 🎯',{n:won}));
     refreshScore();
   }
 }
@@ -1219,42 +1229,42 @@ export async function refreshChallenges(){
 async function sendReport(postId,reason){
   popOv();
   const u=currentUser();
-  if(!u){ toast('Sign in to report a pour'); return; }
-  try{ await social.report(u.id,{ postId, reason }); toast('Reported — thanks for keeping Crema kind 🙏'); }
-  catch(e){ console.warn('report failed',e); toast('Couldn\'t send that report — try again'); }
+  if(!u){ toast(t('Sign in to report a pour')); return; }
+  try{ await social.report(u.id,{ postId, reason }); toast(t('Reported. Thanks for keeping Crema kind 🙏')); }
+  catch(e){ console.warn('report failed',e); toast(t('That report did not send. Try again.')); }
 }
 
 async function blockUser(uid){
   const u=currentUser();
-  if(!u){ toast('Sign in to block someone'); return; }
+  if(!u){ toast(t('Sign in to block someone')); return; }
   const who=(userOf(uid).name||'this person').split(' ')[0];
-  if(!confirm(`Block ${who}? You won't see their pours, and they won't be told.`)) return;
+  if(!confirm(t('Block {who}? You will not see their pours, and they are never told.',{who}))) return;
   popOv();
   try{
     await social.block(u.id,uid);
     storeSocial.blocks.push(uid);
     state.follows[uid]=false; save();
     await loadFeed(); ui.ovStack=[]; render();
-    toast(`Blocked ${who}`);
+    toast(t('Blocked {who}',{who}));
   }catch(e){
-    if(e.status===409){ toast(`${who} is already blocked`); return; }
-    console.warn('block failed',e); toast('Couldn\'t block — try again');
+    if(e.status===409){ toast(t('{who} is already blocked',{who})); return; }
+    console.warn('block failed',e); toast(t('That block did not go through. Try again.'));
   }
 }
 
 async function deleteMyPost(id){
-  if(!confirm('Delete this pour? This cannot be undone.')) return;
+  if(!confirm(t('Delete this pour? This cannot be undone.'))) return;
   popOv();
   const p=findPost(id); if(!p) return;
   const i=state.posts.indexOf(p); if(i>=0) state.posts.splice(i,1);
   const j=mine.list.indexOf(p); if(j>=0) mine.list.splice(j,1);
-  ui.ovStack=[]; save(); render(); toast('Pour deleted');
+  ui.ovStack=[]; save(); render(); toast(t('Pour deleted'));
   const u=currentUser(); if(!u) return;
   deletePost(id).then(()=>{ deleteImage(p.img); refreshScore(); refreshChallenges(); }).catch(err=>{
     console.warn('delete failed',err);
     if(i>=0) state.posts.splice(i,0,p);
     if(j>=0) mine.list.splice(j,0,p);
-    save(); render(); toast('Couldn\'t delete that — it\'s still there');
+    save(); render(); toast(t('That did not delete. The pour is still there.'));
   });
 }
 /* The same pour can sit in several lists at once (the feed, your profile
@@ -1274,7 +1284,7 @@ function postCopies(id){
    same unpacking brewAgain does. */
 function editMyPost(id){
   const p=findPost(id); if(!p) return;
-  if(!canEdit(p)){ popOv(); toast('Pours can only be edited on the day you posted them'); return; }
+  if(!canEdit(p)){ popOv(); toast(t('Pours can only be edited on the day you posted them')); return; }
   const r=p.recipe||{}, c=freshCreate();
   const cafe=p.cafe?CAFES.find(x=>x.name===p.cafe):null;
   Object.assign(c,{
@@ -1297,14 +1307,14 @@ function editMyPost(id){
    the request goes out, and every copy rolls back together if it fails. */
 async function saveEdit(c){
   const p=findPost(c.editId);
-  if(!p){ ui.ovStack=[]; render(); toast('That pour is gone'); return; }
-  if(!canEdit(p)){ ui.ovStack=[]; render(); toast('Pours can only be edited on the day you posted them'); return; }
+  if(!p){ ui.ovStack=[]; render(); toast(t('That pour is gone')); return; }
+  if(!canEdit(p)){ ui.ovStack=[]; render(); toast(t('Pours can only be edited on the day you posted them')); return; }
   const copies=postCopies(p.id);
   const KEYS=['drink','art','pattern','cafe','caption','recipe','edited','visibility'];
   const before=copies.map(x=>{ const o={}; KEYS.forEach(k=>o[k]=x[k]); return o; });
   const next={ ...composeFromSheet(c), edited:true };
   copies.forEach(x=>Object.assign(x,next));
-  ui.create=null; ui.ovStack=[]; save(); render(); toast('Changes saved');
+  ui.create=null; ui.ovStack=[]; save(); render(); toast(t('Changes saved'));
 
   if(!currentUser()) return;
   /* An edit can move the score now: filling in dose and yield earns the
@@ -1314,7 +1324,7 @@ async function saveEdit(c){
   catch(err){
     console.warn('edit failed',err);
     copies.forEach((x,i)=>Object.assign(x,before[i]));
-    save(); render(); toast('Couldn\'t save that — the pour is unchanged');
+    save(); render(); toast(t('That did not save. The pour is unchanged.'));
   }
 }
 
@@ -1327,7 +1337,7 @@ function brewAgain(id){
   /* The recipe stores one combined "Brand Model" string; the picker needs
      the two halves back or it silently falls back to your own machine. */
   if(r.machine){ const m=splitMachine(r.machine); ui.create.machineBrand=m.brand; ui.create.machineModel=m.model; }
-  ui.ovStack=[]; pushOv({type:'create'}); toast('Recipe loaded — brew it again ☕');
+  ui.ovStack=[]; pushOv({type:'create'}); toast(t('Recipe loaded. Brew it again ☕'));
 }
 function sharePost(id){
   const p=findPost(id); if(!p) return; const link=postLink(id);
@@ -1335,14 +1345,14 @@ function sharePost(id){
   else copyText(link,'Link copied 🔗');
 }
 function copyText(text,msg){
-  const done=()=>toast(msg||'Copied ✓');
+  const done=()=>toast(msg||t('Copied ✓'));
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text,done)); }
   else fallbackCopy(text,done);
 }
 function fallbackCopy(text,done){
   try{const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
     document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();}
-  catch(e){toast('Couldn\'t copy here — long-press the post instead');}
+  catch(e){toast(t('Copying is not available here. Long-press the post instead.'));}
 }
 /* A photo belongs in R2, never in the row. `image_key` holds an object
    key; a data: URI there is 300 KB shipped to every viewer on every feed
@@ -1361,7 +1371,7 @@ async function ensureUploaded(c){
   }catch(e){
     console.warn('upload retry failed',e);
     if(ui.create===c){ c.uploading=false; c.uploadFailed=true; renderOverlay(); }
-    toast('Photo still won\'t upload — remove it to post without one');
+    toast(t('The photo still will not upload. Remove it to post without one.'));
     return false;
   }
 }
@@ -1415,7 +1425,7 @@ function composeFromSheet(c){
 async function submitPost(){
   syncCreate(); const c=ui.create;
   if(c.editId){ saveEdit(c); return; }
-  if(c.uploading){ toast('Photo is still uploading — one moment'); return; }
+  if(c.uploading){ toast(t('The photo is still uploading. One moment.')); return; }
   if(!(await ensureUploaded(c))) return;
   /* The id is minted client-side so it never changes under us — the
      generated cup art is seeded from it, and so is the share link. */
@@ -1430,7 +1440,7 @@ async function submitPost(){
   /* Land on the tab that will actually contain what you just posted: a
      followers-only pour never appears in Today. */
   ui.ovStack=[]; ui.route='home'; ui.filter=np.visibility==='followers'?'following':'today'; render();
-  setTimeout(()=>toast(c.img?'Posted! Streak kept 🔥':'Posted ☕ (add a photo next time)'),120);
+  setTimeout(()=>toast(c.img?t('Posted. Streak kept 🔥'):t('Posted ☕ · add a photo next time')),120);
 
   /* Optimistic: the post is already on screen. Reconcile on failure. */
   if(u) createPost(np,u.id).then(()=>{
@@ -1446,15 +1456,15 @@ async function submitPost(){
     console.warn('post failed',err);
     const i=state.posts.indexOf(np); if(i>=0) state.posts.splice(i,1);
     const j=mine.list.indexOf(np); if(j>=0) mine.list.splice(j,1);
-    save(); render(); toast('Couldn\'t post that — check your connection and try again');
+    save(); render(); toast(t('That did not post. Check your connection and try again.'));
   });
 }
 
 /* ---------- theme ---------- */
 const mqDark=matchMedia('(prefers-color-scheme: dark)');
 export function applyTheme(){
-  const t=state.theme||'auto';
-  const dark = t==='dark' || (t==='auto' && mqDark.matches);
+  const th=state.theme||'auto';
+  const dark = th==='dark' || (th==='auto' && mqDark.matches);
   document.documentElement.setAttribute('data-theme',dark?'dark':'light');
 }
 if(mqDark.addEventListener) mqDark.addEventListener('change',()=>{ if((state.theme||'auto')==='auto') applyTheme(); });

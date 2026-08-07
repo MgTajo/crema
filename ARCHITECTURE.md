@@ -19,7 +19,7 @@ small, contained changes rather than a rewrite.
               supabase.js · profiles · posts · social · challenges ·
               notifications · media · push · remote.js           (backend)
                                         │
-                                config.js · core/util.js                     pure helpers
+                       config.js · core/util.js · i18n.js ─ i18n.de.js       pure helpers
 ```
 
 A module only imports from layers **below** it. Nothing in `data/`, `domain/`, `core/` or
@@ -31,6 +31,7 @@ A module only imports from layers **below** it. Nothing in `data/`, `domain/`, `
 | Layer | Files | Responsibility | Becomes, in the target app |
 | --- | --- | --- | --- |
 | **core** | `core/util.js` | Pure format/time/dom helpers | Shared utilities (the DOM helpers are the only web-only part) |
+| **i18n** | `i18n.js`, `i18n.de.js` | English and German. `t()` keys *are* the English sentences, so an untranslated string falls back to itself; the chosen language lives in `localStorage` rather than in the store, because it has to be known before `load()` resolves and a signed-out visitor gets to pick it too | The same table, loaded per platform locale |
 | **data** | `data/assets.js`, `data/catalog.js`, `data/world.js` | The bundled catalog (drinks, machines, milks, levels) and `world.js` — the people / café / challenge / podium maps, which ship **empty** and are filled from the backend | The same, plus a real image CDN |
 | **data (backend)** | `data/supabase.js`, `profiles`, `posts`, `social`, `challenges`, `notifications`, `media`, `remote` | The only modules that touch the network: auth + PostgREST + R2, and the row⇄app mapping per domain | The same, pointed at production |
 | **store** | `store/store.js`, `store/persistence.js` | The single source of truth: `state`, `ui`, selectors, and the persistence adapter | The client cache / API layer talking to your backend |

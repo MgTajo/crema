@@ -18,6 +18,7 @@
    ============================================================ */
 import { esc } from '../core/util.js';
 import { ui } from '../store/store.js';
+import { t } from '../i18n.js';
 import { logoMark } from './icons.js';
 
 export function authState(){
@@ -30,38 +31,38 @@ const banner=(text,color,bg,border)=>`<div style="background:${bg};border:1px so
 export function renderGate(){
   const a=authState();
   const up=a.mode==='up', forgot=a.mode==='forgot';
-  const title = forgot ? 'Reset your password' : up ? 'Create your account' : 'Welcome back';
+  const title = forgot ? t('Reset your password') : up ? t('Create your account') : t('Welcome back');
   const sub = forgot
-    ? 'We\'ll email you a link. Open it on this device and you\'ll be signed in, ready to pick a new password.'
+    ? t('We will send you a link by email. Open it on this device and you can pick a new password.')
     : up
-      ? 'Every pour is progress. Start logging your coffees, grow your craft, and meet people who care about the same 30 seconds of the morning that you do.'
-      : 'Sign in to pick up where you left off.';
+      ? t('Log the coffee you make and watch the habit build. The people here care about the same 30 seconds of the morning that you do.')
+      : t('Sign in to pick up where you left off.');
 
-  const emailField=`<div class="field"><label>Email</label>
+  const emailField=`<div class="field"><label>${t('Email')}</label>
     <input id="au-email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false"
       placeholder="you@example.com" value="${esc(a.email||'')}" data-enter="auth-submit"></div>`;
-  const pwField=`<div class="field"><label>Password</label>
+  const pwField=`<div class="field"><label>${t('Password')}</label>
     <input id="au-pw" type="password" autocomplete="${up?'new-password':'current-password'}"
-      placeholder="${up?'At least 8 characters':'Your password'}" data-enter="auth-submit"></div>`;
+      placeholder="${up?t('At least 8 characters'):t('Your password')}" data-enter="auth-submit"></div>`;
 
   const oauth=`
     <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:11.5px">
-      <i style="flex:1;height:1px;background:var(--line)"></i>or<i style="flex:1;height:1px;background:var(--line)"></i></div>
-    <button class="btn ghost block" data-action="auth-oauth" data-p="google">Continue with Google</button>`;
+      <i style="flex:1;height:1px;background:var(--line)"></i>${t('or')}<i style="flex:1;height:1px;background:var(--line)"></i></div>
+    <button class="btn ghost block" data-action="auth-oauth" data-p="google">${t('Continue with Google')}</button>`;
 
   const body = forgot
     ? `${emailField}
-       <button class="btn block"${a.busy?' disabled':''} data-action="auth-submit">${a.busy?'Sending…':'Email me a reset link'}</button>
+       <button class="btn block"${a.busy?' disabled':''} data-action="auth-submit">${a.busy?t('Sending…'):t('Email me a reset link')}</button>
        <div style="text-align:center;margin-top:16px;font-size:13px">
-         <b style="color:var(--crema-deep);cursor:pointer" data-action="auth-mode" data-m="in">Back to sign in</b></div>`
+         <b style="color:var(--crema-deep);cursor:pointer" data-action="auth-mode" data-m="in">${t('Back to sign in')}</b></div>`
     : `${emailField}${pwField}
-       <button class="btn block"${a.busy?' disabled':''} data-action="auth-submit">${a.busy?'Just a moment…':(up?'Create account':'Sign in')}</button>
+       <button class="btn block"${a.busy?' disabled':''} data-action="auth-submit">${a.busy?t('Just a moment…'):(up?t('Create account'):t('Sign in'))}</button>
        ${up?'':`<div style="text-align:center;margin-top:12px;font-size:12.5px">
-         <span style="color:var(--muted);cursor:pointer" data-action="auth-mode" data-m="forgot">Forgot your password?</span></div>`}
+         <span style="color:var(--muted);cursor:pointer" data-action="auth-mode" data-m="forgot">${t('Forgot your password?')}</span></div>`}
        ${oauth}
        <div style="text-align:center;margin-top:16px;font-size:13px">
-         <span style="color:var(--muted)">${up?'Already have an account? ':'New to Crema? '}</span>
-         <b style="color:var(--crema-deep);cursor:pointer" data-action="auth-mode" data-m="${up?'in':'up'}">${up?'Sign in':'Create one'}</b></div>`;
+         <span style="color:var(--muted)">${up?t('Already have an account?')+' ':t('New to Crema?')+' '}</span>
+         <b style="color:var(--crema-deep);cursor:pointer" data-action="auth-mode" data-m="${up?'in':'up'}">${up?t('Sign in'):t('Create one')}</b></div>`;
 
   return `<div class="pad" style="padding-top:26px">
     <div class="obhero">${logoMark(56)}<h1>${title}</h1><p>${sub}</p></div>
@@ -69,8 +70,8 @@ export function renderGate(){
     ${a.error?banner(a.error,'var(--terra)','rgba(168,84,74,.10)','rgba(168,84,74,.28)'):''}
     ${body}
     <div style="font-size:11px;color:var(--muted);margin-top:20px;text-align:center;line-height:1.55">
-      Your coffee log is stored in the EU and is yours alone.<br>Crema never posts anything without you.</div>
-    <div style="text-align:center;margin-top:18px;font-size:13px;color:var(--muted);cursor:pointer" data-action="guest-back">← Keep looking at today's pours</div>
+      ${t('Your coffee log is stored in the EU and belongs to you.')}<br>${t('Crema never posts anything without you.')}</div>
+    <div style="text-align:center;margin-top:18px;font-size:13px;color:var(--muted);cursor:pointer" data-action="guest-back">← ${t('Keep reading today\'s pours')}</div>
     <div style="height:20px"></div>
   </div>`;
 }
