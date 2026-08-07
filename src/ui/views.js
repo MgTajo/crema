@@ -10,7 +10,7 @@ import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
-         myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts, coffeeStats } from '../store/store.js';
+         myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts, coffeeStats, friendsToday } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
@@ -58,6 +58,7 @@ export function renderHome(){
   return `<div class="pad">
     ${followRequestsBlock()}
     ${streakBlock()}
+    ${friendsTodayStrip()}
     <div class="seg">
       <button class="${ui.filter==='today'?'on':''}" data-action="filter" data-f="today">${t('Today')}</button>
       <button class="${ui.filter==='following'?'on':''}" data-action="filter" data-f="following">${t('Following')}</button>
@@ -155,6 +156,27 @@ function streakBlock(){
       <button class="btn sm" data-action="open-create">${t('Log a pour')}</button></div>`;
   }
   return '';
+}
+
+/* "N friends already brewed today" — reciprocity, not a task list: unlike
+   followRequestsBlock() above it, nothing here needs an answer from you.
+   Tapping it opens the same Following tab loadFriendsToday() itself
+   draws from, so the strip is never claiming something the tab beneath
+   it can't back up.
+
+   Silent until friendsToday has actually loaded and silent when it's
+   empty — a strip reading "0 friends" the first time anyone opens the
+   app on a given morning is worse than no strip, and loaded starts
+   false specifically so this can tell "not fetched yet" apart from
+   "fetched, nobody yet". */
+function friendsTodayStrip(){
+  if(!session || !friendsToday.loaded) return '';
+  const ids=friendsToday.list; if(!ids.length) return '';
+  const shown=ids.slice(0,6), extra=ids.length-shown.length;
+  return `<div class="ftoday" data-action="filter" data-f="following">
+    <div class="ftoday-faces">${shown.map(id=>avatar(id)).join('')}${extra>0?`<div class="ftoday-more">+${extra}</div>`:''}</div>
+    <div class="ftoday-t">${tn(ids.length,'{n} friend has already brewed today ☕','{n} friends have already brewed today ☕',{n:ids.length})}</div>
+  </div>`;
 }
 
 export function renderExplore(){

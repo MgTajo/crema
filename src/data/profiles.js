@@ -62,21 +62,26 @@ export function rowToMe(row){
        step-1.19.sql. */
     notifySocial: row.notify_social===undefined ? true : !!row.notify_social,
     notifyStreak: row.notify_streak===undefined ? true : !!row.notify_streak,
-    notifyDigest: row.notify_digest===undefined ? true : !!row.notify_digest
+    notifyDigest: row.notify_digest===undefined ? true : !!row.notify_digest,
+    /* step-1.20.sql. Same undefined-means-not-run-yet contract, same
+       default-true reasoning: nothing sends without the device having
+       granted push in the first place. */
+    notifyMorning: row.notify_morning===undefined ? true : !!row.notify_morning
   };
 }
 
-/* The three notification switches, written on their own. Uses its own
-   optionalColumns() so that on a deploy where step-1.16.sql has not been
-   run yet the toggles quietly do nothing instead of failing the save —
-   same contract as avatar_key above. */
-const notifyOpt = optionalColumns(['notify_social','notify_streak','notify_digest']);
+/* The four notification switches, written on their own. Uses its own
+   optionalColumns() so that on a deploy where step-1.16.sql (or 1.20)
+   has not been run yet the toggles quietly do nothing instead of
+   failing the save — same contract as avatar_key above. */
+const notifyOpt = optionalColumns(['notify_social','notify_streak','notify_digest','notify_morning']);
 export function setNotifyPrefs(uid, me){
   return notifyOpt.run(has=>{
     const body={};
     if(has('notify_social')) body.notify_social = !!me.notifySocial;
     if(has('notify_streak')) body.notify_streak = !!me.notifyStreak;
     if(has('notify_digest')) body.notify_digest = !!me.notifyDigest;
+    if(has('notify_morning')) body.notify_morning = !!me.notifyMorning;
     return { path:`profiles?id=eq.${uid}`, method:'PATCH', body };
   });
 }

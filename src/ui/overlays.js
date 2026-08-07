@@ -553,7 +553,7 @@ function remindersBlock(){
 
   return `
     <p style="font-size:13px;color:var(--ink2);line-height:1.55;margin:0 0 10px">
-      ${t('One nudge in the evening if your streak is about to lapse. Nothing else unless you ask for it.')}</p>
+      ${t('A nudge in the morning to log today\'s coffee, and one in the evening if your streak is about to lapse. Nothing else unless you ask for it.')}</p>
     <button class="btn block" data-action="push-on"${p.busy?' disabled':''}>${p.busy?t('Just a moment…'):t('Remind me')}</button>`;
 
   function switches(){
@@ -562,7 +562,8 @@ function remindersBlock(){
       <div style="flex:1">${label}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${sub}</div></div>
       <span class="swch${on?' on':''}"></span></div>`;
 
-    return `${sw('toggle-notify-social',state.me.notifySocial,t('Likes, comments &amp; follows'),t('When someone reacts to your coffee'))}
+    return `${sw('toggle-notify-morning',state.me.notifyMorning,t('Morning coffee nudge'),t('If you have not logged one yet that day'))}
+      ${sw('toggle-notify-social',state.me.notifySocial,t('Likes, comments &amp; follows'),t('When someone reacts to your coffee'))}
       ${sw('toggle-notify-streak',state.me.notifyStreak,t('Streak reminder'),t('Evenings, only when your streak is at risk'))}
       ${sw('toggle-notify-digest',state.me.notifyDigest,t('Weekly recap'),t('Monday morning, only if you poured that week'))}
       <button class="btn ghost block" style="margin-top:10px" data-action="push-off"${p.busy?' disabled':''}>${t('Turn off on this device')}</button>`;

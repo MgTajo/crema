@@ -78,7 +78,7 @@ export function freshState(){
        render a real position before the first sync rather than reading
        as "off" and inviting someone to turn on what is already on. */
     me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:'',avatar:'',
-        notifySocial:true,notifyStreak:true,notifyDigest:true},
+        notifySocial:true,notifyStreak:true,notifyDigest:true,notifyMorning:true},
     notifications:[]
   };
 }
@@ -302,6 +302,26 @@ export async function loadMoreFeed(){
   finally{ feed.loading=false; }
 }
 
+/* Who you follow has already poured today — the face-pile strip on Home
+   (ui/views.js friendsTodayStrip()). Reuses fetchFeed() rather than a new
+   endpoint: same authors+since query the Following tab already makes,
+   just collapsed to distinct authors instead of rendered as posts. Best
+   effort and silent on failure — a strip that occasionally doesn't
+   appear is not worth a toast over. */
+export const friendsToday={ list:[], loaded:false };
+export async function loadFriendsToday(){
+  if(!session){ friendsToday.list=[]; friendsToday.loaded=true; return false; }
+  const authors=followeeIds();
+  if(!authors.length){ friendsToday.list=[]; friendsToday.loaded=true; return true; }
+  try{
+    const rows=await fetchFeed({ myUid:session.user.id, authors, since:startOfToday(), limit:100 });
+    const seen=new Set();
+    friendsToday.list=rows.map(p=>p.user).filter(id=>{ if(seen.has(id)) return false; seen.add(id); return true; });
+    friendsToday.loaded=true;
+    return true;
+  }catch(e){ console.warn('friends-today failed',e); return false; }
+}
+
 /* Point the store at the signed-in user's own store and load their world.
    Signing out drops back to an empty state and the guest feed — the
    public Today page, which needs no account and so needs none of the
@@ -317,11 +337,17 @@ export async function useSession(next){
   discover.list=[]; discover.loaded=false;
   mine.list=[]; mine.loaded=false;
   saved.list=[]; saved.loaded=false;
+  friendsToday.list=[]; friendsToday.loaded=false;
   /* Following is a signed-in tab, so a sign-out has to leave it — or the
      segment would sit on a tab the guest feed can't be. */
   if(!next) ui.filter='today';
   if(next) await hydrateSocial();
-  await loadFeed();
+  /* Parallel, not sequential: friendsToday depends on hydrateSocial()
+     (followeeIds()) but not on the feed, and store.js has no render() to
+     call once a later-arriving answer would need to repaint — so both
+     have to be settled before useSession() itself resolves, and callers
+     render off what it leaves in the store. */
+  await Promise.all([loadFeed(), loadFriendsToday()]);
 }
 
 /* Posts we have fetched but that aren't on the current feed page — the

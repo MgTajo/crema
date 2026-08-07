@@ -170,6 +170,8 @@ export const DE = {
   'Already have one?':'Schon ein Konto?',
   '{n} follow request':'{n} Follower-Anfrage',
   '{n} follow requests':'{n} Follower-Anfragen',
+  '{n} friend has already brewed today ☕':'{n} Freund:in hat heute schon Kaffee gemacht ☕',
+  '{n} friends have already brewed today ☕':'{n} Freund:innen haben heute schon Kaffee gemacht ☕',
   'Accept':'Annehmen',
   'Decline':'Ablehnen',
 
@@ -558,9 +560,11 @@ export const DE = {
     'Mitteilungen sind für Crema in deinen Geräteeinstellungen aus. Auf Android: Einstellungen, dann Apps, dann Crema, dann Benachrichtigungen. Schalte sie dort ein, dann ist das hier wieder da.',
   'Notifications are blocked for Crema in your browser settings. Allow them there and this comes back.':
     'Mitteilungen sind für Crema in deinen Browsereinstellungen blockiert. Erlaube sie dort, dann ist das hier wieder da.',
-  'One nudge in the evening if your streak is about to lapse. Nothing else unless you ask for it.':
-    'Ein Hinweis am Abend, wenn deine Streak zu reißen droht. Sonst nichts, außer du willst es.',
+  'A nudge in the morning to log today\'s coffee, and one in the evening if your streak is about to lapse. Nothing else unless you ask for it.':
+    'Ein Hinweis am Morgen, den heutigen Kaffee einzutragen, und einer am Abend, wenn deine Streak zu reißen droht. Sonst nichts, außer du willst es.',
   'Remind me':'Erinnere mich',
+  'Morning coffee nudge':'Morgen-Erinnerung',
+  'If you have not logged one yet that day':'Wenn du an dem Tag noch keinen eingetragen hast',
   'Likes, comments &amp; follows':'Likes, Kommentare &amp; Follower',
   'When someone reacts to your coffee':'Wenn jemand auf deinen Kaffee reagiert',
   'Streak reminder':'Streak-Erinnerung',

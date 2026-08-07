@@ -109,7 +109,8 @@ export const LEVELS=[[1,'First Sips',0],[2,'Steam Dreams',100],[3,'Heart Starter
   [9,'Swan Master',6000],[10,'Latte Legend',9500]];
 
 /* ---------- origin flags ---------- */
-export const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Kenya:'🇰🇪',Guatemala:'🇬🇹',Indonesia:'🇮🇩',Peru:'🇵🇪',Rwanda:'🇷🇼','Costa Rica':'🇨🇷',Germany:'🇩🇪',Italy:'🇮🇹','United Kingdom':'🇬🇧',Norway:'🇳🇴',Denmark:'🇩🇰',USA:'🇺🇸'};
+export const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Kenya:'🇰🇪',Guatemala:'🇬🇹',Indonesia:'🇮🇩',Peru:'🇵🇪',Rwanda:'🇷🇼','Costa Rica':'🇨🇷',Germany:'🇩🇪',Italy:'🇮🇹','United Kingdom':'🇬🇧',Norway:'🇳🇴',Denmark:'🇩🇰',USA:'🇺🇸',
+  Sweden:'🇸🇪',Netherlands:'🇳🇱',Belgium:'🇧🇪',Finland:'🇫🇮',Portugal:'🇵🇹',Spain:'🇪🇸',Switzerland:'🇨🇭',Japan:'🇯🇵',Australia:'🇦🇺',Canada:'🇨🇦',India:'🇮🇳',Vietnam:'🇻🇳',Turkey:'🇹🇷'};
 
 /* Specific coffee brands you can actually buy in Germany.
    c = country the coffee comes from (for the flag); loc: 'DE' local,
@@ -196,7 +197,39 @@ export const BEANS=[
   // ---- Specialty roasteries (niche, kept small on purpose) ----
   {n:'Bumblebee Espresso',roaster:'The Barn',c:'Germany',loc:'DE',origin:'Colombia · Ethiopia blend',roast:'Medium',notes:['Milk chocolate','Red berry','Caramel']},
   {n:'Buna Dimaa',roaster:'Coffee Circle',c:'Germany',loc:'DE',origin:'Ethiopia · Sidama',roast:'Light-medium',notes:['Jasmine','Blueberry','Honey']},
-  {n:'Tim Wendelboe Espresso',roaster:'Tim Wendelboe',c:'Norway',loc:'INT',origin:'Seasonal',roast:'Light',notes:['Berry','Floral','Bright']}
+  {n:'Tim Wendelboe Espresso',roaster:'Tim Wendelboe',c:'Norway',loc:'INT',origin:'Seasonal',roast:'Light',notes:['Berry','Floral','Bright']},
+  // ---- 2026-08-07 — more German specialty, and more of the world ----
+  {n:'Berlin Kreuzberg',roaster:'Bonanza Coffee Roasters',c:'Germany',loc:'DE',origin:'Seasonal single origin',roast:'Light',notes:['Bright','Fruity','Clean']},
+  {n:'Filter No.1',roaster:'Five Elephant',c:'Germany',loc:'DE',origin:'Seasonal single origin',roast:'Light-medium',notes:['Sweet','Balanced','Fruity']},
+  {n:'Hamburg Blend',roaster:'19grams',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium',notes:['Chocolate','Nutty','Balanced']},
+  // ---- International supermarket & mainstream brands ----
+  {n:'Original Roast',roaster:'Douwe Egberts',c:'Netherlands',loc:'INT',origin:'Blend',roast:'Medium',notes:['Smooth','Balanced','Classic']},
+  {n:'Aroma Rood',roaster:'Douwe Egberts',c:'Netherlands',loc:'INT',origin:'Blend',roast:'Medium',notes:['Mild','Nutty','Light']},
+  {n:'Mocca Cream',roaster:'Löfbergs',c:'Sweden',loc:'INT',origin:'Blend',roast:'Medium',notes:['Sweet','Mild','Smooth']},
+  {n:'Mörkrost',roaster:'Gevalia',c:'Sweden',loc:'INT',origin:'Blend',roast:'Dark',notes:['Bold','Roasted','Rich']},
+  {n:'Presidentti',roaster:'Paulig',c:'Finland',loc:'INT',origin:'Blend',roast:'Light-medium',notes:['Light','Clean','Mild']},
+  {n:'Juhla Mokka',roaster:'Paulig',c:'Finland',loc:'INT',origin:'Blend',roast:'Medium',notes:['Balanced','Nutty','Mild']},
+  {n:'Delta Blend',roaster:'Delta Cafés',c:'Portugal',loc:'INT',origin:'Blend',roast:'Medium-dark',notes:['Bold','Chocolate','Rich']},
+  {n:'Café Rombouts',roaster:'Rombouts',c:'Belgium',loc:'INT',origin:'Blend',roast:'Medium',notes:['Balanced','Nutty','Mild']},
+  {n:'Café Especial',roaster:'Nomad Coffee',c:'Spain',loc:'INT',origin:'Single origin, seasonal',roast:'Light',notes:['Bright','Fruity','Floral']},
+  {n:'Kaffeemacher Espresso',roaster:'Kaffeemacher',c:'Switzerland',loc:'INT',origin:'Blend',roast:'Medium',notes:['Balanced','Cocoa','Smooth']},
+  {n:'Juan Valdez Selección',roaster:'Juan Valdez',c:'Colombia',loc:'INT',origin:'Colombia',roast:'Medium',notes:['Caramel','Citrus','Balanced']},
+  {n:'Café Britt Tarrazú',roaster:'Café Britt',c:'Costa Rica',loc:'INT',origin:'Costa Rica · Tarrazú',roast:'Medium',notes:['Bright','Citrus','Chocolate']},
+  {n:'Trung Nguyên Espresso Roast',roaster:'Trung Nguyên',c:'Vietnam',loc:'INT',origin:'Vietnam · Robusta blend',roast:'Dark',notes:['Bold','Earthy','Low acidity']},
+  {n:'Kurukahveci Mehmet Efendi',roaster:'Kurukahveci Mehmet Efendi',c:'Turkey',loc:'INT',origin:'Blend, fine-ground',roast:'Medium-dark',notes:['Rich','Spiced','Traditional']},
+  {n:'Blue Tokai South Indian',roaster:'Blue Tokai',c:'India',loc:'INT',origin:'India · Chikmagalur',roast:'Medium',notes:['Spicy','Malty','Full-bodied']},
+  {n:'Kicking Horse Kick Ass',roaster:'Kicking Horse',c:'Canada',loc:'INT',origin:'Blend',roast:'Dark',notes:['Bold','Smoky','Intense']},
+  {n:'Vittoria Espresso',roaster:'Vittoria Coffee',c:'Australia',loc:'INT',origin:'Blend',roast:'Medium-dark',notes:['Chocolate','Nutty','Balanced']},
+  {n:'Market Lane Filter Blend',roaster:'Market Lane',c:'Australia',loc:'INT',origin:'Seasonal single origin',roast:'Light',notes:['Berry','Floral','Bright']},
+  {n:'Onibus Blend',roaster:'Onibus Coffee',c:'Japan',loc:'INT',origin:'Seasonal single origin',roast:'Light-medium',notes:['Delicate','Clean','Floral']},
+  {n:'Major Dickason\'s Blend',roaster:'Peet\'s Coffee',c:'USA',loc:'INT',origin:'Blend',roast:'Dark',notes:['Bold','Rich','Full-bodied']},
+  {n:'Hair Bender',roaster:'Stumptown',c:'USA',loc:'INT',origin:'Latin America · East Africa blend',roast:'Medium',notes:['Chocolate','Citrus','Complex']},
+  {n:'Monarch',roaster:'Onyx Coffee Lab',c:'USA',loc:'INT',origin:'Blend',roast:'Medium',notes:['Sweet','Balanced','Cocoa']},
+  {n:'Revelation Espresso',roaster:'Union Hand-Roasted Coffee',c:'United Kingdom',loc:'INT',origin:'Blend',roast:'Medium',notes:['Sweet','Balanced','Red fruit']},
+  {n:'Monmouth Espresso',roaster:'Monmouth Coffee',c:'United Kingdom',loc:'INT',origin:'Blend',roast:'Medium',notes:['Nutty','Sweet','Smooth']},
+  {n:'Ethiopia Filter',roaster:'Drop Coffee',c:'Sweden',loc:'INT',origin:'Ethiopia',roast:'Light',notes:['Jasmine','Citrus','Tea-like']},
+  {n:'Filter Blend',roaster:'The Coffee Collective',c:'Denmark',loc:'INT',origin:'Seasonal single origin',roast:'Light',notes:['Bright','Fruity','Floral']},
+  {n:'Oslo Filter',roaster:'Fuglen',c:'Norway',loc:'INT',origin:'Blend',roast:'Light',notes:['Crisp','Fruity','Clean']}
 ];
 /* Look up a catalog bean by (possibly partial) name.
 

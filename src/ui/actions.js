@@ -23,7 +23,7 @@ import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
-         saved, loadSaved, loadFeed, loadMoreFeed, social as storeSocial, loadChallenges, canEdit,
+         saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
          feed, hydrateReactions, myMachines, myCoffees, togglePin } from '../store/store.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
@@ -152,6 +152,7 @@ document.addEventListener('click',e=>{
     case 'open-streak': pushOv({type:'streak'}); break;
     case 'push-on': turnPushOn(); break;
     case 'push-off': turnPushOff(); break;
+    case 'toggle-notify-morning': toggleNotify('notifyMorning'); break;
     case 'toggle-notify-social': toggleNotify('notifySocial'); break;
     case 'toggle-notify-streak': toggleNotify('notifyStreak'); break;
     case 'toggle-notify-digest': toggleNotify('notifyDigest'); break;
@@ -476,7 +477,7 @@ async function refreshOnReturn(){
   const v=$('#view');
   if(ui.ovStack.length || !v || v.scrollTop>=200) return;
 
-  if(ui.route==='home'){ if(await loadFeed()) renderView(); }
+  if(ui.route==='home'){ const [fed]=await Promise.all([loadFeed(), loadFriendsToday()]); if(fed) renderView(); }
   else if(ui.route==='explore'){ if(await loadChallenges()) renderView(); }
 }
 
@@ -598,7 +599,7 @@ async function turnPushOn(){
        button, so the switches are on rather than making them find a
        second screen. Since step-1.19 they are on by default anyway;
        this covers anyone who had turned one off and changed their mind. */
-    state.me.notifySocial=true; state.me.notifyStreak=true;
+    state.me.notifySocial=true; state.me.notifyStreak=true; state.me.notifyMorning=true;
     save();
     try{ await setNotifyPrefs(u.id,state.me); }
     catch(e){ console.warn('notification prefs failed',e); }

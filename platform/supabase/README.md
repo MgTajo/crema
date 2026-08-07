@@ -32,9 +32,15 @@ Supabase dashboard → **SQL Editor** → paste and run:
     Nothing to configure: it schedules its own weekly job and fills the current week as it runs.
 14. [`step-1.18.sql`](step-1.18.sql) — today's podium, its notifications and its points.
 15. [`step-1.19.sql`](step-1.19.sql) — reactions, mutual follows, @mentions, reminders on by default.
+16. [`step-1.20.sql`](step-1.20.sql) — the morning nudge: a second, earlier push reminder for
+    anyone who hasn't poured yet today, streak or no streak. Needs the same push function and
+    Vault settings as step-1.16 — nothing new to deploy, it reuses `push_send()`.
 
 All of them are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
+
+**Re-run `seed.sql` to pick up new cafés/beans/challenges added to `src/data/`** — it's an
+upsert keyed on `name`/`id`, so existing rows are updated in place and nothing is duplicated.
 
 **`step-1.12.sql` is what makes the Edit option honest.** It adds
 `posts.edited_at` and a trigger that stamps it, refuses to let an update
