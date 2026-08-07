@@ -332,10 +332,10 @@ export function renderProfile(){
     ${hasPours?journeyHTML:startedHTML}
     ${passportHTML}
     <div class="seg" style="margin-top:18px">
+      <button class="${ui.profTab==='stats'?'on':''}" data-action="ptab" data-t="stats">${t('Stats')}</button>
       <button class="${ui.profTab==='pours'?'on':''}" data-action="ptab" data-t="pours">${t('Pours')} ${pourCount}</button>
       <button class="${ui.profTab==='saved'?'on':''}" data-action="ptab" data-t="saved">${t('Saved')}</button>
-      <button class="${ui.profTab==='badges'?'on':''}" data-action="ptab" data-t="badges">${t('Badges')}</button>
-      <button class="${ui.profTab==='stats'?'on':''}" data-action="ptab" data-t="stats">${t('Stats')}</button></div>
+      <button class="${ui.profTab==='badges'?'on':''}" data-action="ptab" data-t="badges">${t('Badges')}</button></div>
     ${grid}</div>`;
 }
 /* ----- stats -----

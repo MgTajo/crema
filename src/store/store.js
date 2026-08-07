@@ -46,7 +46,7 @@ export let state;
    is only ever true while signed out, and it is a screen rather than a
    sheet for the same reason it always was: sheets can be popped by
    accident, and half-finished sign-ups can't be. */
-export const ui={route:'home', filter:'today', gate:false, ovStack:[], navStack:[], profTab:'pours', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
+export const ui={route:'home', filter:'today', gate:false, ovStack:[], navStack:[], profTab:'stats', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
 
 /* A brand-new account: nothing invented, nothing borrowed. Everything
    visible after this comes from the user or from the backend. */
