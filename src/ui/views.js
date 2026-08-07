@@ -10,7 +10,7 @@ import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
-         myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts } from '../store/store.js';
+         myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts, coffeeStats } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
@@ -202,10 +202,68 @@ function challengeBlock(){
   return CHALLENGES.map(challengeCard).join('');
 }
 
+/* ----- cafés -----
+   The café side of Crema is designed and not yet open: the schema, the
+   café page, the follow and the tagged pour all exist, there are simply
+   no cafés on it yet. So this screen does the one useful thing an unbuilt
+   section can — it tells the people who would fill it how to get in.
+
+   The ask is a prefilled email rather than a form. At pilot volumes an
+   email is the better instrument: it opens a conversation with a named
+   human instead of dropping a row somewhere, it needs no backend, no
+   third-party form embed and no new entry in the privacy policy, and
+   hello@crema-app.com is already the address the Impressum publishes.
+   The prefilled body does what the form fields would have done. Worth
+   revisiting if this ever gets loud — see the note in CAFE_PITCH below.
+
+   The copy is written to create urgency out of things that are true —
+   a pilot is genuinely small, early cafés genuinely shape what gets
+   built — and never out of invented traction. No counters, no "43 cafés
+   already signed up". A number nobody can verify is the fastest way to
+   lose the kind of owner worth having. */
+export const CAFE_MAIL='hello@crema-app.com';
+const CAFE_SUBJECT='Crema — café pilot';
+const CAFE_BODY=`Hi Magnus,
+
+I'd like to put my café on Crema.
+
+Café:
+City:
+Website / Instagram:
+What we pour:
+
+What I'm most interested in:
+
+Thanks!`;
+const cafeMailto=()=>`mailto:${CAFE_MAIL}?subject=${encodeURIComponent(CAFE_SUBJECT)}&body=${encodeURIComponent(CAFE_BODY)}`;
+
 export function renderCafes(){
+  const perks=[
+    ['📍','Your café, on the map','A page with the beans you pour and the machine you pull them on.'],
+    ['☕','Every pour tagged to you','Someone photographs their flat white at your bar and your name is on it.'],
+    ['❤️','Regulars you can actually see','People follow your café and see what gets poured there.'],
+    ['🎁','An offer worth showing','Put something behind a posted pour — a discount, a filter on the house.']
+  ];
   return `<div class="pad">
-    <div class="section-h"><h2>Cafés</h2></div>
-    <div class="empty" style="padding:18px 20px">Coming soon</div>
+    <div class="cafe-soon">
+      <div class="cs-badge">Opening city by city</div>
+      <h3>The best coffee near you, from the people drinking it</h3>
+      <p>Crema is people logging what they pour. Cafés are the other half of that — and they're being switched on one city at a time.</p>
+    </div>
+
+    <div class="cafe-pitch">
+      <div class="cp-top"><span>☕</span><div><b>Own a café?</b><i>Get in before your street does.</i></div></div>
+      <p class="cp-lead">We're opening Crema to a small first group of cafés. Pilot places are handled in the order they arrive, one city at a time — and the cafés in that first group are the ones whose feedback decides what gets built next.</p>
+      <div class="cp-perks">${perks.map(p=>`<div><span>${p[0]}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('')}</div>
+      <a class="btn block" href="${cafeMailto()}" data-action="cafe-lead">✉️ Ask for a pilot place</a>
+      <div class="cp-mail" data-action="copy-cafe-mail">or write to <b>${CAFE_MAIL}</b> · tap to copy</div>
+      <p class="cp-fine">Tell us your café and city and we'll come back to you when your city opens. No cost during the pilot.</p>
+    </div>
+
+    <div class="cafe-nudge">
+      <b>Not an owner?</b> Tell your favourite café about Crema — the ones people ask for get opened first.
+      <button class="btn ghost sm" data-action="share-crema">Share Crema</button>
+    </div>
   </div>`;
 }
 
@@ -267,21 +325,111 @@ export function renderProfile(){
       <button class="${ui.profTab==='stats'?'on':''}" data-action="ptab" data-t="stats">Stats</button></div>
     ${grid}</div>`;
 }
+/* ----- stats -----
+   Coffee people keep numbers. This tab is the one place in a social app
+   where that is the point, so it answers questions rather than listing
+   fields: which coffee do I actually make, how much of it, when, and —
+   for anyone who fills the recipe in — what does my espresso look like
+   as a ratio.
+
+   Everything comes from coffeeStats() and nothing is padded out. A
+   section whose data has never been logged is absent, not shown empty:
+   a "0.0 average ratio" for someone who has never weighed a shot is
+   noise pretending to be insight, and it would bury the two or three
+   numbers that are real. */
+const pct=(a,b)=>b?Math.round(a/b*100):0;
+const oneDp=v=>(Math.round(v*10)/10).toFixed(1);
+const hourLabel=h=>(h<10?'0':'')+h+':00';
+
+/* A drink split as one bar. Three named, the rest collected — a legend
+   with eleven entries stops being a legend. */
+function drinkMix(drinks,total){
+  const top=drinks.slice(0,3), rest=drinks.slice(3).reduce((a,d)=>a+d.count,0);
+  const seg=(w,i)=>`<i style="width:${w}%" class="s${i}"></i>`;
+  return `<div class="stx-mix">${top.map((d,i)=>seg(pct(d.count,total),i)).join('')}${rest?seg(pct(rest,total),3):''}</div>
+    <div class="stx-leg">${top.map((d,i)=>`<span><i class="s${i}"></i>${esc(d.name)} ${pct(d.count,total)}%</span>`).join('')}
+      ${rest?`<span><i class="s3"></i>Other ${pct(rest,total)}%</span>`:''}</div>`;
+}
+function statCard(title,body,note){
+  return `<div class="stx-card"><h4>${title}</h4>${body}${note?`<p class="stx-note">${note}</p>`:''}</div>`;
+}
+const statRows=rows=>`<div class="stx-rows">${rows.map(r=>
+  `<div><span>${esc(r[0])}</span><b>${esc(r[1])}</b>${r[2]?`<i>${esc(r[2])}</i>`:''}</div>`).join('')}</div>`;
+
 export function renderStats(){
-  const mine=myPosts();
-  const pats=mine.filter(p=>p.pattern).map(p=>p.pattern);
-  const styleCount={}; pats.forEach(p=>styleCount[p]=(styleCount[p]||0)+1);
-  const topStyle=Object.keys(styleCount).sort((a,b)=>styleCount[b]-styleCount[a])[0];
-  const beans=myBeans(), origins=myCountries();
-  const rows=[
-    ['Favourite drink',state.me.favDrink||'—',''],
-    ['Most-used style',topStyle?cap(topStyle):'—',topStyle?Math.round(styleCount[topStyle]/pats.length*100)+'% of art pours':''],
-    ['Current streak',`${streak()} day${streak()===1?'':'s'}`,''],
-    ['Beans tried',''+beans.length,origins.length?`${origins.length} origin${origins.length===1?'':'s'}`:''],
-    ['Total pours',''+mine.length,''],
-    ['Points',fmt(state.me.points|0),`Level ${levelOf(state.me.points|0)[0]}`]
-  ];
-  return `<div class="rlist" style="margin-top:2px">${rows.map(r=>`<div class="rlist-row"><div style="flex:1"><b style="font-size:14px">${r[0]}</b></div><div style="text-align:right"><b style="font-family:var(--serif);font-size:16px">${esc(r[1])}</b>${r[2]?`<div style="font-size:11px;color:var(--green);font-weight:700">${esc(r[2])}</div>`:''}</div></div>`).join('')}</div>`;
+  const s=coffeeStats();
+  if(!s) return `<div class="empty"><div class="big">📊</div>No numbers yet.<br>Log a few coffees and this fills up on its own.<br><br>
+    <button class="btn sm" data-action="open-create">Log a coffee</button></div>`;
+  const top=s.drinks[0];
+  const out=[];
+
+  /* The headline answers the question people actually ask of an app like
+     this, and answers it by counting rather than by repeating the
+     preference they set during onboarding. */
+  out.push(`<div class="stx-hero">
+    <span class="stx-k">Your coffee</span>
+    <b>${esc(top.name)}</b>
+    <span class="stx-sub">${top.count} of ${s.pours} pour${s.pours===1?'':'s'} · ${pct(top.count,s.pours)}% of everything you log</span>
+    ${s.drinks.length>1?drinkMix(s.drinks,s.pours):''}
+  </div>`);
+
+  out.push(`<div class="stx-tiles">
+    <div><b>${oneDp(s.perDay)}</b><span>coffees a day</span></div>
+    <div><b>${s.pours}</b><span>pours logged</span></div>
+    <div><b>${s.daysLogged}</b><span>day${s.daysLogged===1?'':'s'} with coffee</span></div>
+    <div><b>${s.best}</b><span>best streak</span></div>
+  </div>`);
+
+  /* Rounded to one decimal, which is the honest precision for a rate
+     built out of a handful of days. The second line says what the
+     average is actually over, because "1.4 a day" means something very
+     different across nine days than across nine months. */
+  const rhythm=[`Across ${s.span} day${s.span===1?'':'s'} since your first pour — that's about ${oneDp(s.perWeek)} a week.`];
+  if(s.busiest>1) rhythm.push(`Your biggest day was ${s.busiest} coffees.`);
+  if(s.streak>0) rhythm.push(`You're ${s.streak} day${s.streak===1?'':'s'} into a streak right now.`);
+  out.push(statCard('Your rhythm',`<p class="stx-p">${rhythm.join(' ')}</p>`));
+
+  /* The hour histogram only claims the pours that carry a real
+     timestamp, and says so when that isn't all of them. */
+  if(s.timed>=3&&s.peakHour!=null){
+    const max=Math.max(...s.hours);
+    const bars=s.hours.map((c,h)=>`<i class="${h===s.peakHour?'on':''}" style="height:${c?Math.max(9,Math.round(c/max*100)):3}%" title="${hourLabel(h)} · ${c}"></i>`).join('');
+    out.push(statCard('When you pour',
+      `<div class="stx-hours">${bars}</div>
+       <div class="stx-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>`,
+      `Most of your coffee happens around <b>${hourLabel(s.peakHour)}</b>${s.timed<s.pours?` · from the ${s.timed} pours with a recorded time`:''}.`));
+  }
+
+  const setup=[];
+  if(s.beans[0])    setup.push(['Most-poured coffee',s.beans[0].name,`${s.beans[0].count}×`]);
+  if(s.roasters[0]) setup.push(['Roaster you return to',s.roasters[0].name,`${s.roasters[0].count}×`]);
+  if(s.machines[0]) setup.push(['Machine',s.machines[0].name,`${s.machines[0].count}×`]);
+  if(s.milks[0])    setup.push(['Milk',s.milks[0].name,`${pct(s.milks[0].count,s.pours)}%`]);
+  /* The pattern's own count, not every art pour — a row reading
+     "Rosetta · 7 pours" next to a total that also happens to be 7 is a
+     number that means one thing and looks like another. */
+  if(s.patterns[0]) setup.push(['Latte art',cap(s.patterns[0].name),`${s.patterns[0].count}×`]);
+  if(s.cafePours)   setup.push(['Poured at a café',`${pct(s.cafePours,s.pours)}%`,`${s.cafePours}×`]);
+  if(setup.length){
+    const notes=[];
+    if(s.beans.length>1) notes.push(`${s.beans.length} different coffees so far.`);
+    if(s.artPours) notes.push(`You poured art on ${pct(s.artPours,s.pours)}% of your coffees.`);
+    out.push(statCard('What you brew with',statRows(setup),notes.join(' ')));
+  }
+
+  /* Only for people who weigh things — which is exactly the group this
+     section is for, and no use at all to anyone else. */
+  if(s.brew) out.push(statCard('Your espresso',
+    `<div class="stx-tiles sm">
+      <div><b>1:${oneDp(s.brew.ratio)}</b><span>average ratio</span></div>
+      <div><b>${oneDp(s.brew.dose)}g</b><span>dose in</span></div>
+      <div><b>${oneDp(s.brew.out)}g</b><span>yield out</span></div>
+      ${s.brew.secs?`<div><b>${Math.round(s.brew.secs)}s</b><span>shot time</span></div>`:''}
+    </div>`,
+    `From the ${s.brew.n} pour${s.brew.n===1?'':'s'} where you logged both dose and yield.`));
+  else out.push(`<div class="stx-hint" data-action="open-create">⚖️ Log a dose and a yield on your next pour and your brew ratio shows up here.</div>`);
+
+  return `<div class="stx">${out.join('')}</div>`;
 }
 export function renderBadges(){
   const b=computeBadges(), earned=b.filter(x=>x.e).length;

@@ -28,7 +28,7 @@ import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
-import { render, renderView, renderAppbar } from './views.js';
+import { render, renderView, renderAppbar, CAFE_MAIL } from './views.js';
 import { pushOv, popOv, renderOverlay, pickerList } from './overlays.js';
 import { initHistory } from './history.js';
 
@@ -200,6 +200,20 @@ document.addEventListener('click',e=>{
       if(!w) copyText(url,'Maps link copied 🔗'); break;}
 
     case 'cafe-filter': ui.cafeF[t.dataset.f]=!ui.cafeF[t.dataset.f]; renderView(); break;
+
+    /* ---------- the café pilot ask ----------
+       The button is a real <a href="mailto:…">, so it works on its own
+       and this only acknowledges the tap. A webview with no mail client
+       bound swallows the navigation silently, which looks like a dead
+       button — so the address is copyable right underneath, and that
+       row is the fallback rather than a second-guessing of the first. */
+    case 'cafe-lead': toast('Opening your mail app ✉️'); break;
+    case 'copy-cafe-mail': copyText(CAFE_MAIL,'hello@crema-app.com copied ✉️'); break;
+    case 'share-crema':{
+      const link=location.href.split('#')[0];
+      if(navigator.share) navigator.share({title:'Crema',text:'Coffee, brewed social — log what you pour.',url:link}).catch(()=>{});
+      else copyText(link,'Link copied 🔗');
+      break;}
 
     /* ---------- the machine / coffee picker ----------
        The sheet underneath is a form with unsaved text in it, so its

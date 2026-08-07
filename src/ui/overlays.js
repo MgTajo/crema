@@ -806,13 +806,18 @@ export function pickerList(){
 
   /* Browsing is a search someone hasn't typed yet, so a brand doesn't
      open a sub-list — it fills the box and the results are already
-     there, one screen, one mental model. */
-  const brands=isM?MACHINE_BRANDS.filter(b=>b!=='Other'):beanBrands().map(b=>b.name);
+     there, one screen, one mental model.
+
+     Alphabetical, not catalogue order: this is the one list you scan
+     rather than search, and scanning forty names for a brand you
+     already know only works if you know where to look for it. */
+  const brands=(isM?MACHINE_BRANDS.filter(b=>b!=='Other'):beanBrands().map(b=>b.name))
+    .slice().sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
   h+=pkSection(isM?'Browse by brand':'Browse by roaster',
     `<div class="pk-brands">${brands.map(b=>`<button class="chip" data-action="pk-brand" data-b="${esc(b)}">${esc(b)}</button>`).join('')}</div>`);
 
   h+=`<div class="pk-add" data-action="pk-focus"><span class="pk-i">＋</span>
-    <span class="pk-t"><b>Not on the list?</b><span>Type it above and add it as your own — free</span></span></div>`;
+    <span class="pk-t"><b>Not on the list?</b><span>Type it above and add it as your own</span></span></div>`;
   if(cur) h+=`<div class="pk-clear" data-action="pick" data-kind="${p.kind}" data-v="">Clear this field</div>`;
   return h;
 }

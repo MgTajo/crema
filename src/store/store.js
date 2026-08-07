@@ -449,6 +449,88 @@ export function beanPassport(){
    page it returned *is* the feed. */
 export const feedPosts=()=>state.posts;
 
+/* ---------- the numbers behind your coffee ----------
+   Everything the Stats tab shows, derived in one pass so the tab is a
+   presentation of this and holds no arithmetic of its own.
+
+   Two rules run through all of it. Nothing is invented: a stat with no
+   pours behind it comes back null and the tab leaves it out, rather than
+   showing a confident 0 for something never recorded. And "favourite"
+   means counted, not configured — the old tab read favDrink off the
+   profile, which is the drink you once told a form about, not the one
+   you keep making. Those two are often not the same drink, and the
+   second one is the interesting one. */
+const tally=list=>{
+  const m=new Map();
+  list.forEach(v=>{ const s=(v||'').trim(); if(s) m.set(s,(m.get(s)||0)+1); });
+  return [...m.entries()]
+    .sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0]))
+    .map(([name,count])=>({name,count}));
+};
+/* Recipe fields are free text carrying their unit ("18g", "27.5 g"), and
+   a German keyboard writes the decimal with a comma. */
+const numOf=v=>{
+  const f=parseFloat((''+(v==null?'':v)).replace(',','.').replace(/[^0-9.]/g,''));
+  return isFinite(f)&&f>0?f:null;
+};
+const mean=l=>l.length?l.reduce((a,b)=>a+b,0)/l.length:null;
+
+export function coffeeStats(){
+  const posts=myPosts(), n=posts.length;
+  if(!n) return null;
+
+  const drinks=tally(posts.map(p=>p.drink));
+  const beans=tally(posts.map(p=>p.recipe&&p.recipe.bean));
+  const machines=tally(posts.map(p=>p.recipe&&p.recipe.machine));
+  const milks=tally(posts.map(p=>p.recipe&&p.recipe.milk));
+  const roasters=tally(posts.map(p=>{ const b=p.recipe&&p.recipe.bean, c=b&&beanCatalog(b); return c&&c.roaster; }));
+  const patterns=tally(posts.filter(p=>p.art&&p.pattern).map(p=>p.pattern));
+
+  /* Per-day is over the whole span since the first pour, including the
+     days with none — an average that skipped the empty days would just
+     be "how many you log when you log", which is nearly always 1. */
+  const idx=posts.map(dayIndex).filter(d=>d>=0&&isFinite(d));
+  const span=idx.length?Math.max(...idx)+1:1;
+  const byDay=new Map();
+  idx.forEach(d=>byDay.set(d,(byDay.get(d)||0)+1));
+
+  /* Hour of day, from real timestamps only. Pours carrying just a
+     relative label ("3d") have no clock in them and are left out rather
+     than guessed into a bucket — so the histogram counts what it can and
+     says how much that was. */
+  const hours=Array(24).fill(0); let timed=0;
+  posts.forEach(p=>{ const t=Date.parse(p.createdAt);
+    if(isFinite(t)){ hours[new Date(t).getHours()]++; timed++; } });
+  const peakHour=timed?hours.indexOf(Math.max(...hours)):null;
+
+  /* The espresso numbers, for the people who fill them in. A ratio is
+     the mean of each shot's own yield÷dose rather than total÷total: one
+     outlier litre of cold brew shouldn't redefine your espresso. */
+  const shots=posts.map(p=>{ const r=p.recipe||{};
+    return {dose:numOf(r.dose), out:numOf(r.yield), secs:numOf(r.time), temp:numOf(r.temp)}; });
+  const pairs=shots.filter(s=>s.dose&&s.out);
+  const secs=shots.map(s=>s.secs).filter(Boolean);
+  const brew=pairs.length?{
+    n:pairs.length,
+    dose:mean(pairs.map(s=>s.dose)),
+    out:mean(pairs.map(s=>s.out)),
+    ratio:mean(pairs.map(s=>s.out/s.dose)),
+    secs:secs.length?mean(secs):null, secsN:secs.length
+  }:null;
+
+  const st=streakInfo();
+  return {
+    pours:n, span, daysLogged:byDay.size,
+    busiest:byDay.size?Math.max(...byDay.values()):0,
+    perDay:n/span, perWeek:(n/span)*7,
+    drinks, beans, machines, milks, roasters, patterns,
+    artPours:posts.filter(p=>p.art&&p.pattern).length,
+    cafePours:posts.filter(p=>p.cafe).length,
+    hours, timed, peakHour,
+    brew, streak:st.days, best:st.best
+  };
+}
+
 /* activity bars derive from the user's own pours (last 21 days) — empty until they post */
 export function activityBars(){const a=Array(21).fill(0);myPosts().forEach(p=>{const i=20-Math.min(20,dayIndex(p));if(i>=0)a[i]++;});return a;}
 
