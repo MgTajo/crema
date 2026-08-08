@@ -15,7 +15,7 @@ import { DRINKS, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, beanCatalog, combineMach
 import { USERS, CAFES, CHALLENGES, userOf, handleToUid } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
-import { ensureProfile, pushProfile, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
+import { ensureProfile, pushProfile, pushName, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
          setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium } from '../data/profiles.js';
 import { codeValid, PREMIUM_MAIL } from '../domain/premium.js';
 import { recapSVG, recapPNG, loadShotPhotos } from './recap.js';
@@ -591,12 +591,43 @@ async function syncProfile(){
   const u=currentUser(); if(!u) return;
   try{
     const { me, created }=await ensureProfile(u.id,u.email,state.me);
+    /* The row wins over whatever this browser remembers — that is what
+       makes an account portable between devices — with one exception:
+       it must not win by being emptier. A profile is created nameless
+       at first sign-in (see meToRow), and letting that empty string
+       overwrite a real local name destroys the only copy left that
+       could put the name back. */
+    const localName=(state.me.name||'').trim();
     Object.assign(state.me,me);
+    if(!me.name && localName) state.me.name=localName;
+
     /* An account whose profile has just been created has never been
        through onboarding, whatever this browser happens to remember. */
     if(created) state.onboarded=false;
     else if(state.me.name) state.onboarded=true;
     save(); applyMe();
+
+    /* A row with no name is a row nobody else can put a name to: every
+       other client falls back to "Barista" (rowToUser), while the owner
+       keeps seeing their own name out of local state and has no way of
+       knowing. It happens when the profile was created at first sign-in
+       and the one write that fills it — at the end of onboarding —
+       never landed, which the toast there already promises to retry and
+       nothing ever did.
+
+       So retry it here, on every sign-in, for as long as it is needed.
+       Silent on purpose: this is repairing something the user did not
+       do wrong and cannot see.
+
+       If there is no name on either side, the account never finished
+       onboarding at all — so ask again rather than leaving them
+       permanently nameless behind an `onboarded` flag this browser
+       happens to have kept. */
+    if(!me.name){
+      if(state.me.name) pushName(u.id,state.me.name).catch(err=>console.warn('name repair failed',err));
+      else state.onboarded=false;
+      save();
+    }
     /* Which local morning a pour belongs to is decided in Postgres, and
        only this line tells it where the user is. Fire-and-forget: a
        failed timezone write is not worth a toast. */

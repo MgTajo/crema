@@ -220,6 +220,15 @@ export function dropPremium(uid){
   return rest(`profiles?id=eq.${uid}`, { method:'PATCH', body:{ premium:false } });
 }
 
+/* Just the name. Deliberately not pushProfile(), for the same reason
+   pushAvatar() isn't: this runs as a background repair (see syncProfile
+   in ui/actions.js), and pushProfile would also send the handle — which
+   can come back 409 on someone else's username and turn a silent fix
+   into a silent failure. One column, nothing to collide with. */
+export function pushName(uid, name){
+  return rest(`profiles?id=eq.${uid}`, { method:'PATCH', body:{ name:(name||'').trim() } });
+}
+
 /* Just the photo. Deliberately not pushProfile(): picking an avatar
    should not also write back a half-typed username from the settings
    fields, and it must not be able to fail with a 409 on someone else's
