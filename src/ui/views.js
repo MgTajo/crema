@@ -7,7 +7,7 @@
    ============================================================ */
 import { $, esc, fmt, cap, initials, seedOf, daysAgo, agoLabel } from '../core/util.js';
 import { S } from '../data/assets.js';
-import { beanCatalog, flag, ROAST_SCALE } from '../data/catalog.js';
+import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
          myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts, coffeeStats, friendsToday,
@@ -461,53 +461,6 @@ function arcCard(s){
   </div>`;
 }
 
-/* ----- your palate -----
-   The one card built from something nobody filled in. Every catalogue
-   coffee carries a roast level and three tasting notes, and until now
-   they only ever appeared one bag at a time on a bean page. Added up
-   across everything someone has poured, they describe a taste — and a
-   taste is a thing you can be told about yourself, which is worth more
-   than another count of the things you already typed.
-
-   The bean passport is next door and lists every bag with its origin
-   and roast, so this deliberately lists no bags at all. */
-function palateCard(s){
-  const p=s.palate;
-  if(!p || p.roastN<3) return '';
-  /* Actual roast colours, light to dark — the scale is the drawing. */
-  const shades=['#E2C79B','#C9A063','#A9762F','#7C5322','#4A3018'];
-  const segs=p.roasts.map((c,i)=>c
-    ? `<i style="width:${(c/p.roastN*100).toFixed(2)}%;background:${shades[i]}" title="${esc(ROAST_SCALE[i])} · ${c}"></i>`
-    : '').join('');
-  /* Where the weight of it sits, as a mark under the bar. Worth being
-     clear with yourself about this one: the bar's width is cumulative
-     share, the mark's position is the roast scale itself, so the two
-     run left-to-right at different rates. They agree on direction —
-     both go light to dark — and the mark answers "where on the
-     spectrum am I", which is a question the segments alone don't. */
-  const mark=(p.avg/(ROAST_SCALE.length-1)*100).toFixed(2);
-
-  const share=pct(p.topN,p.roastN);
-  const notes=p.notes.slice(0,6);
-  const nMax=notes.length?notes[0].count:1;
-  const chips=notes.map(x=>`<span class="stx-note-chip" style="--w:${(x.count/nMax).toFixed(2)}">${esc(x.name)}<i>${x.count}</i></span>`).join('');
-
-  return `<div class="stx-card">
-    <h4>${t('Your palate')}</h4>
-    <div class="stx-roast">${segs}</div>
-    <div class="stx-roast-mark"><i style="left:${mark}%"></i></div>
-    <div class="stx-axis"><span>${t('lighter')}</span><span>${t('darker')}</span></div>
-    <p class="stx-p" style="margin-top:12px">${t('You drink <b>{r}</b> more than anything else — {p}% of the coffee you log that we know the bag for.',{r:esc(ROAST_SCALE_LABEL(p.top)),p:share})}</p>
-    ${notes.length?`<div class="stx-sub-h">${t('The flavours behind it')}</div><div class="stx-notes">${chips}</div>`:''}
-    <p class="stx-note">${tn(p.catPours,'From the one pour on a coffee in the catalogue.','From the {n} pours on a coffee in the catalogue.')}
-      ${p.catPours<s.pours?t('Your own coffees carry no tasting notes to read.'):''}</p>
-  </div>`;
-}
-/* The scale is catalogue data and reads in English on the bean page, so
-   it reads in English here too — except that this sentence is a
-   sentence, and "Du trinkst Medium-dark" is neither language. */
-const ROAST_SCALE_LABEL=r=>t(r);
-
 /* The teaser a free account gets instead. It shows the real headline —
    their drink, counted from their own pours — and stops there. An
    entirely blurred screen would be a wall; one true number is an offer,
@@ -615,8 +568,6 @@ export function renderStats(){
     if(s.artPours) notes.push(t('You poured art on {p}% of your coffees.',{p:pct(s.artPours,s.pours)}));
     out.push(statCard(t('What you brew with'),statRows(setup),notes.join(' ')));
   }
-
-  out.push(palateCard(s));
 
   /* Only for people who weigh things — which is exactly the group this
      section is for, and no use at all to anyone else. */

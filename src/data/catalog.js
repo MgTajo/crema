@@ -121,13 +121,6 @@ export const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Ken
    2026-07-29 — reweighted to ~95% supermarket-shelf beans (Rewe/Edeka/Aldi/
    Lidl/Kaufland and the big roasters that stock them), since that's what
    most users actually buy; specialty roasteries kept to a handful. */
-/* The `roast` values above, in the order a roaster would put them —
-   light to dark. Kept next to the data it describes so a new bean can
-   only carry a level this list already knows, and exported because the
-   palate card in the stats tab reads the scale as a scale (a position
-   between 0 and 4) rather than as five unrelated words. */
-export const ROAST_SCALE=['Light','Light-medium','Medium','Medium-dark','Dark'];
-
 export const BEANS=[
   // ---- Jacobs ----
   {n:'Espresso',roaster:'Jacobs',c:'Germany',loc:'DE',origin:'Blend',roast:'Medium-dark',notes:['Bold','Chocolate','Low acidity']},

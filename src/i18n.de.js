@@ -730,7 +730,7 @@ export const DE = {
   'Pin to the top':'Nach oben pinnen',
   'Unpin':'Nicht mehr pinnen',
 
-  /* the long arc & the palate */
+  /* the long arc */
   'Where it is going':'Wohin es geht',
   'You are pouring <b>{p}% more</b> than the month before.':'Du machst <b>{p}% mehr</b> Kaffee als im Monat davor.',
   'You are pouring <b>{p}% less</b> than the month before.':'Du machst <b>{p}% weniger</b> Kaffee als im Monat davor.',
@@ -742,22 +742,6 @@ export const DE = {
   '{n} weeks ago':'vor {n} Wochen',
   'this week':'diese Woche',
   '{d} is your biggest coffee day.':'{d} ist dein größter Kaffeetag.',
-  'Your palate':'Dein Geschmack',
-  'lighter':'heller',
-  'darker':'dunkler',
-  'You drink <b>{r}</b> more than anything else — {p}% of the coffee you log that we know the bag for.':
-    'Du trinkst <b>{r}</b> häufiger als alles andere — {p}% der Kaffees, deren Tüte wir kennen.',
-  'The flavours behind it':'Die Aromen dahinter',
-  'From the one pour on a coffee in the catalogue.':'Aus dem einen Kaffee, der im Katalog steht.',
-  'From the {n} pours on a coffee in the catalogue.':'Aus den {n} Kaffees, die im Katalog stehen.',
-  'Your own coffees carry no tasting notes to read.':'Deine eigenen Kaffees haben keine Aromen, die sich auslesen lassen.',
-  /* roast levels — catalogue values, but these land inside a sentence.
-     'Light' and 'Dark' are already above, for the theme switcher, and
-     mean the same word in German; a second pair here would be a
-     duplicate key that silently wins. */
-  'Light-medium':'Hell-mittel',
-  'Medium':'Mittel',
-  'Medium-dark':'Mittel-dunkel',
 
   /* ---------- pickers ---------- */
   'Machine / brewer':'Maschine / Brüher',

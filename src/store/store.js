@@ -14,7 +14,7 @@
    ============================================================ */
 import { daysAgo, isToday } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
-import { beanCatalog, combineMachine, ROAST_SCALE } from '../data/catalog.js';
+import { beanCatalog, combineMachine } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, PODIUM, handleToUid } from '../data/world.js';
 import { fetchFeed, fetchMine, fetchSavedPosts } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
@@ -582,40 +582,6 @@ export function coffeeStats(){
     return { recent, prev, pct: prev ? Math.round((recent-prev)/prev*100) : null };
   })() : null;
 
-  /* ----- what you actually like -----
-     Roast level and tasting notes are the only things the catalogue
-     knows that nobody has ever added up. They are worth adding up
-     precisely because they were never typed in: you chose a bag, not a
-     flavour, and the pattern in those bags is a thing you can be told
-     rather than a thing you reported.
-
-     Weighted by pours, not by bags — the same rule the rest of this
-     file follows. Twenty pours of one coffee say more about a palate
-     than one pour of a bag that disappointed. */
-  const roasts=Array(ROAST_SCALE.length).fill(0);
-  const noteMap=new Map();
-  let catPours=0;
-  posts.forEach(p=>{
-    const b=p.recipe&&p.recipe.bean; if(!b) return;
-    const c=beanCatalog(b); if(!c) return;
-    catPours++;
-    const i=ROAST_SCALE.indexOf(c.roast); if(i>=0) roasts[i]++;
-    (c.notes||[]).forEach(x=>noteMap.set(x,(noteMap.get(x)||0)+1));
-  });
-  const roastN=roasts.reduce((a,b)=>a+b,0);
-  const palate = roastN ? {
-    roasts, roastN, catPours,
-    /* Where the weight of it sits on the scale, 0 (lightest) to 4
-       (darkest) — the one number that says "you drink dark" without
-       needing five percentages read out. */
-    avg: roasts.reduce((a,c,i)=>a+c*i,0)/roastN,
-    top: ROAST_SCALE[roasts.indexOf(Math.max(...roasts))],
-    topN: Math.max(...roasts),
-    notes: [...noteMap.entries()]
-      .sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0]))
-      .map(([name,count])=>({name,count}))
-  } : null;
-
   /* The espresso numbers, for the people who fill them in. A ratio is
      the mean of each shot's own yield÷dose rather than total÷total: one
      outlier litre of cold brew shouldn't redefine your espresso. */
@@ -640,7 +606,7 @@ export function coffeeStats(){
     artPours:posts.filter(p=>p.art&&p.pattern).length,
     cafePours:posts.filter(p=>p.cafe).length,
     hours, timed, peakHour, weekdays,
-    weeks, trend, palate,
+    weeks, trend,
     brew, streak:st.days, best:st.best
   };
 }
