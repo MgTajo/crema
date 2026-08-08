@@ -627,7 +627,10 @@ export function weekRecap(){
   const week=posts.filter(inWeek);
   if(!week.length) return null;
 
-  /* Oldest first, so the bars read left-to-right the way the week did. */
+  /* How many of the seven days had coffee in them. The per-day counts
+     behind it are no longer published: the card drew them as a bar
+     chart until the contact sheet replaced it, and the sheet shows the
+     pours themselves. */
   const days=Array(7).fill(0);
   week.forEach(p=>{ days[6-dayIndex(p)]++; });
 
@@ -642,12 +645,21 @@ export function weekRecap(){
     .map(p=>((p.recipe&&p.recipe.bean)||'').trim()).filter(Boolean));
   const newBeans=beans.filter(b=>!earlier.has(b.name));
 
+  /* The pours themselves, oldest first, slimmed to what a picture of
+     them needs. The card draws these as a contact sheet, so it wants the
+     photo where there is one and the pattern/quality/seed to generate a
+     cup where there isn't — exactly what art() in the feed decides
+     between, from exactly the same three fields. */
+  const shots=week.slice()
+    .sort((a,b)=>dayIndex(b)-dayIndex(a))
+    .map(p=>({ id:p.id, img:p.img||null, pattern:p.pattern||null,
+               quality:p.quality==null?0.9:p.quality, drink:p.drink||'' }));
+
   const st=streakInfo();
   const to=new Date(), from=new Date(Date.now()-6*864e5);
   return {
-    pours:week.length, days,
+    pours:week.length, shots,
     daysWithCoffee:days.filter(Boolean).length,
-    busiest:Math.max(...days),
     drinks, beans, patterns, newBeans,
     artPours:week.filter(p=>p.art&&p.pattern).length,
     cafePours:week.filter(p=>p.cafe).length,

@@ -18,7 +18,7 @@ import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, cur
 import { ensureProfile, pushProfile, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
          setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium } from '../data/profiles.js';
 import { codeValid, PREMIUM_MAIL } from '../domain/premium.js';
-import { recapSVG, recapPNG } from './recap.js';
+import { recapSVG, recapPNG, loadShotPhotos } from './recap.js';
 import { enablePush, disablePush, pushEnabled, syncPush, pushSupported, pushPermission } from '../data/push.js';
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
@@ -962,6 +962,15 @@ function premiumOff(){
 function openRecap(){
   if(!state.me.premium){ openPremium(t('Your week in coffee')); return; }
   pushOv({ type:'recap' });
+  /* The sheet paints immediately with generated cups, and repaints if
+     any of the week's photos turn out to be embeddable. Cups are a
+     finished state rather than a placeholder, so there is no spinner
+     and nothing to wait for — see loadShotPhotos() for why a photo may
+     legitimately never arrive. */
+  const r=weekRecap(); if(!r) return;
+  loadShotPhotos(r.shots).then(()=>{
+    if((ui.ovStack[ui.ovStack.length-1]||{}).type==='recap') renderOverlay();
+  }).catch(err=>console.warn('recap photos failed',err));
 }
 
 /* Share the card as a PNG. `navigator.share` with a file is the phone
@@ -975,9 +984,13 @@ function openRecap(){
    the device, which is also why it can say so on the sheet. */
 async function shareRecap(){
   const r=weekRecap(); if(!r) return;
-  const svg=recapSVG(r,state.me);
   const name=`crema-week-${new Date().toISOString().slice(0,10)}.png`;
   try{
+    /* Awaited rather than read: the sheet may have been shared before
+       the photos finished, and the file people keep should not be the
+       one that lost the race. Already-loaded pours resolve instantly. */
+    const photos=await loadShotPhotos(r.shots);
+    const svg=recapSVG(r,state.me,photos);
     const blob=await recapPNG(svg);
     const file=new File([blob],name,{type:'image/png'});
     if(navigator.canShare&&navigator.canShare({files:[file]})){

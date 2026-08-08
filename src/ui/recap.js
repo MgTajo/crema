@@ -29,6 +29,7 @@
    ============================================================ */
 import { esc, seedOf, cap } from '../core/util.js';
 import { cupSVG } from '../domain/art.js';
+import { imageUrl } from '../data/media.js';
 import { t, locale } from '../i18n.js';
 
 const W=1080, H=1350, M=84;
@@ -80,17 +81,6 @@ function tile(x,y,w,h,label,value,note){
     +(note?txt(x+28,y+h-26,clip(note,30),{size:21,fill:C.ink2}):'');
 }
 
-const dayLetters=()=>{
-  /* Weekday initials in the reader's language, taken from a real date
-     rather than from a hardcoded 'MTWTFSS' that is wrong in German. */
-  const out=[];
-  for(let i=6;i>=0;i--){
-    const d=new Date(Date.now()-i*864e5);
-    out.push(d.toLocaleDateString(locale(),{weekday:'short'}).replace(/\.$/,'').slice(0,2));
-  }
-  return out;
-};
-
 const range=(from,to)=>{
   const f={day:'numeric',month:'short'};
   return `${from.toLocaleDateString(locale(),f)} – ${to.toLocaleDateString(locale(),f)}`.toUpperCase();
@@ -103,49 +93,109 @@ const mark=(x,y,s)=>`<g transform="translate(${x} ${y}) scale(${s/40})">`
   +`<circle cx="20" cy="20" r="20" fill="${C.crema}"/>`
   +`<path transform="translate(11.1,11.1) scale(.178)" fill="${C.soft}" d="M50 92C50 92 6 62 6 34.5 6 18.5 17.5 8 30.5 8 39.5 8 46 13.2 50 20.5 54 13.2 60.5 8 69.5 8 82.5 8 94 18.5 94 34.5 94 62 50 92 50 92Z"/></g>`;
 
+/* ---------- the contact sheet ----------
+   The week's actual coffees, oldest first. This replaced a seven-bar
+   day chart, which counted the same week this shows: a grid of the
+   pours themselves says how many, on how many days, and what they
+   looked like, and only one of those three was in the bars.
+
+   Each tile is a photo where the photo can be embedded and the
+   generated cup where it can't — the same choice art() makes in the
+   feed, from the same three fields. `photos` is a key→data-URI map
+   filled by loadShotPhotos() below; a miss is not an error, it is the
+   cup, so a card is never blocked on the network.
+
+   GRID picks columns by count so three pours don't sit in a row built
+   for four, and the last row is centred when it is short. */
+const SHEET_MAX=8;
+
+/* Which pours to draw when there are more than fit. Evenly spaced
+   across the week rather than the first eight, so a Monday-heavy week
+   is not represented entirely by Monday. */
+export function pickShots(shots,max=SHEET_MAX){
+  if(shots.length<=max) return shots.slice();
+  const out=[], step=(shots.length-1)/(max-1);
+  for(let i=0;i<max;i++) out.push(shots[Math.round(i*step)]);
+  return out;
+}
+
+/* Columns chosen so the last row is never nearly empty: five pours read
+   as 3+2 rather than 4+1, six as 3+3. Whatever it picks the answer is
+   at most two rows, which is what keeps the sheet inside its budget —
+   see the size cap below. */
+const sheetCols=n=>n<=4?n:n<=6?3:4;
+const sheetSize=n=>Math.min(216,(W-M*2-(sheetCols(n)-1)*16)/sheetCols(n));
+/* How tall the sheet ends up, so the card can put the stat tiles under
+   it. Derived from the same two functions the grid itself uses, rather
+   than recomputed — the two drifting apart is exactly how a tile ends
+   up overlapping a photo. */
+const sheetHeight=n=>{
+  if(!n) return 0;
+  const rows=Math.ceil(n/sheetCols(n));
+  return rows*sheetSize(n)+(rows-1)*16;
+};
+
+function contactSheet(shots,photos,total){
+  const n=shots.length;
+  if(!n) return '';
+  const cols=sheetCols(n), gap=16, size=sheetSize(n);
+  const hidden=total-n;
+
+  let out=`<defs><clipPath id="tile" clipPathUnits="userSpaceOnUse">
+    <rect x="0" y="0" width="${size}" height="${size}" rx="26"/></clipPath></defs>`;
+
+  shots.forEach((s,i)=>{
+    const col=i%cols, row=Math.floor(i/cols);
+    /* Every row is centred on the card. For a full row of four that is
+       a no-op — four 216s and three gaps are exactly the 912 between the
+       margins — so this only moves the short rows, which is the case it
+       exists for: a week of three pours in a grid built for four should
+       not sit hard against the left edge. */
+    const inRow=Math.min(cols,n-row*cols);
+    const rowW=inRow*size+(inRow-1)*gap;
+    const x=M+(W-M*2-rowW)/2+col*(size+gap);
+    const y=SHEET_Y+row*(size+gap);
+    const src=photos&&photos.get(s.id);
+    out+=`<g transform="translate(${x.toFixed(1)} ${y})" clip-path="url(#tile)">`
+      + (src
+          ? `<image x="0" y="0" width="${size}" height="${size}" preserveAspectRatio="xMidYMid slice" href="${esc(src)}"/>`
+          : `<rect width="${size}" height="${size}" fill="${C.card}"/>`
+            + cupSVG(s.pattern||'none', s.quality, seedOf(s.id),
+                { attrs:`x="${size*0.04}" y="${size*0.04}" width="${size*0.92}" height="${size*0.92}"` }))
+      + `<rect width="${size}" height="${size}" fill="none" stroke="${C.line}" stroke-width="2" rx="26"/>`;
+    /* The last tile carries the count of everything that didn't fit,
+       so the sheet never quietly implies the week was eight coffees. */
+    if(hidden>0 && i===n-1)
+      out+=`<rect width="${size}" height="${size}" fill="${C.ink}" opacity="0.62"/>`
+        + txt(size/2,size/2+18,`+${hidden}`,{f:SERIF,size:54,fill:'#FFFDF9',anchor:'middle'});
+    out+=`</g>`;
+  });
+  return out;
+}
+
 /* ---------- the card ---------- */
-export function recapSVG(r,me){
+const SHEET_Y=470;
+
+export function recapSVG(r,me,photos){
   const name=(me&&me.name||'').trim();
   const top=r.drinks[0], bean=r.beans[0], pat=r.patterns[0];
-  const max=Math.max(1,r.busiest);
-  const letters=dayLetters();
 
-  /* Bars: the week, one column a day, today last and marked. A day with
-     no coffee gets a stub rather than nothing — the gap in the row is
-     the honest part of the picture and deleting it would flatter.
-
-     barTop leaves room above for the count labels, which sit outside
-     the bar: at a full-height bar the label lands at barTop-16, and
-     that has to clear the line of copy above it.
-
-     The whole block is bottom-anchored at 796 so the day letters stay
-     put whatever the tallest bar is — a row of labels that moves with
-     the busiest day of the week would make two people's cards look
-     like two different designs. */
-  const bw=(W-M*2-6*18)/7, barTop=640, barH=156;
-  const bars=r.days.map((c,i)=>{
-    const x=M+i*(bw+18), h=c?Math.max(24,Math.round(c/max*barH)):10;
-    const y=barTop+barH-h, today=i===6;
-    return `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="${Math.min(14,h/2)}"`
-      +` fill="${c?(today?C.crema:C.gold):C.line}"/>`
-      +(c?txt(x+bw/2,y-16,''+c,{f:MONO,size:22,fill:C.ink2,weight:500,anchor:'middle'}):'')
-      +txt(x+bw/2,barTop+barH+42,letters[i],{f:MONO,size:21,fill:today?C.crema:C.muted,weight:500,anchor:'middle',spacing:1.5});
-  }).join('');
+  const shots=pickShots(r.shots||[]);
+  const sheet=contactSheet(shots,photos,r.pours);
+  const sheetBottom=SHEET_Y+sheetHeight(shots.length);
 
   /* Four tiles, and every one of them is a real count. What goes in the
      fourth slot depends on what this week actually held — latte art if
      they poured any, a café count if they went out, the personal best
      otherwise — because a tile reading "0 with latte art" is a reproach,
      not a souvenir. */
-  const tw=(W-M*2-24)/2, th=176, t1=886, t2=t1+th+22;
+  const tw=(W-M*2-24)/2, th=150;
+  const t1=Math.max(sheetBottom+34,900), t2=t1+th+20;
   const fourth = r.artPours
       ? [t('latte art'), ''+r.artPours, pat?cap(pat.name):'']
     : r.cafePours
       ? [t('poured out'), ''+r.cafePours, t('at a café')]
       : [t('best ever'), r.best+' 🔥', t('day streak')];
-
-  const cup=cupSVG(pat?pat.name:'heart', 0.95, seedOf(''+r.pours+r.daysWithCoffee+letters[6]),
-    { attrs:`x="${W-M-282}" y="266" width="282" height="282"` });
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-kerning="normal">
   <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -156,14 +206,12 @@ export function recapSVG(r,me){
   ${txt(M+78,M+45,'Crema',{f:SERIF,size:48})}
   ${txt(W-M,M+42,range(r.from,r.to),{f:MONO,size:22,fill:C.muted,weight:500,anchor:'end',spacing:2})}
 
-  ${txt(M,296,t('YOUR WEEK IN COFFEE'),{f:MONO,size:23,fill:C.crema,weight:500,spacing:4.5})}
+  ${txt(M,250,t('YOUR WEEK IN COFFEE'),{f:MONO,size:23,fill:C.crema,weight:500,spacing:4.5})}
+  ${txt(M,400,''+r.pours,{f:SERIF,size:176,fill:C.ink})}
+  ${txt(M+numW(r.pours),352,r.pours===1?t('coffee, logged'):t('coffees, logged'),{f:SERIF,size:44,fill:C.ink2,style:'italic'})}
+  ${txt(M+numW(r.pours),398,t('on {a} of 7 days',{a:r.daysWithCoffee}),{size:26,fill:C.muted})}
 
-  ${cup}
-  ${txt(M,452,''+r.pours,{f:SERIF,size:176,fill:C.ink})}
-  ${txt(M,545,r.pours===1?t('coffee, logged'):t('coffees, logged'),{f:SERIF,size:46,fill:C.ink2,style:'italic'})}
-  ${txt(M,588,t('on {a} of 7 days',{a:r.daysWithCoffee}),{size:26,fill:C.muted})}
-
-  ${bars}
+  ${sheet}
 
   ${tile(M,t1,tw,th,t('your coffee'),top?top.name:'—',top?t('{n}×',{n:top.count}):'')}
   ${tile(M+tw+24,t1,tw,th,t('streak'),r.streak+' 🔥',r.streak?t('days running'):t('start one today'))}
@@ -175,6 +223,70 @@ export function recapSVG(r,me){
   ${name?txt(W-M,H-40,'crema-app.com',{f:MONO,size:24,fill:C.muted,weight:500,anchor:'end'}):''}
 </svg>`;
 }
+
+/* Roughly how wide the hero number is, so the two lines beside it start
+   clear of it. SVG cannot measure text, and Georgia's digits are close
+   enough to uniform at this size for a per-digit estimate to hold. */
+const numW=n=>(''+n).length*96+34;
+
+/* ---------- photos, or the cup instead ----------
+   A card that is going to be rasterised can only carry pixels it owns.
+   An SVG loaded through an <img> is its own document and never fetches
+   external resources, so a remote <image href> would show in the inline
+   preview and be blank in the exported PNG — the exact drift this file
+   exists to prevent. So every photo is pulled through a canvas into a
+   data: URI at tile resolution first, and the SVG carries the bytes.
+
+   crossOrigin='anonymous' is deliberate, and so is the failure it
+   currently causes: media.crema-app.com sends no
+   Access-Control-Allow-Origin, so the load fails, that pour falls back
+   to its generated cup, and nothing else is affected. Put that header on
+   the media CDN and every one of these starts resolving with no code
+   change here. Without crossOrigin the image would load and then taint
+   the canvas, and a tainted canvas cannot be exported AT ALL — one
+   photo would cost the whole card. Failing per-pour is the cheap
+   failure; failing per-card is not.
+
+   Legacy pours whose image is already a data: URI never touch the
+   network and work today. */
+const photoCache=new Map();   // post id -> data URI, or null for "use the cup"
+const photoJobs=new Map();    // post id -> in-flight load, so two callers share one
+
+function toTile(src,px){
+  return new Promise(res=>{
+    const img=new Image();
+    if(!/^data:/.test(src)) img.crossOrigin='anonymous';
+    img.onload=()=>{
+      try{
+        const c=document.createElement('canvas'); c.width=c.height=px;
+        const ctx=c.getContext('2d');
+        /* Centre-cropped to a square, the way the tile shows it. */
+        const s=Math.min(img.width,img.height);
+        ctx.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,px,px);
+        /* Throws if the canvas was tainted after all — which is the
+           point of asking here rather than at export time. */
+        res(c.toDataURL('image/jpeg',0.82));
+      }catch(e){ res(null); }
+    };
+    img.onerror=()=>res(null);
+    img.src=src;
+  });
+}
+
+/* Fills the cache for the pours the sheet will actually draw. Resolves
+   when there is nothing further to wait for, never rejects: every
+   failure has already become a cup. */
+export async function loadShotPhotos(shots){
+  const want=pickShots(shots||[]).filter(s=>s.img);
+  await Promise.all(want.map(s=>{
+    if(!photoJobs.has(s.id))
+      photoJobs.set(s.id, toTile(imageUrl(s.img,'thumb'),432)
+        .then(u=>{ photoCache.set(s.id,u); return u; }));
+    return photoJobs.get(s.id);
+  }));
+  return photoCache;
+}
+export const shotPhotos=()=>photoCache;
 
 /* ---------- the card, as a file ----------
    SVG → <img> → canvas → PNG. The data: URL rather than a blob: URL is

@@ -15,7 +15,7 @@ import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, c
          beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned, weekRecap } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
 import { PREMIUM_MAIL } from '../domain/premium.js';
-import { recapSVG } from './recap.js';
+import { recapSVG, shotPhotos } from './recap.js';
 import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
@@ -748,7 +748,7 @@ function overlayRecap(){
     <div class="grab"></div>
     <div class="ov-bar" style="border:0"><b>${t('Your week in coffee')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 20px">
-      ${r?`<div class="recap-card">${recapSVG(r,state.me)}</div>
+      ${r?`<div class="recap-card">${recapSVG(r,state.me,shotPhotos())}</div>
       <button class="btn block" style="margin-top:14px" data-action="share-recap">${icon('share',18)} ${t('Share your week')}</button>
       <div class="recap-note">${t('Saves as a picture, sized for a post or a story. Nothing leaves Crema until you send it.')}</div>`
       : `<div class="empty"><div class="big">📅</div>${t('No coffee logged in the last seven days.')}<br>${t('Log one and your week starts drawing itself.')}<br><br>
