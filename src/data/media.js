@@ -37,6 +37,27 @@ export function imageUrl(src, size='feed'){
   return `${MEDIA_BASE}/cdn-cgi/image/${VARIANTS[size]||VARIANTS.feed}/${src}`;
 }
 
+/* The stored object itself, with no transform in front of it.
+   Deliberately NOT for display — imageUrl() is, and it serves a tenth
+   of the bytes.
+
+   This exists because the two URLs differ in one way that has nothing
+   to do with pixels: `/cdn-cgi/image/…` is answered by Cloudflare's
+   resizing edge, which does not carry the bucket's CORS headers, while
+   the object's own URL does (the `coffee` bucket already allows GET
+   from the app's origins — see platform/supabase/README.md). So a
+   transformed image can be *shown* but never *read*: drawing one into a
+   canvas taints it, and a tainted canvas cannot be exported at all.
+
+   The week card has to read pixels, not just show them, so it asks for
+   the object and downscales it itself. See loadShotPhotos() in
+   ui/recap.js. If the transform edge ever starts sending
+   Access-Control-Allow-Origin, this can go back to a thumb. */
+export function imageSource(src){
+  if(!looksLikeKey(src)) return src;
+  return `${MEDIA_BASE}/${src}`;
+}
+
 async function presign(contentType){
   const token = await accessToken();
   if(!token) throw new Error('Sign in to upload a photo');

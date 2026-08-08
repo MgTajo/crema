@@ -968,7 +968,7 @@ function openRecap(){
      and nothing to wait for — see loadShotPhotos() for why a photo may
      legitimately never arrive. */
   const r=weekRecap(); if(!r) return;
-  loadShotPhotos(r.shots).then(()=>{
+  loadShotPhotos(r).then(()=>{
     if((ui.ovStack[ui.ovStack.length-1]||{}).type==='recap') renderOverlay();
   }).catch(err=>console.warn('recap photos failed',err));
 }
@@ -989,7 +989,7 @@ async function shareRecap(){
     /* Awaited rather than read: the sheet may have been shared before
        the photos finished, and the file people keep should not be the
        one that lost the race. Already-loaded pours resolve instantly. */
-    const photos=await loadShotPhotos(r.shots);
+    const photos=await loadShotPhotos(r);
     const svg=recapSVG(r,state.me,photos);
     const blob=await recapPNG(svg);
     const file=new File([blob],name,{type:'image/png'});

@@ -72,7 +72,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how the layers map onto a real backen
 | **Profile** | Level + points progress bar, recent-activity chart with hover tooltips, recent coffees strip, **bean passport** — every coffee you have logged, with origin, roast and how often you have poured it, plus per-bean detail pages, pours/saved/badges/stats tabs, **10 badges** with progress. |
 | **Create** | Photo upload (resized in-browser), any drink type, pattern picker for milk drinks, **specific coffee brands available in Germany** (you pick the coffee — there is no separate roaster field), a **brand → model machine picker** (100+ machines), optional recipe with no fabricated defaults. Latte art is opt-in: a cappuccino posts as a cappuccino unless you tag a pattern. |
 | **Premium** | Six perks: **your week in coffee** (a shareable card, below), **the stats tab** — including *where it is going* (weekly totals over three months, and the month-on-month delta) — a **gold ring** on your avatar everywhere you appear, **always ad-free**, pinning your gear & coffees, and naming your own drink types. Free right now but **redeemed with a code** (`FIRSTPOUR`), handed out by mail from hello@crema-app.com — the flag can only be raised by `redeem_premium()` in Postgres, so it is a real lock rather than a client-side boolean. Logging your coffee is free for everyone, permanently: no paywall ever stands between someone and an honest record. |
-| **Week in coffee** | A wrapped-style card of the last seven days — a **contact sheet of the week's actual coffees** (up to 8, evenly sampled across the week when there are more, with a `+N` on the last tile), plus your drink, your bag and your streak. Rendered as a 1080×1350 SVG and shared as a PNG straight into Instagram. The preview and the export are the same string, so what you see is what lands. Each tile is the pour's photo where the photo can be embedded and its generated cup where it can't — see the CORS note below. |
+| **Week in coffee** | A wrapped-style card of **the last full Monday–Sunday**, so it is a fixed weekly artifact rather than a live dashboard: it lands every Monday, says its dates on its face, and is the same card all week (and the same window as everyone else's). Its centre is a mosaic of **your actual coffee photos**, one column per day, stacked from a shared baseline — a bar chart whose bars are the coffee, so the distribution across the week and the pictures of it are one drawing. Three deep per day, with a `+N` on the top tile beyond that, and a flat stub on a day with none. Plus your drink, your bag, your best run and the week's busiest day. Rendered as a 1080×1350 SVG and shared as a PNG straight into Instagram; the preview and the export are the same string, so what you see is what lands. |
 | **Notifications** | Inbox fed by Postgres triggers on likes, comments and follows, with an unread dot; rows open the relevant post / profile / challenge / café. |
 | **Settings** | Account (email, password, sign out), edit profile (name, username, bio, city, machine), **Premium** (code redemption, or switch it off), **light/dark/auto theme**, scores & levels explainer. |
 | **PWA** | Manifest + service worker + icons — installable, works offline after first visit. |
@@ -107,12 +107,14 @@ directory at the repo root, and exclude `platform/` if the host lets you.
 
 ## Notes
 
-- **Photos on the week card need one CDN header.** A card destined for a PNG can only carry pixels
-  it owns — an SVG rasterised through an `<img>` never fetches external resources — so every photo
-  is pulled through a canvas into a `data:` URI before it goes in. `media.crema-app.com` currently
-  sends no `Access-Control-Allow-Origin`, so those loads fail and each pour falls back to its
-  generated cup. Add that header to the media CDN (a Cloudflare Transform Rule, or R2 CORS) and
-  every tile starts showing the real photo with **no code change**. Legacy pours whose image is
-  already a `data:` URI work today.
+- **The week card reads photos through the object URL, not the resized one.** A card destined for a
+  PNG can only carry pixels it owns — an SVG rasterised through an `<img>` never fetches external
+  resources — so each photo is pulled through a canvas into a `data:` URI first. The
+  `/cdn-cgi/image/…` variants are answered by Cloudflare's resizing edge, which does **not** carry
+  the bucket's CORS headers, so a transformed image can be shown but never read: drawing one into a
+  canvas taints it, and a tainted canvas cannot be exported at all. The object's own URL does carry
+  them (the `coffee` bucket already allows `GET` from the app's origins), so `imageSource()` in
+  `src/data/media.js` asks for that and the card downscales it itself. Nothing that merely
+  *displays* an image uses it — `imageUrl()` still serves a tenth of the bytes.
 - Accounts are real and required; email addresses live in Supabase Auth (EU region). No payments are taken and no card is asked for — Premium is free for now and opened by a code, so the people using it are people who wrote in and can be told when that changes.
 - The images in `assets/` are stock photography used for café cards; swap them anytime.

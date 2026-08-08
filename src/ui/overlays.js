@@ -751,7 +751,7 @@ function overlayRecap(){
       ${r?`<div class="recap-card">${recapSVG(r,state.me,shotPhotos())}</div>
       <button class="btn block" style="margin-top:14px" data-action="share-recap">${icon('share',18)} ${t('Share your week')}</button>
       <div class="recap-note">${t('Saves as a picture, sized for a post or a story. Nothing leaves Crema until you send it.')}</div>`
-      : `<div class="empty"><div class="big">📅</div>${t('No coffee logged in the last seven days.')}<br>${t('Log one and your week starts drawing itself.')}<br><br>
+      : `<div class="empty"><div class="big">📅</div>${t('No coffee logged last week.')}<br>${t('This card covers the last full Monday to Sunday, and lands again every Monday.')}<br><br>
          <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`}
     </div></div>`;
 }

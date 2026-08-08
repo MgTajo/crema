@@ -621,50 +621,83 @@ export function coffeeStats(){
    Same two rules as everywhere else: nothing invented, and a week with
    no pours in it returns null so the surface can say so instead of
    drawing a card full of zeroes. */
+/* Which week the card is about: the last COMPLETE Monday–Sunday, not
+   the rolling seven days behind right now. Two reasons, and the second
+   is the product one.
+
+   A calendar week is a thing people can share about. "My week" that
+   silently means "since last Tuesday" is a different week for everyone
+   who reads it, and two friends comparing cards would be comparing
+   different windows.
+
+   And it changes once a week, on Monday. The card is a weekly artifact
+   rather than a live dashboard: it lands, it is the same card all week,
+   and it says on its face which week it is. A recap that quietly
+   reshuffled every morning is a stat page, not something you post.
+
+   Offsets are days-back-from-today, so they line up with dayIndex(),
+   which is the one place in the app that decides what day a pour
+   happened on. Today Monday → last Sunday was 1 day ago, last Monday 7;
+   today Sunday → 7 and 13, because *this* Sunday is not over yet. */
+export function lastWeekWindow(now=new Date()){
+  const dow=(now.getDay()+6)%7;                 // Mon=0 … Sun=6
+  const endOff=dow+1, startOff=dow+7;
+  const mid=new Date(now); mid.setHours(0,0,0,0);
+  const from=new Date(mid); from.setDate(mid.getDate()-startOff);
+  const to=new Date(mid);   to.setDate(mid.getDate()-endOff);
+  return { startOff, endOff, from, to };
+}
+
 export function weekRecap(){
   const posts=myPosts();
-  const inWeek=p=>{ const d=dayIndex(p); return d>=0&&d<7; };
-  const week=posts.filter(inWeek);
+  const w=lastWeekWindow();
+  /* Monday is 0. -1 means the pour is outside the week entirely. */
+  const dayOf=p=>{ const i=dayIndex(p);
+    return (i>=w.endOff && i<=w.startOff) ? w.startOff-i : -1; };
+  const week=posts.filter(p=>dayOf(p)>=0);
   if(!week.length) return null;
 
-  /* How many of the seven days had coffee in them. The per-day counts
-     behind it are no longer published: the card drew them as a bar
-     chart until the contact sheet replaced it, and the sheet shows the
-     pours themselves. */
+  /* The distribution across the week, Monday first — the card draws the
+     pours themselves stacked into these seven columns, so this is both
+     the shape of the week and the index every shot is placed by. */
   const days=Array(7).fill(0);
-  week.forEach(p=>{ days[6-dayIndex(p)]++; });
+  week.forEach(p=>{ days[dayOf(p)]++; });
 
   const drinks=tally(week.map(p=>p.drink));
   const beans=tally(week.map(p=>p.recipe&&p.recipe.bean));
   const patterns=tally(week.filter(p=>p.art&&p.pattern).map(p=>p.pattern));
 
-  /* "New this week" means new to you, not new to the catalogue — so it
-     is decided against everything you logged *before* this week rather
-     than against a list of what exists. */
-  const earlier=new Set(posts.filter(p=>!inWeek(p))
+  /* "New that week" means new to you, and is decided against what you
+     logged BEFORE it — strictly older, so the coffee you started
+     drinking since does not retroactively age the week's discovery. */
+  const earlier=new Set(posts.filter(p=>dayIndex(p)>w.startOff)
     .map(p=>((p.recipe&&p.recipe.bean)||'').trim()).filter(Boolean));
   const newBeans=beans.filter(b=>!earlier.has(b.name));
 
-  /* The pours themselves, oldest first, slimmed to what a picture of
-     them needs. The card draws these as a contact sheet, so it wants the
-     photo where there is one and the pattern/quality/seed to generate a
-     cup where there isn't — exactly what art() in the feed decides
-     between, from exactly the same three fields. */
+  /* The pours themselves, Monday first, slimmed to what a picture of
+     them needs: the photo where there is one, and the pattern/quality/
+     seed to generate a cup where there isn't — exactly what art() in the
+     feed decides between, from exactly the same three fields. */
   const shots=week.slice()
-    .sort((a,b)=>dayIndex(b)-dayIndex(a))
-    .map(p=>({ id:p.id, img:p.img||null, pattern:p.pattern||null,
+    .sort((a,b)=>dayOf(a)-dayOf(b))
+    .map(p=>({ id:p.id, day:dayOf(p), img:p.img||null, pattern:p.pattern||null,
                quality:p.quality==null?0.9:p.quality, drink:p.drink||'' }));
 
-  const st=streakInfo();
-  const to=new Date(), from=new Date(Date.now()-6*864e5);
+  /* The longest run inside the week, not the live streak. A card about
+     last week that carries today's number would be two different weeks
+     wearing one date. */
+  let bestRun=0, run=0;
+  days.forEach(c=>{ run=c?run+1:0; if(run>bestRun) bestRun=run; });
+
   return {
-    pours:week.length, shots,
+    pours:week.length, shots, days,
     daysWithCoffee:days.filter(Boolean).length,
+    busiest:Math.max(...days),
     drinks, beans, patterns, newBeans,
     artPours:week.filter(p=>p.art&&p.pattern).length,
     cafePours:week.filter(p=>p.cafe).length,
-    streak:st.days, best:st.best,
-    from, to
+    bestRun,
+    from:w.from, to:w.to
   };
 }
 
