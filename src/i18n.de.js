@@ -675,7 +675,7 @@ export const DE = {
   'Sign in first — Premium lives on your account.':'Melde dich zuerst an — Premium hängt an deinem Konto.',
   /* the code */
   'Activation code':'Freischaltcode',
-  'e.g. FIRSTPOUR':'z. B. FIRSTPOUR',
+  'Type it exactly as it came':'Tipp ihn genau so ein, wie du ihn bekommen hast',
   'Unlock':'Freischalten',
   'Checking…':'Wird geprüft…',
   'No code yet?':'Noch keinen Code?',

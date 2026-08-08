@@ -679,7 +679,7 @@ function codeForm(id){
     <label for="${id}">${t('Activation code')}</label>
     <div class="pm-in">
       <input id="${id}" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false"
-             placeholder="${t('e.g. FIRSTPOUR')}" data-enter="redeem" data-i="${id}"${busy?' disabled':''}>
+             placeholder="${t('Type it exactly as it came')}" data-enter="redeem" data-i="${id}"${busy?' disabled':''}>
       <button class="btn" data-action="redeem-premium" data-i="${id}"${busy?' disabled':''}>${busy?t('Checking…'):t('Unlock')}</button>
     </div>
     ${err?`<div class="pm-err">${esc(err)}</div>`:''}
