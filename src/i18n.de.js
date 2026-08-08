@@ -695,7 +695,7 @@ export const DE = {
   'coffees, logged':'Kaffees, eingetragen',
   'on {a} of 7 days':'an {a} von 7 Tagen',
   'your coffee':'dein Kaffee',
-  'streak':'Serie',
+  'streak':'Streak',
   'days running':'Tage am Stück',
   'start one today':'fang heute eine an',
   'the bag':'die Tüte',
@@ -706,7 +706,6 @@ export const DE = {
   'poured out':'auswärts',
   'at a café':'im Café',
   'best ever':'Bestwert',
-  'day streak':'Tage Serie',
   '{n}×':'{n}×',
   '{name} on Crema':'{name} auf Crema',
   'Share your week':'Teil deine Woche',
@@ -724,17 +723,41 @@ export const DE = {
   'Your rhythm, the hour you pour at, your machine and milk, your brew ratio, your week and your shelf.':
     'Dein Rhythmus, deine Uhrzeit, Maschine und Milch, dein Brühverhältnis, deine Woche und dein Regal.',
   'Free right now, with a code':'Gerade kostenlos, mit einem Code',
-  'Your week':'Deine Woche',
-  '<b>{d}</b> is your biggest coffee day.':'<b>{d}</b> ist dein größter Kaffeetag.',
-  'Your shelf':'Dein Regal',
-  '{n} different coffees, darkest first-poured most.':'{n} verschiedene Kaffees, am dunkelsten der meistgebrühte.',
-  'Showing the top 24.':'Gezeigt werden die ersten 24.',
   'Pin the ones you use most to hold them at the top. That is Premium, <u>free right now, with a code</u>.':
     'Pinn die an, die du am meisten nutzt, dann bleiben sie oben. Das ist Premium, <u>gerade kostenlos, mit einem Code</u>.',
   'Pinned to the top 📌':'Nach oben gepinnt 📌',
   'Unpinned':'Nicht mehr gepinnt',
   'Pin to the top':'Nach oben pinnen',
   'Unpin':'Nicht mehr pinnen',
+
+  /* the long arc & the palate */
+  'Where it is going':'Wohin es geht',
+  'You are pouring <b>{p}% more</b> than the month before.':'Du machst <b>{p}% mehr</b> Kaffee als im Monat davor.',
+  'You are pouring <b>{p}% less</b> than the month before.':'Du machst <b>{p}% weniger</b> Kaffee als im Monat davor.',
+  'About the same as the month before — <b>{a}</b> against <b>{b}</b>.':'Ungefähr wie im Monat davor — <b>{a}</b> gegen <b>{b}</b>.',
+  '<b>{a}</b> this month, after a month with none logged.':'<b>{a}</b> diesen Monat, nach einem Monat ganz ohne Eintrag.',
+  'Keep logging and the month-on-month comparison shows up here.':'Trag weiter ein, dann steht hier der Vergleich von Monat zu Monat.',
+  'Pours a week, {n} weeks back. The busiest was {m}.':'Kaffees pro Woche, {n} Wochen zurück. Die stärkste hatte {m}.',
+  'a week ago':'vor einer Woche',
+  '{n} weeks ago':'vor {n} Wochen',
+  'this week':'diese Woche',
+  '{d} is your biggest coffee day.':'{d} ist dein größter Kaffeetag.',
+  'Your palate':'Dein Geschmack',
+  'lighter':'heller',
+  'darker':'dunkler',
+  'You drink <b>{r}</b> more than anything else — {p}% of the coffee you log that we know the bag for.':
+    'Du trinkst <b>{r}</b> häufiger als alles andere — {p}% der Kaffees, deren Tüte wir kennen.',
+  'The flavours behind it':'Die Aromen dahinter',
+  'From the one pour on a coffee in the catalogue.':'Aus dem einen Kaffee, der im Katalog steht.',
+  'From the {n} pours on a coffee in the catalogue.':'Aus den {n} Kaffees, die im Katalog stehen.',
+  'Your own coffees carry no tasting notes to read.':'Deine eigenen Kaffees haben keine Aromen, die sich auslesen lassen.',
+  /* roast levels — catalogue values, but these land inside a sentence.
+     'Light' and 'Dark' are already above, for the theme switcher, and
+     mean the same word in German; a second pair here would be a
+     duplicate key that silently wins. */
+  'Light-medium':'Hell-mittel',
+  'Medium':'Mittel',
+  'Medium-dark':'Mittel-dunkel',
 
   /* ---------- pickers ---------- */
   'Machine / brewer':'Maschine / Brüher',

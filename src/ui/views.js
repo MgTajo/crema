@@ -7,7 +7,7 @@
    ============================================================ */
 import { $, esc, fmt, cap, initials, seedOf, daysAgo, agoLabel } from '../core/util.js';
 import { S } from '../data/assets.js';
-import { beanCatalog, flag } from '../data/catalog.js';
+import { beanCatalog, flag, ROAST_SCALE } from '../data/catalog.js';
 import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
          myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts, coffeeStats, friendsToday,
@@ -412,38 +412,101 @@ function statCard(title,body,note){
 const statRows=rows=>`<div class="stx-rows">${rows.map(r=>
   `<div><span>${esc(r[0])}</span><b>${esc(r[1])}</b>${r[2]?`<i>${esc(r[2])}</i>`:''}</div>`).join('')}</div>`;
 
-/* Which days of the week you are a coffee drinker on. The one cut of
-   this data that tells people something they did not already know —
-   almost everyone guesses their own weekday/weekend split wrong — and
-   it needs no recipe filled in to work, unlike the ratio card. */
-function weekdayCard(s){
-  const max=Math.max(...s.weekdays);
-  if(!max) return '';
-  /* Labels from real dates, so German gets Mo/Di/Mi rather than a
-     hardcoded English row, and the week starts where the locale says. */
-  const first=locale()==='de-DE'?1:1;
-  const order=[0,1,2,3,4,5,6].map(i=>(first+i)%7);
-  const label=d=>{ const x=new Date(2024,0,7+d); return x.toLocaleDateString(locale(),{weekday:'short'}).replace(/\.$/,''); };
-  const peak=s.weekdays.indexOf(max);
-  const bars=order.map(d=>{
-    const c=s.weekdays[d], h=c?Math.max(10,Math.round(c/max*100)):3;
-    return `<div class="stx-wd${d===peak?' on':''}"><i style="height:${h}%"></i><span>${esc(label(d))}</span></div>`;
-  }).join('');
-  return statCard(t('Your week'),`<div class="stx-week">${bars}</div>`,
-    t('<b>{d}</b> is your biggest coffee day.',{d:esc(label(peak))}));
+/* ----- the long arc -----
+   The profile above already draws 21 daily bars, and a second bar chart
+   of the same days in the same shape is not worth paying for — so this
+   one is deliberately a different question and a different drawing.
+   Weekly totals over up to three months as a filled curve, and above it
+   the only number that matters: which way it is going.
+
+   Drawn stretched (preserveAspectRatio="none") so the curve fills
+   whatever width the phone has; the stroke is pinned with
+   vector-effect so the line doesn't smear along with it. */
+function arcCard(s){
+  const w=s.weeks;
+  if(!w || w.length<3) return '';
+  const n=w.length, max=Math.max(...w,1), H=34;
+  const px=i=>(i/(n-1))*100, py=v=>H-(v/max)*(H-3)-1.5;
+  const pts=w.map((v,i)=>`${px(i).toFixed(2)},${py(v).toFixed(2)}`).join(' ');
+  const chart=`<svg class="stx-arc" viewBox="0 0 100 ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="0,${H} ${pts} 100,${H}"/>
+      <polyline points="${pts}" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <div class="stx-axis"><span>${tn(n,'a week ago','{n} weeks ago')}</span><span>${t('this week')}</span></div>`;
+
+  /* The headline. A percentage needs two whole months behind it, and a
+     month that was empty has no percentage at all — "up ∞%" is not a
+     fact about anyone's coffee. */
+  const tr=s.trend;
+  let head, dir='';
+  if(tr && tr.pct!=null && Math.abs(tr.pct)>=5){
+    dir=tr.pct>0?'up':'down';
+    head=tr.pct>0
+      ? t('You are pouring <b>{p}% more</b> than the month before.',{p:tr.pct})
+      : t('You are pouring <b>{p}% less</b> than the month before.',{p:Math.abs(tr.pct)});
+  }else if(tr && tr.pct!=null){
+    dir='flat';
+    head=t('About the same as the month before — <b>{a}</b> against <b>{b}</b>.',{a:tr.recent,b:tr.prev});
+  }else if(tr){
+    head=t('<b>{a}</b> this month, after a month with none logged.',{a:tr.recent});
+  }else{
+    head=t('Keep logging and the month-on-month comparison shows up here.');
+  }
+  const chip=dir?`<span class="stx-dir ${dir}">${dir==='up'?'↑':dir==='down'?'↓':'→'} ${tr.recent}/${tr.prev}</span>`:'';
+  return `<div class="stx-card">
+    <h4>${t('Where it is going')}${chip}</h4>
+    <p class="stx-p" style="margin-bottom:12px">${head}</p>
+    ${chart}
+    <p class="stx-note">${t('Pours a week, {n} weeks back. The busiest was {m}.',{n,m:max})}</p>
+  </div>`;
 }
 
-/* How wide the shelf is, as a row of dots rather than a number — twelve
-   dots reads as variety at a glance in a way "12 coffees" does not. */
-function varietyCard(s){
-  if(s.beans.length<2) return '';
-  const shown=s.beans.slice(0,24);
-  const max=Math.max(...shown.map(b=>b.count));
-  const dots=shown.map(b=>`<i style="opacity:${(0.35+0.65*b.count/max).toFixed(2)}" title="${esc(b.name)} · ${b.count}×"></i>`).join('');
-  return statCard(t('Your shelf'),`<div class="stx-dots">${dots}</div>`,
-    t('{n} different coffees, darkest first-poured most.',{n:s.beans.length})
-      +(s.beans.length>24?' '+t('Showing the top 24.'):''));
+/* ----- your palate -----
+   The one card built from something nobody filled in. Every catalogue
+   coffee carries a roast level and three tasting notes, and until now
+   they only ever appeared one bag at a time on a bean page. Added up
+   across everything someone has poured, they describe a taste — and a
+   taste is a thing you can be told about yourself, which is worth more
+   than another count of the things you already typed.
+
+   The bean passport is next door and lists every bag with its origin
+   and roast, so this deliberately lists no bags at all. */
+function palateCard(s){
+  const p=s.palate;
+  if(!p || p.roastN<3) return '';
+  /* Actual roast colours, light to dark — the scale is the drawing. */
+  const shades=['#E2C79B','#C9A063','#A9762F','#7C5322','#4A3018'];
+  const segs=p.roasts.map((c,i)=>c
+    ? `<i style="width:${(c/p.roastN*100).toFixed(2)}%;background:${shades[i]}" title="${esc(ROAST_SCALE[i])} · ${c}"></i>`
+    : '').join('');
+  /* Where the weight of it sits, as a mark under the bar. Worth being
+     clear with yourself about this one: the bar's width is cumulative
+     share, the mark's position is the roast scale itself, so the two
+     run left-to-right at different rates. They agree on direction —
+     both go light to dark — and the mark answers "where on the
+     spectrum am I", which is a question the segments alone don't. */
+  const mark=(p.avg/(ROAST_SCALE.length-1)*100).toFixed(2);
+
+  const share=pct(p.topN,p.roastN);
+  const notes=p.notes.slice(0,6);
+  const nMax=notes.length?notes[0].count:1;
+  const chips=notes.map(x=>`<span class="stx-note-chip" style="--w:${(x.count/nMax).toFixed(2)}">${esc(x.name)}<i>${x.count}</i></span>`).join('');
+
+  return `<div class="stx-card">
+    <h4>${t('Your palate')}</h4>
+    <div class="stx-roast">${segs}</div>
+    <div class="stx-roast-mark"><i style="left:${mark}%"></i></div>
+    <div class="stx-axis"><span>${t('lighter')}</span><span>${t('darker')}</span></div>
+    <p class="stx-p" style="margin-top:12px">${t('You drink <b>{r}</b> more than anything else — {p}% of the coffee you log that we know the bag for.',{r:esc(ROAST_SCALE_LABEL(p.top)),p:share})}</p>
+    ${notes.length?`<div class="stx-sub-h">${t('The flavours behind it')}</div><div class="stx-notes">${chips}</div>`:''}
+    <p class="stx-note">${tn(p.catPours,'From the one pour on a coffee in the catalogue.','From the {n} pours on a coffee in the catalogue.')}
+      ${p.catPours<s.pours?t('Your own coffees carry no tasting notes to read.'):''}</p>
+  </div>`;
 }
+/* The scale is catalogue data and reads in English on the bean page, so
+   it reads in English here too — except that this sentence is a
+   sentence, and "Du trinkst Medium-dark" is neither language. */
+const ROAST_SCALE_LABEL=r=>t(r);
 
 /* The teaser a free account gets instead. It shows the real headline —
    their drink, counted from their own pours — and stops there. An
@@ -510,6 +573,15 @@ export function renderStats(){
      different across nine days than across nine months. */
   const rhythm=[tn(s.span,'That is one day since your first pour, and about {w} a week.','That is {n} days since your first pour, and about {w} a week.',{w:oneDp(s.perWeek)})];
   if(s.busiest>1) rhythm.push(t('Your biggest day was {n} coffees.',{n:s.busiest}));
+  /* The weekday split, as one sentence rather than a seven-bar chart —
+     the chart said the same thing as the profile's own bars and looked
+     like them, and the interesting part was always this line. Only
+     worth saying once one weekday is genuinely ahead. */
+  const wdMax=Math.max(...s.weekdays);
+  if(wdMax>=2 && s.weekdays.filter(c=>c===wdMax).length===1){
+    const d=new Date(2024,0,7+s.weekdays.indexOf(wdMax));
+    rhythm.push(t('{d} is your biggest coffee day.',{d:d.toLocaleDateString(locale(),{weekday:'long'})}));
+  }
   if(s.streak>0) rhythm.push(tn(s.streak,'You are one day into a streak right now.','You are {n} days into a streak right now.'));
   out.push(statCard(t('Your rhythm'),`<p class="stx-p">${rhythm.join(' ')}</p>`));
 
@@ -525,7 +597,7 @@ export function renderStats(){
         +(s.timed<s.pours?' '+t('Counted from the {n} pours that carry a recorded time.',{n:s.timed}):'')));
   }
 
-  out.push(weekdayCard(s));
+  out.push(arcCard(s));
 
   const setup=[];
   if(s.beans[0])    setup.push([t('Most-poured coffee'),s.beans[0].name,`${s.beans[0].count}×`]);
@@ -544,7 +616,7 @@ export function renderStats(){
     out.push(statCard(t('What you brew with'),statRows(setup),notes.join(' ')));
   }
 
-  out.push(varietyCard(s));
+  out.push(palateCard(s));
 
   /* Only for people who weigh things — which is exactly the group this
      section is for, and no use at all to anyone else. */
