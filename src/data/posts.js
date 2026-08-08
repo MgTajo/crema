@@ -26,7 +26,7 @@ const COLS = 'id,user_id,drink,art,pattern,quality,image_key,caption,cafe_id,rec
 /* The author embed MUST name the foreign key. posts↔profiles is reachable
    both directly (posts.user_id) and many-to-many via likes/saves/comments,
    so a bare `profiles(...)` is ambiguous and PostgREST answers 300. */
-const author = has => `profiles!posts_user_id_fkey(id,handle,name,city,bio,avatar_color,level${has('avatar_key')?',avatar_key':''})`;
+const author = has => `profiles!posts_user_id_fkey(id,handle,name,city,bio,avatar_color,level,premium${has('avatar_key')?',avatar_key':''})`;
 /* Counts come from PostgREST's aggregate embedding rather than counter
    columns — views/aggregates first, denormalize only if it measurably
    hurts. Which posts *you* liked or saved is a separate query, because

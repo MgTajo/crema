@@ -44,7 +44,14 @@ export function avatar(uid,cls=''){
   const photo=u.avatar
     ? `<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`
     : '';
-  return `<div class="avatar ${cls}" style="background:${u.color}">${initials(u.name)}${photo}</div>`;
+  /* The gold ring rides on the face rather than sitting beside the name,
+     because it has to survive every context an avatar appears in — a
+     26px stacked face on the today strip has no room for a chip. It
+     travels with the author embed (see rowToUser), so it is drawn from
+     the same row everything else about them comes from and never needs
+     its own lookup. */
+  const ring=u.premium?' prem':'';
+  return `<div class="avatar ${cls}${ring}" style="background:${u.color}">${initials(u.name)}${photo}</div>`;
 }
 export function cafeThumb(c){return `<div class="cafe-thumb" style="background:${c.color}">${initials(c.name)}</div>`;}
 
@@ -98,16 +105,19 @@ export function drinkOptions(current,{allowAdd=true}={}){
 }
 /* ----- Premium, wherever it is met -----
    Every locked thing says the same two things in the same shape: what
-   Premium would give you here, and that it currently costs nothing.
-   Crema is young and Premium is switched on by hand in Settings, so a
-   lock that only said "Premium" would read as a wall in front of a door
-   that is standing open — and someone who walks away from that never
-   finds out the feature exists. Tapping goes straight to the switch. */
+   Premium would give you here, and that it currently costs nothing but
+   a code. A lock that only said "Premium" would read as a wall, and
+   someone who walks away from a wall never finds out that the door is
+   open and that asking takes one line of email.
+
+   Tapping raises the offer sheet with the thing they just reached for
+   named at the top of it — not Settings. Sending someone off to find a
+   screen is how an offer gets lost between the tap and the arrival. */
 export function premiumNote(what){
   if(state.me.premium) return '';
-  return `<div class="pnote" data-action="open-settings">
+  return `<div class="pnote" data-action="open-premium" data-f="${esc(what)}">
     <span class="pn-lock">🔒</span>
-    <span>${t('<b>{what}</b> is a Premium feature, <u>free for now, switch it on in Settings</u>.',{what:esc(what)})}</span></div>`;
+    <span>${t('<b>{what}</b> is Premium — <u>free right now, with a code</u>.',{what:esc(what)})}</span></div>`;
 }
 
 /* ----- follow buttons -----

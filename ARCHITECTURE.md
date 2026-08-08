@@ -12,6 +12,7 @@ small, contained changes rather than a rewrite.
                         │                               │
                     domain/                          store/                 logic + state
          art.js · scoring.js · streak.js    store.js ── persistence.js
+              premium.js
                         │                               │
                         └───────────────┬───────────────┘
                                      data/                                   content
@@ -35,8 +36,8 @@ A module only imports from layers **below** it. Nothing in `data/`, `domain/`, `
 | **data** | `data/assets.js`, `data/catalog.js`, `data/world.js` | The bundled catalog (drinks, machines, milks, levels) and `world.js` — the people / café / challenge / podium maps, which ship **empty** and are filled from the backend | The same, plus a real image CDN |
 | **data (backend)** | `data/supabase.js`, `profiles`, `posts`, `social`, `challenges`, `notifications`, `media`, `remote` | The only modules that touch the network: auth + PostgREST + R2, and the row⇄app mapping per domain | The same, pointed at production |
 | **store** | `store/store.js`, `store/persistence.js` | The single source of truth: `state`, `ui`, selectors, and the persistence adapter | The client cache / API layer talking to your backend |
-| **domain** | `domain/art.js`, `domain/scoring.js`, `domain/streak.js` | Craft logic: latte-art rendering, art scores, badges, streak rules | Same logic, shared between client and server — `streak.js` is already duplicated in plpgsql for the reminder job, and the two are fuzzed against each other |
-| **ui** | `ui/*` | Rendering (`gate`, `views`, `overlays`, `components`, `icons`) and interaction (`actions`, `app`) | Native screens & view models |
+| **domain** | `domain/art.js`, `domain/scoring.js`, `domain/streak.js`, `domain/premium.js` | Craft logic: latte-art rendering, art scores, badges, streak rules, and what opens Premium | Same logic, shared between client and server — `streak.js` is already duplicated in plpgsql for the reminder job and the two are fuzzed against each other; `premium.js` holds the activation code, which step-1.21.sql states a second time because the browser's copy is a message and Postgres's is the lock |
+| **ui** | `ui/*` | Rendering (`gate`, `views`, `overlays`, `components`, `icons`, `recap`) and interaction (`actions`, `app`) | Native screens & view models. `recap.js` is the one that does not port as-is: it draws the shareable week card as an SVG string and rasterises it through a canvas, which on native becomes the platform's own image API |
 
 ## The persistence seam — where the backend plugs in
 

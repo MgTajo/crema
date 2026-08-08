@@ -709,6 +709,49 @@
   .pm-perk span{flex:none; width:22px; text-align:center; font-size:15px}
   .pm-perk b{display:block; font-size:13.5px; font-weight:600; color:var(--ink)}
   .pm-perk i{display:block; font-style:normal; font-size:11.5px; color:var(--ink2); margin-top:1px}
+  .pm-h{display:block; font-family:var(--serif); font-size:17px; font-weight:400; color:var(--st4); letter-spacing:-.01em}
+  .pm-lead{font-size:13.5px; line-height:1.5; color:var(--ink); margin:7px 0 0}
+  .pm-lead b{font-weight:600}
+  .pm-free{font-size:12.5px; line-height:1.55; color:var(--ink2); margin:6px 0 10px}
+  /* the code field — the one control on the card that does anything */
+  .pm-code{margin-top:12px; padding-top:12px; border-top:1px solid var(--st3)}
+  .pm-code label{display:block; font-family:var(--mono); font-size:10px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--st4); margin-bottom:7px}
+  .pm-in{display:flex; gap:8px}
+  .pm-in input{flex:1; min-width:0; font-family:var(--mono); font-size:15px; font-weight:500; letter-spacing:.12em; text-transform:uppercase;
+    background:var(--surface); border:1px solid var(--st3); border-radius:var(--r-sm); padding:11px 13px; color:var(--ink); outline:none}
+  .pm-in input:focus{border-color:var(--crema); box-shadow:0 0 0 3px var(--crema-soft)}
+  .pm-in input::placeholder{letter-spacing:.08em; color:var(--faint); text-transform:none}
+  .pm-in .btn{flex:none; padding-left:18px; padding-right:18px}
+  .pm-err{font-size:12px; line-height:1.45; color:var(--terra); margin-top:8px}
+  .pm-ask{font-size:12px; line-height:1.55; color:var(--ink2); margin-top:11px}
+  .pm-ask a{color:var(--crema-deep); font-weight:600; text-decoration:none}
+  .pm-copy{font-size:11.5px; color:var(--muted); margin-top:4px; cursor:pointer}
+  .pm-fine{font-size:11px; line-height:1.45; color:var(--muted); text-align:center; margin-top:12px}
+
+  /* ----- the gold ring -----
+     Drawn on the face itself so it survives every size an avatar is used
+     at, from the 26px stacked faces on the today strip up. A ring rather
+     than a badge for the same reason: a badge needs room the small ones
+     do not have. */
+  .avatar.prem{box-shadow:inset 0 0 0 1.5px #ffffff55, 0 0 0 2px var(--cream), 0 0 0 3.5px var(--gold), var(--sh-sm)}
+  .ftoday-faces .avatar.prem{box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px var(--gold), var(--sh-sm)}
+  .prof-av.prem:after{background:var(--ring); inset:-6px; padding:3px}
+  .prof-av.prem{box-shadow:0 0 0 3px var(--gold), var(--sh)}
+
+  /* ----- your week in coffee ----- */
+  .recap-row{display:flex; align-items:center; gap:12px; margin-top:12px; padding:14px;
+    background:linear-gradient(135deg,var(--st1),var(--st2)); border:1px solid var(--st3); border-radius:var(--r); cursor:pointer}
+  .rr-i{flex:none; width:38px; height:38px; border-radius:50%; background:var(--surface); display:grid; place-items:center; font-size:18px}
+  .rr-t{flex:1; min-width:0}
+  .rr-t b{display:block; font-family:var(--serif); font-size:17px; font-weight:400; letter-spacing:-.015em}
+  .rr-t span{display:block; font-size:11.5px; line-height:1.45; color:var(--ink2); margin-top:2px}
+  .rr-go{flex:none; font-family:var(--mono); font-size:10px; font-weight:500; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--on-crema); background:var(--crema); border-radius:999px; padding:6px 11px}
+  /* The card is an SVG at its own aspect ratio; the only job here is to
+     let it be as wide as the sheet and no wider. */
+  .recap-card{border-radius:var(--r); overflow:hidden; box-shadow:var(--sh); background:#F7F1E7}
+  .recap-card svg{display:block; width:100%; height:auto}
+  .recap-note{font-size:11.5px; line-height:1.5; color:var(--muted); text-align:center; margin-top:10px}
 
   /* ----- stats tab ----- */
   .stx{margin-top:4px; display:flex; flex-direction:column; gap:12px}
@@ -747,6 +790,24 @@
   .stx-rows b{font-size:14px; font-weight:600; text-align:right; overflow-wrap:anywhere}
   .stx-rows i{grid-column:2; font-style:normal; font-family:var(--mono); font-size:10px; color:var(--green); font-weight:700; text-align:right}
   .stx-hint{background:var(--surface2); border:1px dashed var(--line2); border-radius:var(--r-sm); padding:13px 14px; font-size:12.5px; line-height:1.5; color:var(--ink2); cursor:pointer}
+  /* weekday bars — seven columns, the biggest one named underneath */
+  .stx-week{display:flex; align-items:flex-end; gap:6px; height:96px}
+  .stx-wd{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:6px}
+  .stx-wd i{width:100%; background:var(--line2); border-radius:4px 4px 0 0; min-height:3px}
+  .stx-wd.on i{background:var(--crema)}
+  .stx-wd span{font-family:var(--mono); font-size:9.5px; font-weight:500; color:var(--muted); flex:none}
+  .stx-wd.on span{color:var(--crema-deep)}
+  /* the shelf — one dot a coffee, darkest what you pour most */
+  .stx-dots{display:flex; flex-wrap:wrap; gap:6px}
+  .stx-dots i{width:16px; height:16px; border-radius:50%; background:var(--crema); flex:none}
+  /* the locked stats tab: one real number, then the shape of the rest */
+  .stx-lock{position:relative; cursor:pointer; border-radius:var(--r); overflow:hidden}
+  .stx-blur{display:flex; flex-direction:column; gap:12px; filter:blur(7px) saturate(.7); opacity:.55; pointer-events:none; user-select:none}
+  .stx-lockmsg{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px;
+    text-align:center; padding:18px; background:linear-gradient(180deg,transparent,var(--cream) 42%)}
+  .stx-lockmsg b{font-family:var(--serif); font-size:19px; font-weight:400; letter-spacing:-.015em; max-width:280px}
+  .stx-lockmsg i{font-style:normal; font-size:12px; line-height:1.5; color:var(--ink2); max-width:290px}
+  .stx-lockmsg .pn-lock{font-size:20px}
 
   /* ----- cafés: the pilot ask ----- */
   .cafe-soon{background:linear-gradient(135deg,var(--st1),var(--st2)); border:1px solid var(--st3); border-radius:var(--r); padding:16px; margin-bottom:12px}

@@ -28,6 +28,11 @@ export function meToRow(me, uid, handle, withAvatar=true){
     machine_model: me.machineModel || null,
     fav_drink: me.favDrink || null,
     fav_milk: me.favMilk || null,
+    /* Sent, but no longer obeyed on the way up: since step-1.21.sql a
+       false→true here is silently reverted by the guard trigger, and
+       only redeemPremium() below can raise it. Kept in the row so that
+       turning Premium *off* still works from an ordinary profile save —
+       giving something up should never need a code. */
     premium: !!me.premium
   };
   /* An R2 object key, never the image — same rule as posts.image_key.
@@ -132,6 +137,13 @@ export function rowToUser(row){
   if(row.bio!=null)    u.bio    = row.bio  || '';
   if(row.points!=null) u.points = row.points|0;
   if('avatar_key' in row) u.avatar = row.avatar_key || '';
+  /* The gold ring is drawn wherever an avatar is, so it has to travel
+     with every embedded author rather than being looked up per face.
+     `in row` rather than a null check, for the same reason avatar_key
+     uses one: false is its real value for most people, and "they let
+     Premium lapse" has to survive registerUser()'s merge exactly as
+     "they redeemed a code" does. */
+  if('premium' in row) u.premium = !!row.premium;
   return u;
 }
 
@@ -176,6 +188,38 @@ export async function pushProfile(uid, me){
   });
 }
 
+/* ---------- Premium ----------
+   The unlock that counts happens in Postgres: redeem_premium() is the
+   only thing that can raise the flag (see platform/supabase/step-1.21.sql),
+   so this is a real switch on a real row rather than a local boolean —
+   it survives a reinstall and it follows the account to another device.
+   The client checks the code first only so the wrong one can be
+   answered instantly and offline.
+
+   Returns false for a wrong code rather than throwing: that is an
+   answer, not a failure, and the caller says so in the field.
+
+   The migration is run by hand while the app is already live, so the
+   window where the function does not exist yet has to be survivable —
+   same contract optionalColumns() exists for. In that window the plain
+   write still works, because the guard trigger isn't there either. */
+export async function redeemPremium(uid, code){
+  try{
+    const ok = await rest('rpc/redeem_premium', { method:'POST', body:{ code } });
+    return ok===true || (Array.isArray(ok) && ok[0]===true);
+  }catch(e){
+    const missing = e.status===404 || /PGRST202|could not find the function/i.test(e.message||'');
+    if(!missing) throw e;
+    console.warn('redeem_premium is missing — run platform/supabase/step-1.21.sql');
+    await rest(`profiles?id=eq.${uid}`, { method:'PATCH', body:{ premium:true } });
+    return true;
+  }
+}
+/* Giving it up. Always allowed, never a code, never a conversation. */
+export function dropPremium(uid){
+  return rest(`profiles?id=eq.${uid}`, { method:'PATCH', body:{ premium:false } });
+}
+
 /* Just the photo. Deliberately not pushProfile(): picking an avatar
    should not also write back a half-typed username from the settings
    fields, and it must not be able to fail with a 409 on someone else's
@@ -200,7 +244,7 @@ export async function fetchScore(uid){
 /* `avatar_key` arrives with step-1.13.sql, run by hand while the app is
    already live — so every query naming it has to survive its absence.
    See optionalColumns() in data/supabase.js. */
-const card = has => `id,handle,name,city,bio,avatar_color,level${has('avatar_key')?',avatar_key':''}`;
+const card = has => `id,handle,name,city,bio,avatar_color,level,premium${has('avatar_key')?',avatar_key':''}`;
 
 /* Follower / following / pour counts, from the profile_counts view.
    Counted in Postgres rather than kept in columns, so they can't drift. */

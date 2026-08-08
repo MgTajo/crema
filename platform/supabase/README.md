@@ -35,6 +35,8 @@ Supabase dashboard → **SQL Editor** → paste and run:
 16. [`step-1.20.sql`](step-1.20.sql) — the morning nudge: a second, earlier push reminder for
     anyone who hasn't poured yet today, streak or no streak. Needs the same push function and
     Vault settings as step-1.16 — nothing new to deploy, it reuses `push_send()`.
+17. [`step-1.21.sql`](step-1.21.sql) — Premium becomes a code. **This one resets
+    `profiles.premium` to false for everyone**, on purpose: see the note below before running it.
 
 All of them are idempotent, so re-running them is safe. Run them in order —
 each builds on the tables before it.
@@ -56,6 +58,27 @@ the first error and retries without it (`optionalColumns()` in
 `src/data/supabase.js`), so avatars stay as initials — but picking a photo
 in Settings says it isn't switched on yet, because there is nowhere to
 store the key.
+
+**`step-1.21.sql` takes Premium away from everyone who had it.** That is
+the point of the step rather than a side effect: Premium used to be a
+boolean the settings sheet flipped and PATCHed, which anyone reading the
+network tab had for free, and it now means enough to be worth locking.
+After it runs:
+
+- Every account starts again at `premium = false`, including yours.
+- `premium` can no longer be raised by its owner. A `BEFORE UPDATE`
+  trigger reverts a false→true from an ordinary PATCH — silently, not
+  with an error, because the settings form sends every profile column and
+  an exception would fail a name change over a field nobody touched.
+  Turning Premium **off** stays theirs: nobody should need permission to
+  give something up.
+- The only way in is `redeem_premium(code)`, a `security definer`
+  function that checks the code and is granted to `authenticated`. The
+  code lives twice — here and in `PREMIUM_CODE` in
+  `src/domain/premium.js` — and rotating it means changing both.
+- Until this runs the app still works: `redeemPremium()` in
+  `src/data/profiles.js` catches the missing function and falls back to a
+  plain write, which succeeds because the guard is not there either.
 
 **`step-1.19.sql` is required by the current app.** Until it runs, the
 three reaction buttons on every post render but every tap fails with a

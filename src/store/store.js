@@ -46,7 +46,10 @@ export let state;
    is only ever true while signed out, and it is a screen rather than a
    sheet for the same reason it always was: sheets can be popped by
    accident, and half-finished sign-ups can't be. */
-export const ui={route:'home', filter:'today', gate:false, ovStack:[], navStack:[], profTab:'stats', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false};
+/* `premium` is the redeem form's own state — the error under the code
+   field and whether a check is in flight. Null until a surface that
+   holds the field is opened, like `create` and `picker`. */
+export const ui={route:'home', filter:'today', gate:false, ovStack:[], navStack:[], profTab:'stats', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false, premium:null};
 
 /* A brand-new account: nothing invented, nothing borrowed. Everything
    visible after this comes from the user or from the backend. */
@@ -72,6 +75,11 @@ export function freshState(){
        accounts get the automatic recents and nothing to maintain. */
     pins:{machines:[],beans:[]},
     onboarded:false, theme:'auto',
+    /* step-1.21 reset the Premium flag on every existing account. A
+       brand-new one has nothing to reset, so it is marked done here
+       rather than being walked through a migration for a value it
+       already has. */
+    premiumReset:true,
     /* notify* mirror the column defaults, now all three on (step-1.19.sql
        flipped the streak nudge and the recap from off); the profile row
        overwrites them on sync. Present here so the reminder switches
@@ -92,6 +100,15 @@ export async function load(){try{const s=await persistence.read(); state=(s&&s.m
   delete state.challenges; delete state.challengeSubs;
   if(state.lastVisibility!=='followers') state.lastVisibility='public';
   if(!state.me)state.me=freshState().me; if(!state.me.favMilk)state.me.favMilk='Whole milk';
+  /* step-1.21: Premium stopped being a switch and became a code, and
+     every account that had switched it on starts again. Postgres has
+     already done this (the migration resets the column) and rowToMe()
+     would overwrite the cached value on the next sign-in — but "until
+     then" is hours of gold rings and a stats tab that quietly vanish,
+     which reads as a bug rather than as a change. Once per browser,
+     keyed by a flag rather than by a version, so it cannot fire twice
+     and take away a code someone has since redeemed. */
+  if(!state.premiumReset){ state.premiumReset=true; state.me.premium=false; save(); }
  }catch(e){state=freshState();}}
 /* fire-and-forget: the UI has already repainted optimistically, so a failed
    write must never block or throw — it only warns. */
@@ -368,6 +385,11 @@ export function applyMe(){
   USERS.me.city=(state.me.city||'').trim();
   USERS.me.bio=state.me.bio||'';
   USERS.me.avatar=state.me.avatar||'';
+  /* So your own face wears the ring in the feed exactly as everyone
+     else's does — USERS.me is the one row that never arrives from
+     Postgres, so it has to be mirrored here or you would be the only
+     Premium member who couldn't see it. */
+  USERS.me.premium=!!state.me.premium;
   /* level, points and counts all come from the server — nothing here
      is guessed or incremented locally */
   USERS.me.level=state.me.level||1;
@@ -525,8 +547,16 @@ export function coffeeStats(){
      than guessed into a bucket — so the histogram counts what it can and
      says how much that was. */
   const hours=Array(24).fill(0); let timed=0;
+  /* Day of the week, on the other hand, IS knowable for a pour that only
+     carries a relative label — "3d" back from today is a specific
+     weekday — so this counts every pour rather than only the timed ones,
+     and does it through dayIndex() so the two agree about where a day
+     starts. */
+  const weekdays=Array(7).fill(0);
   posts.forEach(p=>{ const t=Date.parse(p.createdAt);
-    if(isFinite(t)){ hours[new Date(t).getHours()]++; timed++; } });
+    if(isFinite(t)){ hours[new Date(t).getHours()]++; timed++; }
+    const d=dayIndex(p);
+    if(d>=0&&isFinite(d)) weekdays[new Date(Date.now()-d*864e5).getDay()]++; });
   const peakHour=timed?hours.indexOf(Math.max(...hours)):null;
 
   /* The espresso numbers, for the people who fill them in. A ratio is
@@ -552,8 +582,53 @@ export function coffeeStats(){
     drinks, beans, machines, milks, roasters, patterns,
     artPours:posts.filter(p=>p.art&&p.pattern).length,
     cafePours:posts.filter(p=>p.cafe).length,
-    hours, timed, peakHour,
+    hours, timed, peakHour, weekdays,
     brew, streak:st.days, best:st.best
+  };
+}
+
+/* ----- the week, as something you can hand to someone -----
+   coffeeStats() answers "what am I like"; this answers "what did I do
+   this week", which is a different question and the only one worth
+   putting on a card. Seven days back including today, so it moves with
+   you rather than resetting on Monday — a recap that is empty every
+   Monday morning is a recap nobody opens.
+
+   Same two rules as everywhere else: nothing invented, and a week with
+   no pours in it returns null so the surface can say so instead of
+   drawing a card full of zeroes. */
+export function weekRecap(){
+  const posts=myPosts();
+  const inWeek=p=>{ const d=dayIndex(p); return d>=0&&d<7; };
+  const week=posts.filter(inWeek);
+  if(!week.length) return null;
+
+  /* Oldest first, so the bars read left-to-right the way the week did. */
+  const days=Array(7).fill(0);
+  week.forEach(p=>{ days[6-dayIndex(p)]++; });
+
+  const drinks=tally(week.map(p=>p.drink));
+  const beans=tally(week.map(p=>p.recipe&&p.recipe.bean));
+  const patterns=tally(week.filter(p=>p.art&&p.pattern).map(p=>p.pattern));
+
+  /* "New this week" means new to you, not new to the catalogue — so it
+     is decided against everything you logged *before* this week rather
+     than against a list of what exists. */
+  const earlier=new Set(posts.filter(p=>!inWeek(p))
+    .map(p=>((p.recipe&&p.recipe.bean)||'').trim()).filter(Boolean));
+  const newBeans=beans.filter(b=>!earlier.has(b.name));
+
+  const st=streakInfo();
+  const to=new Date(), from=new Date(Date.now()-6*864e5);
+  return {
+    pours:week.length, days,
+    daysWithCoffee:days.filter(Boolean).length,
+    busiest:Math.max(...days),
+    drinks, beans, patterns, newBeans,
+    artPours:week.filter(p=>p.art&&p.pattern).length,
+    cafePours:week.filter(p=>p.cafe).length,
+    streak:st.days, best:st.best,
+    from, to
   };
 }
 

@@ -16,7 +16,9 @@ import { USERS, CAFES, CHALLENGES, userOf, handleToUid } from '../data/world.js'
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
 import { ensureProfile, pushProfile, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
-         setNotifyPrefs , setTimezone, fetchProfilesByHandles } from '../data/profiles.js';
+         setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium } from '../data/profiles.js';
+import { codeValid, PREMIUM_MAIL } from '../domain/premium.js';
+import { recapSVG, recapPNG } from './recap.js';
 import { enablePush, disablePush, pushEnabled, syncPush, pushSupported, pushPermission } from '../data/push.js';
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
@@ -24,7 +26,7 @@ import * as social from '../data/social.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
-         feed, hydrateReactions, myMachines, myCoffees, togglePin } from '../store/store.js';
+         feed, hydrateReactions, myMachines, myCoffees, togglePin, weekRecap } from '../store/store.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
@@ -82,8 +84,14 @@ initHistory({ depth: () => ui.ovStack.length + ui.navStack.length + (ui.gate?1:0
    before they may read the app in their own language is the wrong order:
    the switch changes nothing on the server and belongs to the device, not
    to a profile. */
+/* The two Premium actions on this list ask for nothing and write
+   nothing: one opens a mail client, the other copies an address. Making
+   someone create an account before they may find out how to ask about
+   Premium is the same wrong order as the language switch. Redeeming a
+   code is NOT here — Premium lives on a profile row, so it needs one. */
 const GUEST_READS=new Set(['open-post','recipe','share-post','close-ov','reload','toast','none',
-                           'guest-signin','guest-back','set-lang']);
+                           'guest-signin','guest-back','set-lang',
+                           'premium-mail','copy-premium-mail']);
 
 /* Which line the sheet should lead with, per intent. */
 const GUEST_ASK={
@@ -96,6 +104,8 @@ const GUEST_ASK={
   'open-notifs':'notifs',
   'open-settings':'profile', 'open-passport':'profile', 'open-scoring':'profile',
   'open-streak':'profile', ptab:'profile',
+  'open-premium':'premium', 'redeem-premium':'premium', 'premium-off':'premium',
+  'open-recap':'premium', 'share-recap':'premium',
   'open-menu':'general', 'menu-report':'general', 'menu-block':'general'
 };
 const NAV_ASK={ explore:'explore', cafes:'cafe', profile:'profile' };
@@ -239,7 +249,9 @@ document.addEventListener('click',e=>{
       choosePicked(q); break;}
     case 'pin':{
       const kind=el.dataset.kind, v=el.dataset.v||'';
-      if(!state.me.premium){ toast(t('Pinning is Premium, free right now. Switch it on in Settings.')); break; }
+      /* The sheet rather than a toast: a toast cannot hold the code
+         field, so the old one could only point at Settings and hope. */
+      if(!state.me.premium){ openPremium(t('Pinning your gear')); break; }
       toast(togglePin(kind,v)?t('Pinned to the top 📌'):t('Unpinned'));
       paintPicker(); break;}
 
@@ -259,10 +271,18 @@ document.addEventListener('click',e=>{
     case 'set-lang': if(setLang(el.dataset.l)) render(); break;
     case 'save-profile': saveProfile(); break;
     case 'drop-avatar': dropAvatar(); break;
-    case 'toggle-premium':{ state.me.premium=!state.me.premium; save(); renderOverlay();
-      toast(state.me.premium?t('Premium unlocked ✦'):t('Premium turned off'));
-      const u=currentUser(); if(u) pushProfile(u.id,state.me).catch(err=>console.warn('premium sync failed',err));
-      break;}
+    /* ---------- Premium ----------
+       Switching it on is a redemption now, not a toggle: there is a code
+       to check, a round trip to Postgres, and a wrong answer to say out
+       loud. Switching it off stays one tap and no questions — asking
+       someone to justify giving something up is a dark pattern. */
+    case 'open-premium': openPremium(el.dataset.f||''); break;
+    case 'redeem-premium': redeemCode(el.dataset.i||'pm-code'); break;
+    case 'premium-off': premiumOff(); break;
+    case 'premium-mail': toast(t('Opening your mail app ✉️')); break;
+    case 'copy-premium-mail': copyText(PREMIUM_MAIL,t('{mail} copied ✉️',{mail:PREMIUM_MAIL})); break;
+    case 'open-recap': openRecap(); break;
+    case 'share-recap': shareRecap(); break;
 
     case 'ob-next':{ syncOb();
       if(!(state.me.name||'').trim()){ ui.obError=t('Tell us your name first.'); renderOverlay(); break; }
@@ -292,7 +312,8 @@ document.addEventListener('keydown',e=>{ if(e.key!=='Enter') return;
   const el=e.target.closest('[data-enter]'); if(!el) return; e.preventDefault();
   if(el.dataset.enter==='add-cmt') addComment(el.dataset.id);
   else if(el.dataset.enter==='auth-submit') doAuth();
-  else if(el.dataset.enter==='pw-save') savePassword(); });
+  else if(el.dataset.enter==='pw-save') savePassword();
+  else if(el.dataset.enter==='redeem') redeemCode(el.dataset.i||'pm-code'); });
 /* Recipe fields wear their unit as you type — "18" becomes "18g" the
    moment you type it, not just after you've moved on. Reapplied on
    every keystroke, with the caret parked back where you left it (by
@@ -865,6 +886,114 @@ function handleUpload(file){
     img.onerror=()=>toast(t('That image could not be read')); img.src=ev.target.result;};
   reader.onerror=()=>toast(t('That file could not be read'));
   reader.readAsDataURL(file);
+}
+
+/* ============================================================ PREMIUM */
+/* The offer sheet, opened by whatever was just reached for. `feature` is
+   the name of that thing and goes at the top of the sheet — an offer
+   that answers the tap lands better than one that recites a feature
+   list at someone who was trying to do something else.
+
+   The form underneath is harvested first, for the same reason
+   openPicker() does it: renderOverlay() paints only the top of the
+   stack, so pushing this sheet destroys the DOM of the one below, and
+   a half-typed caption or a half-edited profile would go with it.
+   Being asked to pay attention to an offer and losing your work to it
+   is the worst possible first impression of a paid tier. */
+function openPremium(feature){
+  if($('#c-caption')) syncCreate();
+  else if($('#sp-name')) syncSettings();
+  ui.premium={ err:'', busy:false };
+  pushOv({ type:'premium', feature:feature||'' });
+}
+
+/* Redeeming. The code is checked here first so a typo is answered
+   instantly and offline, and then again in Postgres, which is the check
+   that actually decides — see redeem_premium() in step-1.21.sql. The
+   local pass is a message; the remote one is the lock.
+
+   Signed in by construction — guestWall() raises the sign-in sheet for
+   this action, because Premium is a column on a profile row and there
+   is no row without an account. The check below is for the case where
+   the session expired between opening the sheet and typing. */
+async function redeemCode(inputId){
+  const el=$('#'+inputId);
+  const code=(el?el.value:'').trim();
+  if(!ui.premium) ui.premium={err:'',busy:false};
+  if(!code){ ui.premium.err=t('Type the code you were sent.'); renderOverlay(); return; }
+  if(!codeValid(code)){
+    ui.premium.err=t('That code is not right. Check it against the mail, or ask for a new one.');
+    renderOverlay(); return;
+  }
+  const u=currentUser();
+  if(!u){ ui.premium.err=t('Sign in first — Premium lives on your account.'); renderOverlay(); return; }
+  ui.premium.busy=true; ui.premium.err=''; renderOverlay();
+  try{
+    const ok=await redeemPremium(u.id,code);
+    if(!ok){ ui.premium.busy=false; ui.premium.err=t('That code is not right. Check it against the mail, or ask for a new one.'); renderOverlay(); return; }
+    state.me.premium=true; save(); applyMe();
+    ui.premium={err:'',busy:false};
+    /* Straight out of the sheet and back to what raised it, already
+       unlocked — a confirmation screen here would be one more tap
+       between someone and the thing they asked for. */
+    if((ui.ovStack[ui.ovStack.length-1]||{}).type==='premium') popOv();
+    else renderOverlay();
+    renderView();
+    toast(t('Premium unlocked ✦'));
+  }catch(err){
+    console.warn('redeem failed',err);
+    ui.premium.busy=false;
+    ui.premium.err=t('That did not go through. Check your connection and try again.');
+    renderOverlay();
+  }
+}
+
+function premiumOff(){
+  state.me.premium=false; save(); applyMe(); renderOverlay(); renderView();
+  toast(t('Premium turned off'));
+  const u=currentUser();
+  if(u) dropPremium(u.id).catch(err=>console.warn('premium sync failed',err));
+}
+
+/* ---------- the week card ----------
+   Premium, and gated here rather than only in the markup: the row on
+   the profile is one way in, but a deep link or a stale repaint is
+   another, and the check belongs where the door is. */
+function openRecap(){
+  if(!state.me.premium){ openPremium(t('Your week in coffee')); return; }
+  pushOv({ type:'recap' });
+}
+
+/* Share the card as a PNG. `navigator.share` with a file is the phone
+   path — it hands the image straight to Instagram's composer, which is
+   where this is going — and a download is the desktop one. canShare()
+   is asked about the actual file rather than assumed: Firefox and most
+   desktop browsers have navigator.share but refuse files, and a share
+   that silently does nothing is worse than a download that works.
+
+   Nothing is uploaded. The card is drawn, rasterised and shared from
+   the device, which is also why it can say so on the sheet. */
+async function shareRecap(){
+  const r=weekRecap(); if(!r) return;
+  const svg=recapSVG(r,state.me);
+  const name=`crema-week-${new Date().toISOString().slice(0,10)}.png`;
+  try{
+    const blob=await recapPNG(svg);
+    const file=new File([blob],name,{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:t('Your week in coffee')}); }
+      catch(err){ if(err&&err.name==='AbortError') return; throw err; }
+      return;
+    }
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    toast(t('Saved as a picture 📸'));
+  }catch(err){
+    console.warn('recap share failed',err);
+    toast(t('That card would not save. Try again.'));
+  }
 }
 
 /* ---------- profile photo ----------

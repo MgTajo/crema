@@ -10,7 +10,8 @@ import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
-         myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts, coffeeStats, friendsToday } from '../store/store.js';
+         myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts, coffeeStats, friendsToday,
+         weekRecap } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
@@ -302,6 +303,25 @@ function langToggle(){
   </div>`;
 }
 
+/* The way into the week card. Only appears once there is a week worth
+   looking at — a recap of one pour on one day is a worse advert for the
+   feature than no recap at all, and it is the one surface where Premium
+   is being sold rather than used, so it has to be at its best.
+
+   A locked account still gets the row, with the real count in it. That
+   number is theirs and it is the argument: "you poured nine coffees this
+   week" is a more honest reason to want the card than any adjective. */
+function recapTeaser(){
+  const r=weekRecap();
+  if(!r||r.pours<3) return '';
+  const prem=state.me.premium;
+  return `<div class="recap-row" data-action="${prem?'open-recap':'open-premium'}"${prem?'':` data-f="${t('Your week in coffee')}"`}>
+    <div class="rr-i">${prem?'📅':'🔒'}</div>
+    <div class="rr-t"><b>${t('Your week in coffee')}</b>
+      <span>${tn(r.pours,'{n} pour across {d} days — as a card you can post','{n} pours across {d} days — as a card you can post',{d:r.daysWithCoffee})}</span></div>
+    <div class="rr-go">${prem?t('Open'):t('Premium')}</div></div>`;
+}
+
 export function renderProfile(){
   const u=USERS.me, mine=myPosts();
   /* The saved collection comes from the `saves` table, merged with
@@ -339,7 +359,7 @@ export function renderProfile(){
       <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return cat?`<div class="bean" data-action="open-bean" data-id="${esc(cat.n)}"><span class="fl">${flag[cat.c]||'🫘'}</span>${cat.n}</div>`:`<div class="bean" data-action="toast" data-msg="${t('Your own coffee. Details are coming later.')}">🫘 ${esc(n)}</div>`;}).join('')}</div></div>`:'';
   return `<div class="pad">
     ${langToggle()}
-    <div class="prof-top"><div class="prof-av" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px;cursor:pointer" data-action="open-settings" title="${t('Change your photo in Settings')}">${initials(u.name)}${u.avatar?`<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}</div>
+    <div class="prof-top"><div class="prof-av${state.me.premium?' prem':''}" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px;cursor:pointer" data-action="open-settings" title="${t('Change your photo in Settings')}">${initials(u.name)}${u.avatar?`<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}</div>
       <div class="prof-id"><b>${esc(u.name)}</b><div class="h">${u.handle}${u.city?` · ${esc(u.city)}`:''}</div>
         <span class="lvl" data-action="open-scoring">${icon('bolt',13)} ${t('Level')} ${lvl[0]} · ${t(lvl[1])}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:var(--gold);color:var(--on-crema);border-color:transparent">PREMIUM</span>`:''}</div></div>
     <div class="bio">${bioHTML}</div>
@@ -352,6 +372,7 @@ export function renderProfile(){
       <div class="click" data-action="open-flist" data-id="following"><b>${followingN}</b><span>${t('Following')}</span></div>
       <div><b>${days} 🔥</b><span>${t('Day streak')}</span></div></div>
     ${hasPours?journeyHTML:startedHTML}
+    ${recapTeaser()}
     ${passportHTML}
     <div class="seg" style="margin-top:18px">
       <button class="${ui.profTab==='stats'?'on':''}" data-action="ptab" data-t="stats">${t('Stats')}</button>
@@ -391,10 +412,78 @@ function statCard(title,body,note){
 const statRows=rows=>`<div class="stx-rows">${rows.map(r=>
   `<div><span>${esc(r[0])}</span><b>${esc(r[1])}</b>${r[2]?`<i>${esc(r[2])}</i>`:''}</div>`).join('')}</div>`;
 
+/* Which days of the week you are a coffee drinker on. The one cut of
+   this data that tells people something they did not already know —
+   almost everyone guesses their own weekday/weekend split wrong — and
+   it needs no recipe filled in to work, unlike the ratio card. */
+function weekdayCard(s){
+  const max=Math.max(...s.weekdays);
+  if(!max) return '';
+  /* Labels from real dates, so German gets Mo/Di/Mi rather than a
+     hardcoded English row, and the week starts where the locale says. */
+  const first=locale()==='de-DE'?1:1;
+  const order=[0,1,2,3,4,5,6].map(i=>(first+i)%7);
+  const label=d=>{ const x=new Date(2024,0,7+d); return x.toLocaleDateString(locale(),{weekday:'short'}).replace(/\.$/,''); };
+  const peak=s.weekdays.indexOf(max);
+  const bars=order.map(d=>{
+    const c=s.weekdays[d], h=c?Math.max(10,Math.round(c/max*100)):3;
+    return `<div class="stx-wd${d===peak?' on':''}"><i style="height:${h}%"></i><span>${esc(label(d))}</span></div>`;
+  }).join('');
+  return statCard(t('Your week'),`<div class="stx-week">${bars}</div>`,
+    t('<b>{d}</b> is your biggest coffee day.',{d:esc(label(peak))}));
+}
+
+/* How wide the shelf is, as a row of dots rather than a number — twelve
+   dots reads as variety at a glance in a way "12 coffees" does not. */
+function varietyCard(s){
+  if(s.beans.length<2) return '';
+  const shown=s.beans.slice(0,24);
+  const max=Math.max(...shown.map(b=>b.count));
+  const dots=shown.map(b=>`<i style="opacity:${(0.35+0.65*b.count/max).toFixed(2)}" title="${esc(b.name)} · ${b.count}×"></i>`).join('');
+  return statCard(t('Your shelf'),`<div class="stx-dots">${dots}</div>`,
+    t('{n} different coffees, darkest first-poured most.',{n:s.beans.length})
+      +(s.beans.length>24?' '+t('Showing the top 24.'):''));
+}
+
+/* The teaser a free account gets instead. It shows the real headline —
+   their drink, counted from their own pours — and stops there. An
+   entirely blurred screen would be a wall; one true number is an offer,
+   and it is the number that makes the rest of the tab worth wanting. */
+function statsLocked(s){
+  const top=s.drinks[0];
+  return `<div class="stx">
+    <div class="stx-hero">
+      <span class="stx-k">${t('Your coffee')}</span>
+      <b>${esc(top.name)}</b>
+      <span class="stx-sub">${tn(s.pours,'{c} of {n} pour','{c} of {n} pours',{c:top.count})} · ${t('{p}% of everything you log',{p:pct(top.count,s.pours)})}</span>
+      ${s.drinks.length>1?drinkMix(s.drinks,s.pours):''}
+    </div>
+    <div class="stx-lock" data-action="open-premium" data-f="${t('Your stats')}">
+      <div class="stx-blur" aria-hidden="true">
+        <div class="stx-tiles">
+          <div><b>${oneDp(s.perDay)}</b><span>${t('coffees a day')}</span></div>
+          <div><b>${s.pours}</b><span>${t('pours logged')}</span></div>
+          <div><b>${s.daysLogged}</b><span>${tn(s.daysLogged,'day with coffee','days with coffee')}</span></div>
+          <div><b>${s.best}</b><span>${t('best streak')}</span></div>
+        </div>
+        <div class="stx-card"><h4>${t('When you pour')}</h4>
+          <div class="stx-hours">${s.hours.map((c,h)=>`<i class="${h===s.peakHour?'on':''}" style="height:${c?Math.max(9,Math.round(c/Math.max(1,Math.max(...s.hours))*100)):3}%"></i>`).join('')}</div></div>
+      </div>
+      <div class="stx-lockmsg">
+        <span class="pn-lock">🔒</span>
+        <b>${t('The rest of your numbers are Premium')}</b>
+        <i>${t('Your rhythm, the hour you pour at, your machine and milk, your brew ratio, your week and your shelf.')}</i>
+        <span class="pchip">${t('Free right now, with a code')}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
 export function renderStats(){
   const s=coffeeStats();
   if(!s) return `<div class="empty"><div class="big">📊</div>${t('No numbers yet.')}<br>${t('Log a few coffees and this fills up on its own.')}<br><br>
     <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`;
+  if(!state.me.premium) return statsLocked(s);
   const top=s.drinks[0];
   const out=[];
 
@@ -436,6 +525,8 @@ export function renderStats(){
         +(s.timed<s.pours?' '+t('Counted from the {n} pours that carry a recorded time.',{n:s.timed}):'')));
   }
 
+  out.push(weekdayCard(s));
+
   const setup=[];
   if(s.beans[0])    setup.push([t('Most-poured coffee'),s.beans[0].name,`${s.beans[0].count}×`]);
   if(s.roasters[0]) setup.push([t('Roaster you return to'),s.roasters[0].name,`${s.roasters[0].count}×`]);
@@ -452,6 +543,8 @@ export function renderStats(){
     if(s.artPours) notes.push(t('You poured art on {p}% of your coffees.',{p:pct(s.artPours,s.pours)}));
     out.push(statCard(t('What you brew with'),statRows(setup),notes.join(' ')));
   }
+
+  out.push(varietyCard(s));
 
   /* Only for people who weigh things — which is exactly the group this
      section is for, and no use at all to anyone else. */

@@ -47,11 +47,16 @@ function artShapes(pattern,q,rnd,foam){
   }
   return s;
 }
+/* `opts.attrs` is extra markup for the <svg> tag itself — x/y/width/height
+   for when this cup is nested inside a bigger SVG (the week recap card),
+   which is how SVG 1.1 places a sub-drawing without the caller having to
+   know that the artwork is 100×100 inside. Empty everywhere else, so the
+   cup in the feed is byte-for-byte the cup it always was. */
 export function cupSVG(pattern,quality,seed,opts={}){
   const q=clamp(quality,0,1), rnd=rng((seed*131+7)>>>0), gid='g'+(_gid++);
   const foam=rgb(lerpC([0xD8,0xC6,0xAA],[0xF6,0xEE,0xE1],q));
   const dx=(rnd()*2-1)*(1-q)*6, dy=(rnd()*2-1)*(1-q)*6, rot=(rnd()*2-1)*(1-q)*11;
-  return `<svg class="cup" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  return `<svg class="cup"${opts.attrs?' '+opts.attrs:''} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <defs><radialGradient id="${gid}" cx="42%" cy="36%" r="68%"><stop offset="0%" stop-color="#b5814a"/><stop offset="52%" stop-color="#8a5a30"/><stop offset="100%" stop-color="#583722"/></radialGradient></defs>
     ${opts.noCup?'':`<circle cx="50" cy="50" r="48.5" fill="#fdf9f3"/><circle cx="50" cy="50" r="45" fill="#f0e6d6"/>`}
     <circle cx="50" cy="50" r="${opts.noCup?48:42}" fill="url(#${gid})"/>

@@ -18,7 +18,7 @@ import { rowToUser } from './profiles.js';
    optionalColumns() in data/supabase.js. */
 const opt = optionalColumns(['avatar_key']);
 const select = has => 'id,type,body,post_id,cafe_id,challenge_id,read,created_at,'
-             + `profiles!notifications_actor_id_fkey(id,handle,name,city,avatar_color,level${has('avatar_key')?',avatar_key':''})`;
+             + `profiles!notifications_actor_id_fkey(id,handle,name,city,avatar_color,level,premium${has('avatar_key')?',avatar_key':''})`;
 
 export function notificationOf(row){
   if(row.profiles) registerUser(rowToUser(row.profiles));

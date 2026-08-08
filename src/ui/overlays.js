@@ -12,8 +12,10 @@ import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, MACHINE_BRAND
          beanBrands, beanCatalog, machineIndex, searchMachines, searchBeans, machineKnown, beanKnown, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, challenges,
-         beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned } from '../store/store.js';
+         beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned, weekRecap } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
+import { PREMIUM_MAIL } from '../domain/premium.js';
+import { recapSVG } from './recap.js';
 import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
@@ -72,6 +74,8 @@ export function renderOverlay(){
     T==='streak'?overlayStreak():
     T==='passport'?overlayPassport():
     T==='settings'?overlaySettings():
+    T==='premium'?overlayPremium(top.feature):
+    T==='recap'?overlayRecap():
     T==='onboard'?overlayOnboard():
     T==='password'?overlayPassword():
     T==='signin'?overlaySignin(top.why):
@@ -102,6 +106,7 @@ const guestAsk=()=>({
   explore:  [t('Sign in to explore'), t('Today\'s podium, this week\'s challenges and people to follow.')],
   cafe:     [t('Sign in for cafés'), t('Follow the places you drink at and see what gets poured there.')],
   notifs:   [t('Sign in for your inbox'), t('Likes, comments and follows land here.')],
+  premium:  [t('Sign in for Premium'), t('Premium lives on your account, so it needs one. Creating it is free, and so is Premium right now.')],
   general:  [t('Create your Crema account'), t('It is free and takes about a minute. Then everything here is yours too.')]
 });
 function overlaySignin(why){
@@ -637,33 +642,118 @@ function overlaySettings(){
     </div></div>`;
 }
 
-/* The Premium block in Settings — the switch every 🔒 in the app points
-   at, so it has to answer the question those locks raise: what is behind
-   this, and what does it cost right now?
+/* ============================================================
+   Premium — the offer, in one place
 
-   It lists what Premium is rather than naming it, and says the free
-   period in full sentences twice. Everything that makes a coffee log
-   true — every drink, every machine, every coffee, including the ones
-   we've never heard of — is deliberately NOT on this list: it is free,
-   permanently, and a paywall in front of an honest record would be a
-   worse product before it was ever a better business. */
+   Everything that makes a coffee log true — every drink, every machine,
+   every coffee, including the ones we've never heard of — is
+   deliberately NOT on this list. That is free, permanently. A paywall
+   in front of an honest record would be a worse product before it was
+   ever a better business, and it would poison the data the rest of the
+   app is built on. What Premium sells is the layer on top of the log:
+   what the log *tells* you, and what you can hand to someone else.
+
+   Two surfaces render the same offer — the block in Settings and the
+   sheet a lock raises — so both are built from premiumOffer() below and
+   cannot drift into saying different things about the same money.
+   ============================================================ */
+export const PERKS=()=>[
+  ['📅',t('Your week in coffee'),t('A card of your week, made to post')],
+  ['📊',t('Your stats'),t('What you actually brew, when, and at what ratio')],
+  ['◍',t('The gold ring'),t('Your avatar wears it everywhere you appear')],
+  ['🚫',t('Always ad-free'),t('Whatever Crema does later, not to you')],
+  ['📌',t('Pin your gear & coffees'),t('Hold the ones you use at the top of every picker')],
+  ['🥤',t('Name your own drink types'),t('Ristretto, Bombón, whatever you actually order')]
+];
+const perkList=()=>PERKS().map(p=>
+  `<div class="pm-perk"><span>${p[0]}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('');
+
+/* The code field, the ask, and the address to ask at. `id` differs per
+   surface because both can be in the DOM at once — the settings sheet
+   stays mounted underneath while the offer sheet covers it, and two
+   inputs sharing an id means the wrong one gets read. */
+function codeForm(id){
+  const err=(ui.premium&&ui.premium.err)||'';
+  const busy=!!(ui.premium&&ui.premium.busy);
+  return `<div class="pm-code">
+    <label for="${id}">${t('Activation code')}</label>
+    <div class="pm-in">
+      <input id="${id}" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false"
+             placeholder="${t('e.g. FIRSTPOUR')}" data-enter="redeem" data-i="${id}"${busy?' disabled':''}>
+      <button class="btn" data-action="redeem-premium" data-i="${id}"${busy?' disabled':''}>${busy?t('Checking…'):t('Unlock')}</button>
+    </div>
+    ${err?`<div class="pm-err">${esc(err)}</div>`:''}
+    <div class="pm-ask">${t('No code yet?')}
+      <a href="mailto:${PREMIUM_MAIL}?subject=${encodeURIComponent(t('Crema Premium code'))}" data-action="premium-mail">${t('Write to {mail}',{mail:PREMIUM_MAIL})}</a>
+      ${t('and you get one back. One line is enough.')}</div>
+    <div class="pm-copy" data-action="copy-premium-mail">${t('or tap to copy the address')}</div>
+  </div>`;
+}
+
+/* The offer itself. `lead` is what the surface wants said first — a lock
+   names the thing that was just reached for, Settings names nothing and
+   opens on the general case. */
+export function premiumOffer(id,lead){
+  return `<div class="pm-card on">
+    <b class="pm-h">✦ Crema Premium</b>
+    ${lead?`<div class="pm-lead">${lead}</div>`:''}
+    <div class="pm-free">${t('Free right now, while Crema is young — no card, no trial countdown, no price to compare. It needs a code, and the codes are being handed out by hand. That will not last: when billing starts, this window shuts.')}</div>
+    ${perkList()}
+    ${codeForm(id)}
+    <div class="pm-fine">${t('Logging your coffee stays free for everyone, always, whatever the drink, the machine or the bean.')}</div></div>`;
+}
+
+/* The block in Settings — where every 🔒 in the app eventually points. */
 function premiumBlock(m){
-  const perks=[['📌',t('Pin your gear & coffees'),t('Hold the ones you use at the top of every picker')],
-               ['🥤',t('Name your own drink types'),t('Ristretto, Bombón, whatever you actually order')],
-               ['✦',t('Early access'),t('New features land here first')]];
-  const list=perks.map(p=>`<div class="pm-perk"><span>${p[0]}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('');
   if(m.premium) return `
     <div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">✦</div>
       <div style="flex:1">${t('Premium active')}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('Free for now. We will ask you before anything costs money.')}</div></div>
       <span class="lvlchip" style="background:var(--gold);color:var(--on-crema);border-color:transparent">ACTIVE</span></div>
-    <div class="pm-card" style="margin:4px 0 8px">${list}</div>
-    <button class="btn ghost block" data-action="toggle-premium">${t('Turn Premium off')}</button>`;
-  return `<div class="pm-card on">
-    <b style="font-family:var(--serif);font-size:16px;color:var(--st4)">✦ Crema Premium</b>
-    <div style="font-size:12.5px;color:var(--ink2);margin:4px 0 10px">${t('Free for a limited time while Crema is young. Switch it on right here, with no card and no trial countdown. Billing comes later, and we will ask first.')}</div>
-    ${list}
-    <button class="btn block" style="margin-top:10px" data-action="toggle-premium">${t('Turn Premium on, free')}</button>
-    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">${t('Logging your coffee stays free for everyone, always, whatever the drink, the machine or the bean.')}</div></div>`;
+    <div class="pm-card" style="margin:4px 0 8px">${perkList()}</div>
+    <button class="btn ghost block" data-action="premium-off">${t('Turn Premium off')}</button>`;
+  return premiumOffer('sp-code','');
+}
+
+/* The sheet a lock raises. Same offer, but it opens by naming the thing
+   they just reached for: the ask lands better as the answer to something
+   someone was already trying to do, and they were — that is why the
+   sheet is here at all. Deliberately not a toast: a toast cannot hold
+   the code field, so the old one asked people to go and find Settings,
+   and most of them didn't. */
+function overlayPremium(feature){
+  const lead=feature
+    ? t('<b>{what}</b> is part of Premium.',{what:esc(feature)})
+    : '';
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Crema Premium')}">
+    <div class="grab"></div>
+    <div class="ov-bar" style="border:0"><b>${t('Crema Premium')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
+    <div class="ov-body" style="padding:0 16px 20px">
+      ${premiumOffer('pm-code',lead)}
+      <div style="text-align:center;font-size:13px;color:var(--muted);margin-top:14px;cursor:pointer" data-action="close-ov">${t('Not now')}</div>
+    </div></div>`;
+}
+
+/* ---------- your week in coffee ----------
+   The card is the whole sheet. It is an SVG (see ui/recap.js for why the
+   preview and the export are the same string), shown at whatever width
+   the phone has, with one button under it.
+
+   Share first, download second: on a phone `navigator.share` puts the
+   PNG straight into Instagram's composer, which is where this is going.
+   The download is the desktop answer and the fallback, and actions.js
+   decides between them rather than the markup guessing. */
+function overlayRecap(){
+  const r=weekRecap();
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Your week in coffee')}">
+    <div class="grab"></div>
+    <div class="ov-bar" style="border:0"><b>${t('Your week in coffee')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
+    <div class="ov-body" style="padding:0 16px 20px">
+      ${r?`<div class="recap-card">${recapSVG(r,state.me)}</div>
+      <button class="btn block" style="margin-top:14px" data-action="share-recap">${icon('share',18)} ${t('Share your week')}</button>
+      <div class="recap-note">${t('Saves as a picture, sized for a post or a story. Nothing leaves Crema until you send it.')}</div>`
+      : `<div class="empty"><div class="big">📅</div>${t('No coffee logged in the last seven days.')}<br>${t('Log one and your week starts drawing itself.')}<br><br>
+         <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`}
+    </div></div>`;
 }
 
 /* Profile photo, in Settings next to the name it belongs to. Entirely
@@ -805,8 +895,8 @@ export function pickerList(){
   h+=pkSection(t('Yours'), yours.map(v=>pickerRow(p.kind,v,sub(v),cur,canPin)).join(''),
     canPin?t('most recent first'):'');
   if(!state.me.premium&&canPin)
-    h+=`<div class="pk-note" data-action="open-settings"><span>📌</span>
-      <span>${t('Pin the ones you use most to hold them at the top. That is Premium, <u>free for now, switch it on in Settings</u>.')}</span></div>`;
+    h+=`<div class="pk-note" data-action="open-premium" data-f="${t('Pinning your gear')}"><span>📌</span>
+      <span>${t('Pin the ones you use most to hold them at the top. That is Premium, <u>free right now, with a code</u>.')}</span></div>`;
 
   const pop=isM
     ? POPULAR_MACHINES.map(([b,m])=>({v:b+' '+m,s:b}))

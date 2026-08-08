@@ -87,7 +87,7 @@ export const declineFollow = (uid,follower) =>
 
 /* The two follower lists, as profiles. Both sides of `follows` reach
    profiles, so each embed has to name its foreign key. */
-const fCard = has => `id,handle,name,city,bio,avatar_color,level${withAvatar(has)}`;
+const fCard = has => `id,handle,name,city,bio,avatar_color,level,premium${withAvatar(has)}`;
 async function followList(build, key){
   const rows = await opt.run(build);
   return (rows||[]).map(r=>r[key]).filter(Boolean).map(p=>registerUser(rowToUser(p)));
@@ -136,7 +136,7 @@ export const unfollowCafe = (uid,cafeId) => rest(`cafe_follows?user_id=eq.${uid}
 /* Same foreign-key trap as posts: comments reaches profiles directly
    and again through comment_likes, so the embed must name the key. */
 const commentSelect = has =>
-  `id,body,created_at,user_id,profiles!comments_user_id_fkey(id,handle,name,avatar_color,level${withAvatar(has)}),comment_likes(count)`;
+  `id,body,created_at,user_id,profiles!comments_user_id_fkey(id,handle,name,avatar_color,level,premium${withAvatar(has)}),comment_likes(count)`;
 
 export async function fetchComments(postId){
   return (await opt.run(has=>`comments?select=${commentSelect(has)}&post_id=eq.${postId}&order=created_at.asc`)) || [];
