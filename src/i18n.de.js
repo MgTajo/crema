@@ -241,7 +241,7 @@ export const DE = {
   '{n} to go. There is nothing to enter, because your pours count on their own.':
     'Noch {n}. Anmelden musst du dich nirgends, deine Kaffees zählen von allein.',
   'Log a coffee':'Kaffee eintragen',
-  'Keep pouring.':'Mach weiter Kaffee.',
+  'Keep pouring.':'Brüh weiter.',
   'Log a coffee on {n} different days.':'Trag an {n} verschiedenen Tagen einen Kaffee ein.',
   'Log {n} coffees in total.':'Trag insgesamt {n} Kaffees ein.',
   'Log a coffee before {h}:00 your time, on {n} different days. Anything before 4am counts as the night before.':
@@ -483,7 +483,7 @@ export const DE = {
   'You are one day into a streak right now.':'Du bist gerade einen Tag in einer Streak.',
   'You are {n} days into a streak right now.':'Du bist gerade {n} Tage in einer Streak.',
   'When you pour':'Wann du Kaffee machst',
-  'Most of your coffee happens around <b>{h}</b>.':'Die meisten deiner Kaffees entstehen gegen <b>{h}</b>.',
+  'Most of your coffee happens around <b>{h}</b>.':'Die meisten deiner Kaffees machst du gegen <b>{h}</b>.',
   'Counted from the {n} pours that carry a recorded time.':'Gezählt aus den {n} Kaffees mit erfasster Uhrzeit.',
   'Most-poured coffee':'Meistgebrühter Kaffee',
   'Roaster you return to':'Rösterei, zu der du zurückkehrst',
@@ -749,8 +749,8 @@ export const DE = {
 
   /* the long arc */
   'Where it is going':'Wohin es geht',
-  'You are pouring <b>{p}% more</b> than the month before.':'Du machst <b>{p}% mehr</b> Kaffee als im Monat davor.',
-  'You are pouring <b>{p}% less</b> than the month before.':'Du machst <b>{p}% weniger</b> Kaffee als im Monat davor.',
+  'You are pouring <b>{p}% more</b> than the month before.':'Du machst <b>{p} % mehr</b> Kaffee als im Monat davor.',
+  'You are pouring <b>{p}% less</b> than the month before.':'Du machst <b>{p} % weniger</b> Kaffee als im Monat davor.',
   'About the same as the month before — <b>{a}</b> against <b>{b}</b>.':'Ungefähr wie im Monat davor — <b>{a}</b> gegen <b>{b}</b>.',
   '<b>{a}</b> this month, after a month with none logged.':'<b>{a}</b> diesen Monat, nach einem Monat ganz ohne Eintrag.',
   'Keep logging and the month-on-month comparison shows up here.':'Trag weiter ein, dann steht hier der Vergleich von Monat zu Monat.',
@@ -758,7 +758,7 @@ export const DE = {
   'a week ago':'vor einer Woche',
   '{n} weeks ago':'vor {n} Wochen',
   'this week':'diese Woche',
-  '{d} is your biggest coffee day.':'{d} ist dein größter Kaffeetag.',
+  '{d} is your biggest coffee day.':'{d} ist dein stärkster Kaffeetag.',
 
   /* ---------- pickers ---------- */
   'Machine / brewer':'Maschine / Brüher',
