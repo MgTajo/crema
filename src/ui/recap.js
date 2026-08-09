@@ -120,39 +120,60 @@ const mark=(x,y,s)=>`<g transform="translate(${x} ${y}) scale(${s/40})">`
 
    `photos` is an id→data-URI map filled by loadShotPhotos(). A miss is
    not an error — it falls back to the generated cup, the same way art()
-   does in the feed — so the card is never blocked on the network. */
-const SY=472, SH=214, SGAP=24;
+   does in the feed — so the card is never blocked on the network.
+
+   Square, always. A grid reads as one decision when every tile is the
+   same shape; the old full-bleed layout drew a wide single frame beside
+   two narrower ones depending on count, which read as three different
+   decisions rather than one. Tiles are a fixed size regardless of how
+   many there are, so the row is only as wide as it needs to be and sits
+   centred rather than stretching to fill the card.
+   preserveAspectRatio="slice" does the actual cropping — a portrait or
+   landscape source is centre-cropped to the square, the same way art()
+   crops a feed thumbnail. */
+const SY=486, SGAP=24, S_MAX=232;
+
+/* Pure function of how many there are, so bars() can ask the same
+   question standouts() answers without the two ever quietly disagreeing
+   about where the photos end. */
+function standoutLayout(n){
+  if(!n) return null;
+  const avail=W-M*2;
+  const S=Math.min(S_MAX, (avail-SGAP*(n-1))/n);
+  const totalW=n*S+(n-1)*SGAP;
+  return { S, x0:M+(avail-totalW)/2 };
+}
 
 function standouts(r,photos,u){
   const list=(r.standouts||[]).slice(0,3);
   if(!list.length) return '';
-  const w=(W-M*2-SGAP*(list.length-1))/list.length;
+  const { S, x0 }=standoutLayout(list.length);
   let out=`<defs>`
     +list.map((s,i)=>`<clipPath id="so${u}-${i}" clipPathUnits="userSpaceOnUse">`
-      +`<rect x="0" y="0" width="${w}" height="${SH}" rx="22"/></clipPath>`).join('')
+      +`<rect x="0" y="0" width="${S}" height="${S}" rx="22"/></clipPath>`).join('')
     /* The name sits on the photo, so it needs its own darkness under
        it — a caption band below would cost 40px of a card that is
-       already spending 214 on the pictures. */
+       already spending over 200 on the pictures. */
     +`<linearGradient id="scrim${u}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#000" stop-opacity="0"/>
       <stop offset="100%" stop-color="#000" stop-opacity="0.62"/></linearGradient></defs>`;
 
   list.forEach((s,i)=>{
-    const x=M+i*(w+SGAP), src=photos&&photos.get(s.id);
+    const x=x0+i*(S+SGAP), src=photos&&photos.get(s.id);
     /* Where it was beats what it was: "Sey Coffee" says more about a
        morning than "Cappuccino" does. The drink is the fallback. */
-    const label=clip(s.cafe||cap(s.drink||''), list.length>2?18:30);
+    const label=clip(s.cafe||cap(s.drink||''), 18);
     out+=`<g transform="translate(${x} ${SY})" clip-path="url(#so${u}-${i})">`
       + (src
-          ? `<image x="0" y="0" width="${w}" height="${SH}" preserveAspectRatio="xMidYMid slice" href="${esc(src)}"/>`
-          : `<rect width="${w}" height="${SH}" fill="${C.card}"/>`
+          ? `<image x="0" y="0" width="${S}" height="${S}" preserveAspectRatio="xMidYMid slice" href="${esc(src)}"/>`
+          : `<rect width="${S}" height="${S}" fill="${C.card}"/>`
             + cupSVG(s.pattern||'none', s.quality, seedOf(s.id),
-                { attrs:`x="${(w-SH*0.9)/2}" y="${SH*0.05}" width="${SH*0.9}" height="${SH*0.9}"` }))
+                { attrs:`x="${S*0.05}" y="${S*0.05}" width="${S*0.9}" height="${S*0.9}"` }))
       + (label&&src
-          ? `<rect x="0" y="${SH-84}" width="${w}" height="84" fill="url(#scrim${u})"/>`
-            +txt(20,SH-24,label,{size:23,fill:'#FFFDF9',weight:500})
+          ? `<rect x="0" y="${S-76}" width="${S}" height="76" fill="url(#scrim${u})"/>`
+            +txt(18,S-22,label,{size:21,fill:'#FFFDF9',weight:500})
           : '')
-      + `<rect width="${w}" height="${SH}" fill="none" stroke="${C.line}" stroke-width="2" rx="22"/>`
+      + `<rect width="${S}" height="${S}" fill="none" stroke="${C.line}" stroke-width="2" rx="22"/>`
       + `</g>`;
   });
   return out;
@@ -209,7 +230,8 @@ function bars(r){
      it, it grows into the space rather than leaving a hole. The 46 is
      the count that rides above the tallest bar — it has to clear the
      photo edge, not tuck under it. */
-  const top=(r.standouts&&r.standouts.length)?SY+SH+46:600;
+  const soLayout=standoutLayout(r.standouts&&r.standouts.length);
+  const top=soLayout?SY+soLayout.S+46:600;
   const maxH=BASE-top;
   let out=`<rect x="${M}" y="${BASE}" width="${W-M*2}" height="2" fill="${C.line}"/>`;
 
@@ -249,7 +271,6 @@ const hhmm=m=>{
 
 export function statTiles(r,standing){
   const top=r.drinks[0], bean=r.beans[0], pat=r.patterns[0];
-  const react=standing?standing.reactions:r.reactions;
   const out=[];
 
   if(top) out.push([t('your usual'), cap(top.name),
@@ -258,8 +279,8 @@ export function statTiles(r,standing){
     t('your usual time this week')]);
   if(standing&&standing.aheadPct!=null) out.push([t('ahead of'), standing.aheadPct+'%',
     t('of everyone pouring this week')]);
-  if(react>0) out.push([t('applause'), ''+react,
-    tn(react,'reaction on your pours','reactions on your pours')]);
+  if(r.responses>0) out.push([t('the response'), ''+r.responses,
+    t('likes & comments this week')]);
 
   /* ----- and, when any of those four had nothing to say ----- */
   if(r.artPours) out.push([t('latte art'), ''+r.artPours, pat?cap(pat.name):'']);
@@ -394,22 +415,20 @@ function toTile(src,px){
    photos rather than the twenty-odd the mosaic used to ask for, which
    is most of why the sheet now opens with its pictures already in it.
 
-   The resolution follows the slot: one standout spans the full 912 and
-   is exported at twice that, three share it. Resolves when there is
-   nothing further to wait for, never rejects: every failure has already
-   become a cup. */
+   Every tile is the same square regardless of how many there are (see
+   standoutLayout()), so one resolution serves all of them: 2× the
+   design cap, which is crisp at export scale with nothing left over to
+   throw away. Resolves when there is nothing further to wait for, never
+   rejects: every failure has already become a cup. */
+const SHOT_PX=Math.round(S_MAX*2);
+
 export async function loadShotPhotos(r){
   const want=(r&&r.standouts||[]).filter(s=>s.img);
-  const px=want.length<2?1080:want.length<3?800:640;
   await Promise.all(want.map(s=>{
-    /* Keyed by size as well as by pour: the same photo can be wanted
-       small in a three-up and large on its own, and the cached small
-       one would be drawn soft across the full width. */
-    const key=`${s.id}@${px}`;
-    if(!photoJobs.has(key))
-      photoJobs.set(key, toTile(imageSource(s.img),px)
+    if(!photoJobs.has(s.id))
+      photoJobs.set(s.id, toTile(imageSource(s.img),SHOT_PX)
         .then(u=>{ photoCache.set(s.id,u); return u; }));
-    return photoJobs.get(key);
+    return photoJobs.get(s.id);
   }));
   return photoCache;
 }

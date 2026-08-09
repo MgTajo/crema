@@ -1,25 +1,22 @@
 "use strict";
 /* ============================================================
-   data/recap — where your week stands, and what it was answered with.
+   data/recap — where your week stands, among everyone else's.
 
-   Two numbers on the week card cannot be worked out in the browser,
-   because neither of them is about you alone:
+   One number on the week card cannot be worked out in the browser: how
+   your week's pour count compares with every other account's over the
+   same seven days. That is a count across every account, and the
+   client can see exactly one.
 
-     · where your week sits among everyone else's. That is a count over
-       every account's pours in the same seven days, and the client can
-       see exactly one account's.
+   (The card's other server-shaped number, likes and comments, turned
+   out not to need a trip here at all — postOf() embeds both straight
+   off the `posts` row for every fetch, including fetchMine(), so the
+   store already has them without asking.)
 
-     · how many reactions your week collected. Your own pours are
-       fetched straight from `posts` (fetchMine) and never go through
-       the feed's markMine(), so the tallies the store has for them are
-       whatever happened to ride along on a feed page — usually nothing.
-
-   Both come back from one RPC. week_standing() takes the window as two
-   timestamps rather than working the week out itself: the browser
-   already decided which week the card is about, in the user's own
-   timezone, and a server that recomputed it from UTC would sooner or
-   later draw a card for a different seven days than the one printed
-   across the top of it.
+   week_standing() takes the window as two timestamps rather than
+   working the week out itself: the browser already decided which week
+   the card is about, in the user's own timezone, and a server that
+   recomputed it from UTC would sooner or later draw a card for a
+   different seven days than the one printed across the top of it.
 
    The function reads auth.uid() inside Postgres, so there is no user id
    to pass and no way to aim it at somebody else. It returns aggregates
@@ -47,8 +44,7 @@ export async function fetchWeekStanding(from, to){
       pours:    r.pours|0,
       /* null is a real answer and means "not enough of a crowd to place
          you in" — the card must not read that as 0%. */
-      aheadPct: r.ahead_pct==null?null:r.ahead_pct|0,
-      reactions:r.reactions|0
+      aheadPct: r.ahead_pct==null?null:r.ahead_pct|0
     };
   }catch(e){
     console.warn('week standing unavailable — run platform/supabase/step-1.22.sql',e);

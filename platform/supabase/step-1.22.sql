@@ -5,13 +5,17 @@
 --
 -- Two things, both in service of the week card:
 --
---   1. week_standing() — the only two numbers on that card the browser
---      cannot work out for itself. Where this week's pours put you
---      among everyone else pouring in the same seven days, and how many
---      reactions the week collected. The first is a count across every
---      account; the second is a count the client only ever sees for
---      posts that happen to have come through a feed page, which your
---      own never do.
+--   1. week_standing() — the one number on that card the browser cannot
+--      work out for itself: where this week's pours put you among
+--      everyone else pouring in the same seven days. That takes a count
+--      across every account, which is exactly the thing RLS exists to
+--      stop a client from doing itself.
+--
+--      (The card's other server-shaped number was the week's reactions,
+--      but it turned out likes and comments — which is what the card
+--      actually wants — don't need a trip here at all: postOf() embeds
+--      both straight off the `posts` row for every fetch, including
+--      your own, so the browser already has them.)
 --
 --   2. The weekly digest moves from Monday 08:00 to Sunday 16:00, local
 --      time, because that is when the card it announces now exists. A
@@ -38,11 +42,10 @@
 --
 -- security definer, and that needs saying out loud: it reads every
 -- account's posts, past RLS, which is the only way to count a crowd.
--- What comes back is four integers — how many people poured, how many
--- times you did, the share of the others you are ahead of, and your own
--- reaction count. No row, no id, no handle. Nothing here can be used to
--- learn anything about any individual, which is the line this function
--- has to stay on.
+-- What comes back is three integers — how many people poured, how many
+-- times you did, and the share of the others you are ahead of. No row,
+-- no id, no handle. Nothing here can be used to learn anything about
+-- any individual, which is the line this function has to stay on.
 --
 -- The percentile is over the OTHER drinkers (denominator drinkers - 1),
 -- so a week you shared with one other person is 0% or 100% and not a
@@ -50,8 +53,15 @@
 -- everyone" when you were the only one pouring is a number that means
 -- nothing, and the card leaves the tile out rather than printing it.
 -- Ties count as not-ahead: matching someone is not beating them.
-create or replace function week_standing(from_ts timestamptz, to_ts timestamptz)
-returns table (drinkers int, pours int, ahead_pct int, reactions int)
+--
+-- Dropped first rather than just replaced: this step originally shipped
+-- a fourth column (a reaction count that turned out to be unnecessary —
+-- see above), and Postgres refuses to CREATE OR REPLACE a function into
+-- a different return shape. Harmless on a first run, where there is
+-- nothing to drop.
+drop function if exists week_standing(timestamptz, timestamptz);
+create function week_standing(from_ts timestamptz, to_ts timestamptz)
+returns table (drinkers int, pours int, ahead_pct int)
 language sql stable security definer set search_path = public as $$
   with tallies as (
     select user_id, count(*)::int as n
@@ -69,14 +79,7 @@ language sql stable security definer set search_path = public as $$
     case when me.total > 1 and me.n > 0 and auth.uid() is not null
          then round(100.0 * (select count(*) from tallies where n < me.n)
                           / (me.total - 1))::int
-         else null end,
-    coalesce((
-      select count(*)::int
-        from reactions r
-        join posts p on p.id = r.post_id
-       where p.user_id = auth.uid()
-         and p.created_at >= from_ts and p.created_at < to_ts
-    ), 0)
+         else null end
   from me;
 $$;
 

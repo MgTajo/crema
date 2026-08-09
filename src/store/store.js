@@ -731,13 +731,12 @@ export function weekRecap(){
      seed to generate a cup where there isn't — exactly what art() in the
      feed decides between, from exactly the same three fields.
 
-     `pop` is how much the pour was answered — reactions first, likes
-     after — and it exists only to order the picker and to seed the
-     three standouts before anyone has chosen any. */
-  const popOf=p=>{
-    const r=p.reactions||{};
-    return (r.art|0)+(r.scene|0)+(r.drink|0)+(p.likes|0);
-  };
+     `pop` is how much the pour was answered — likes and comments,
+     which every pour carries whether or not it ever rode through a
+     feed page (see `responses` below) — and it exists only to order
+     the picker and to seed the three standouts before anyone has
+     chosen any. */
+  const popOf=p=>(p.likes|0)+(p.commentN|0);
   const shots=week.slice()
     .sort((a,b)=>dayOf(a)-dayOf(b))
     .map(p=>({ id:p.id, day:dayOf(p), img:p.img||null, pattern:p.pattern||null,
@@ -750,41 +749,55 @@ export function weekRecap(){
   let bestRun=0, run=0;
   days.forEach(c=>{ run=c?run+1:0; if(run>bestRun) bestRun=run; });
 
-  /* The hour you pour at — the median, not the mean, so one 2am pour
-     after a party doesn't drag a week of 8am cappuccinos to 9. And
-     found around the clock rather than along a number line: 23:30 and
-     00:30 belong next to each other, not at opposite ends of a sorted
-     list, so a week that straddles midnight is cut at its quietest
-     hour first and only then sorted.
+  /* The hour you usually pour at — not the average of the week's
+     timestamps and not their median either, because both answer "where
+     is the middle" rather than "when do you actually do this". A week
+     of 8am cappuccinos plus one 2am pour after a party has a median
+     that still lands near 8, which happens to be right, but a week
+     split between an 8am cappuccino and an 8pm decaf has a median
+     sitting at 2pm — a time nobody ever poured a coffee at. "Usual"
+     means the time with company: the pour with the most others within
+     half an hour of it, around the clock so 23:45 and 00:15 count as
+     fifteen apart rather than a day.
+
+     Ties go to whichever cluster is tighter, then to the earlier one —
+     both arbitrary, but a fixed rule beats a card that answers
+     differently on a reload. A week where nobody shares a half-hour
+     window with anyone else has no usual time to report, and says so
+     rather than pointing at whichever pour happened to load first.
 
      Only pours carrying a real timestamp are in it — a "3d" label knows
-     its day but has no clock in it. A week spread evenly round the dial
-     has no quiet hour to cut at and so no meaningful middle, which is
-     what the gap-size check below is for: it says null rather than
-     pointing somewhere arbitrary. */
+     its day but has no clock in it. */
   const mins=week.map(p=>Date.parse(p.createdAt)).filter(isFinite)
     .map(ms=>{ const d=new Date(ms); return d.getHours()*60+d.getMinutes(); }).sort((a,b)=>a-b);
   const avgMin=(()=>{
     const n=mins.length; if(!n) return null;
-    /* The circle's biggest empty stretch is where nobody pours — the
-       honest place to cut it into a line. Wraps last-to-first through
-       midnight, same as every other gap. */
-    let cut=0, maxGap=mins[0]+1440-mins[n-1];
-    for(let i=1;i<n;i++){ const g=mins[i]-mins[i-1]; if(g>maxGap){ maxGap=g; cut=i; } }
-    if(maxGap<=1440/n) return null;          // no gap bigger than an even spread would have
-    const line=[...mins.slice(cut),...mins.slice(0,cut).map(m=>m+1440)];
-    const mid=n>>1;
-    const med=n%2 ? line[mid] : (line[mid-1]+line[mid])/2;
-    return Math.round(med)%1440;
+    if(n===1) return mins[0];
+    const WINDOW=30;                          // half an hour, either side
+    const circDist=(a,b)=>{ const d=Math.abs(a-b); return Math.min(d,1440-d); };
+    let best=null;
+    mins.forEach(center=>{
+      const members=mins.filter(m=>circDist(m,center)<=WINDOW);
+      /* Unwrapped relative to this center, so a spread that straddles
+         midnight measures correctly instead of coming out near 1440. */
+      const rel=members.map(m=>{ let d=m-center; if(d>720)d-=1440; if(d<-720)d+=1440; return d; });
+      const spread=Math.max(...rel)-Math.min(...rel);
+      if(!best || members.length>best.n || (members.length===best.n && spread<best.spread))
+        best={ n:members.length, spread, center, rel };
+    });
+    if(best.n<2) return null;                 // every pour stood alone
+    const mid=best.rel.slice().sort((a,b)=>a-b);
+    const m=mid.length%2 ? mid[mid.length>>1] : (mid[mid.length/2-1]+mid[mid.length/2])/2;
+    return Math.round(((best.center+m)%1440+1440)%1440);
   })();
 
-  /* What the week was answered with, from whatever the app happens to
-     have hydrated. The card prefers the server's count (data/recap.js)
-     because your own pours are not fetched through the feed and so
-     usually arrive without their tallies — this is the offline floor,
-     never an upper bound. */
-  const reactions=week.reduce((n,p)=>{ const r=p.reactions||{};
-    return n+(r.art|0)+(r.scene|0)+(r.drink|0); },0);
+  /* How the week was answered — likes and comments, the two counts
+     every pour carries regardless of where it came from (postOf() embeds
+     both straight off the row). The named reactions (art/scene/drink)
+     are deliberately left out: they are their own smaller feature
+     (data/reactions.js) and folding them in here would double-count
+     against likes for pours that collected both. */
+  const responses=week.reduce((n,p)=>n+(p.likes|0)+(p.commentN|0),0);
 
   /* Three pictures, theirs to choose. A pick that has since been deleted
      is dropped rather than drawn as a gap, and the remainder is topped
@@ -811,7 +824,7 @@ export function weekRecap(){
     drinks, beans, patterns, newBeans,
     artPours:week.filter(p=>p.art&&p.pattern).length,
     cafePours:week.filter(p=>p.cafe).length,
-    bestRun, avgMin, timed:mins.length, reactions,
+    bestRun, avgMin, timed:mins.length, responses,
     candidates:withPhoto, standouts, chosen:picked.length>0,
     from:w.from, to:w.to
   };

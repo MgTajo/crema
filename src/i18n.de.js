@@ -710,9 +710,8 @@ export const DE = {
   'your usual time this week':'deine übliche Zeit diese Woche',
   'ahead of':'weiter als',
   'of everyone pouring this week':'aller, die diese Woche brühen',
-  'applause':'Applaus',
-  'reaction on your pours':'Reaktion auf deine Tassen',
-  'reactions on your pours':'Reaktionen auf deine Tassen',
+  'the response':'die Resonanz',
+  'likes & comments this week':'Likes & Kommentare diese Woche',
   /* the standouts */
   'The three you want shown':'Die drei, die groß rauskommen',
   '{n} of {max}':'{n} von {max}',
