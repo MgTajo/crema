@@ -750,20 +750,33 @@ export function weekRecap(){
   let bestRun=0, run=0;
   days.forEach(c=>{ run=c?run+1:0; if(run>bestRun) bestRun=run; });
 
-  /* The hour you pour at, averaged around the clock rather than along a
-     number line: 23:30 and 00:30 average to midnight, not to noon. Only
-     pours carrying a real timestamp are in it — a "3d" label knows its
-     day but has no clock in it — and a week whose pours are spread
-     evenly round the dial has no meaningful average, so it says null
-     rather than pointing somewhere arbitrary. */
+  /* The hour you pour at — the median, not the mean, so one 2am pour
+     after a party doesn't drag a week of 8am cappuccinos to 9. And
+     found around the clock rather than along a number line: 23:30 and
+     00:30 belong next to each other, not at opposite ends of a sorted
+     list, so a week that straddles midnight is cut at its quietest
+     hour first and only then sorted.
+
+     Only pours carrying a real timestamp are in it — a "3d" label knows
+     its day but has no clock in it. A week spread evenly round the dial
+     has no quiet hour to cut at and so no meaningful middle, which is
+     what the gap-size check below is for: it says null rather than
+     pointing somewhere arbitrary. */
   const mins=week.map(p=>Date.parse(p.createdAt)).filter(isFinite)
-    .map(ms=>{ const d=new Date(ms); return d.getHours()*60+d.getMinutes(); });
-  let x=0,y=0;
-  mins.forEach(m=>{ const a=m/1440*2*Math.PI; x+=Math.cos(a); y+=Math.sin(a); });
-  const spread=Math.sqrt(x*x+y*y)/(mins.length||1);
-  const avgMin = (mins.length && spread>0.05)
-    ? (Math.round(((Math.atan2(y,x)+2*Math.PI)%(2*Math.PI))/(2*Math.PI)*1440))%1440
-    : null;
+    .map(ms=>{ const d=new Date(ms); return d.getHours()*60+d.getMinutes(); }).sort((a,b)=>a-b);
+  const avgMin=(()=>{
+    const n=mins.length; if(!n) return null;
+    /* The circle's biggest empty stretch is where nobody pours — the
+       honest place to cut it into a line. Wraps last-to-first through
+       midnight, same as every other gap. */
+    let cut=0, maxGap=mins[0]+1440-mins[n-1];
+    for(let i=1;i<n;i++){ const g=mins[i]-mins[i-1]; if(g>maxGap){ maxGap=g; cut=i; } }
+    if(maxGap<=1440/n) return null;          // no gap bigger than an even spread would have
+    const line=[...mins.slice(cut),...mins.slice(0,cut).map(m=>m+1440)];
+    const mid=n>>1;
+    const med=n%2 ? line[mid] : (line[mid-1]+line[mid])/2;
+    return Math.round(med)%1440;
+  })();
 
   /* What the week was answered with, from whatever the app happens to
      have hydrated. The card prefers the server's count (data/recap.js)

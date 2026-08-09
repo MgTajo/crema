@@ -707,7 +707,7 @@ export const DE = {
   'your usual':'dein Üblicher',
   '{n} of your {total} pours':'{n} von {total} Tassen',
   'coffee o’clock':'Kaffeezeit',
-  'when you poured, on average':'im Schnitt diese Woche',
+  'your usual time this week':'deine übliche Zeit diese Woche',
   'ahead of':'weiter als',
   'of everyone pouring this week':'aller, die diese Woche brühen',
   'applause':'Applaus',

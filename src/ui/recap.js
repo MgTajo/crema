@@ -255,7 +255,7 @@ export function statTiles(r,standing){
   if(top) out.push([t('your usual'), cap(top.name),
     t('{n} of your {total} pours',{n:top.count,total:r.pours})]);
   if(r.avgMin!=null) out.push([t('coffee o’clock'), hhmm(r.avgMin),
-    t('when you poured, on average')]);
+    t('your usual time this week')]);
   if(standing&&standing.aheadPct!=null) out.push([t('ahead of'), standing.aheadPct+'%',
     t('of everyone pouring this week')]);
   if(react>0) out.push([t('applause'), ''+react,
