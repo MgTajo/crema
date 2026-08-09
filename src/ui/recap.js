@@ -25,9 +25,11 @@
        while looking right on screen. The families below are the
        platform stack on purpose — what you see IS what exports.
 
-   1080×1350 is Instagram's portrait post. It fills a feed post
-   properly and letterboxes cleanly into a story, which is the pair of
-   places this actually gets posted.
+   1080×1350 is Instagram's portrait post, and the card itself — what
+   the sheet shows, and what recapSVG() draws — stays exactly that
+   size. The exported file is taller: see recapPNG() for why the story
+   format is handled at export time instead of in the card's own
+   dimensions.
    ============================================================ */
 import { esc, seedOf, cap } from '../core/util.js';
 import { cupSVG } from '../domain/art.js';
@@ -441,16 +443,34 @@ export const shotPhotos=()=>photoCache;
    whatever someone named their coffee and btoa dies on the first umlaut.
 
    2× the design size: 2160×2700 lands as a crisp Instagram post on a
-   phone that will downscale it anyway, and costs nothing to make. */
+   phone that will downscale it anyway, and costs nothing to make.
+
+   The canvas itself is taller than the card: 1920 at this width is
+   Instagram's story format, and a 1350-tall image dropped into a story
+   composer gets padded out to that height by Instagram itself, in
+   whatever colour Instagram picks — almost never this paper. Padding it
+   here instead, in the card's own paper and paper2, means the card
+   already fills the story before Instagram ever touches it. The card's
+   own layout is untouched — this only adds space above and below it,
+   split evenly, each band solid in whichever end of the card's
+   background gradient touches that seam, so there is no visible edge
+   where the card ends and the padding begins. */
+const STORY_H=1920;
+
 export function recapPNG(svg,scale=2){
   return new Promise((resolve,reject)=>{
     const img=new Image();
     img.onload=()=>{
       try{
+        const pad=Math.round((STORY_H-H)/2);
         const c=document.createElement('canvas');
-        c.width=W*scale; c.height=H*scale;
+        c.width=W*scale; c.height=STORY_H*scale;
         const ctx=c.getContext('2d');
-        ctx.drawImage(img,0,0,c.width,c.height);
+        ctx.fillStyle=C.paper;
+        ctx.fillRect(0,0,c.width,pad*scale);
+        ctx.fillStyle=C.paper2;
+        ctx.fillRect(0,(pad+H)*scale,c.width,c.height-(pad+H)*scale);
+        ctx.drawImage(img,0,pad*scale,W*scale,H*scale);
         c.toBlob(b=>b?resolve(b):reject(new Error('toBlob returned nothing')),'image/png');
       }catch(err){ reject(err); }
     };
