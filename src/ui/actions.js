@@ -18,7 +18,7 @@ import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, cur
 import { ensureProfile, pushProfile, pushName, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
          setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium } from '../data/profiles.js';
 import { codeValid, PREMIUM_MAIL } from '../domain/premium.js';
-import { recapSVG, recapPNG, loadShotPhotos } from './recap.js';
+import { recapSVG, recapPNG, loadShotPhotos, loadStanding, weekStanding } from './recap.js';
 import { enablePush, disablePush, pushEnabled, syncPush, pushSupported, pushPermission } from '../data/push.js';
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
@@ -26,7 +26,7 @@ import * as social from '../data/social.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
-         feed, hydrateReactions, myMachines, myCoffees, togglePin, weekRecap } from '../store/store.js';
+         feed, hydrateReactions, myMachines, myCoffees, togglePin, weekRecap, toggleRecapPick } from '../store/store.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
@@ -105,7 +105,7 @@ const GUEST_ASK={
   'open-settings':'profile', 'open-passport':'profile', 'open-scoring':'profile',
   'open-streak':'profile', ptab:'profile',
   'open-premium':'premium', 'redeem-premium':'premium', 'premium-off':'premium',
-  'open-recap':'premium', 'share-recap':'premium',
+  'open-recap':'premium', 'share-recap':'premium', 'pick-standout':'premium',
   'open-menu':'general', 'menu-report':'general', 'menu-block':'general'
 };
 const NAV_ASK={ explore:'explore', cafes:'cafe', profile:'profile' };
@@ -283,6 +283,7 @@ document.addEventListener('click',e=>{
     case 'copy-premium-mail': copyText(PREMIUM_MAIL,t('{mail} copied ✉️',{mail:PREMIUM_MAIL})); break;
     case 'open-recap': openRecap(); break;
     case 'share-recap': shareRecap(); break;
+    case 'pick-standout': pickStandout(el.dataset.id); break;
 
     case 'ob-next':{ syncOb();
       if(!(state.me.name||'').trim()){ ui.obError=t('Tell us your name first.'); renderOverlay(); break; }
@@ -990,18 +991,39 @@ function premiumOff(){
    Premium, and gated here rather than only in the markup: the row on
    the profile is one way in, but a deep link or a stale repaint is
    another, and the check belongs where the door is. */
-function openRecap(){
+/* Exported as well as routed: the Sunday notification deep-links to
+   `#recap`, and app.js opens the card the same way the profile row
+   does — including the Premium sheet for an account that cannot see it
+   yet, rather than a silent no-op. */
+export function openRecap(){
   if(!state.me.premium){ openPremium(t('Your week in coffee')); return; }
   pushOv({ type:'recap' });
-  /* The sheet paints immediately with generated cups, and repaints if
-     any of the week's photos turn out to be embeddable. Cups are a
-     finished state rather than a placeholder, so there is no spinner
-     and nothing to wait for — see loadShotPhotos() for why a photo may
-     legitimately never arrive. */
+  fillRecap();
+}
+
+/* Everything the card wants that isn't already in the browser: the
+   standout photos as embeddable bytes, and where the week stands among
+   everyone else's. Both repaint the sheet when they land and neither is
+   waited on — the card is drawn and shareable before either arrives,
+   with a generated cup where a photo will go and a different tile where
+   the standing will. See loadShotPhotos() and loadStanding(). */
+function repaintRecap(){
+  if((ui.ovStack[ui.ovStack.length-1]||{}).type==='recap') renderOverlay();
+}
+function fillRecap(){
   const r=weekRecap(); if(!r) return;
-  loadShotPhotos(r).then(()=>{
-    if((ui.ovStack[ui.ovStack.length-1]||{}).type==='recap') renderOverlay();
-  }).catch(err=>console.warn('recap photos failed',err));
+  loadShotPhotos(r).then(repaintRecap).catch(err=>console.warn('recap photos failed',err));
+  loadStanding(r).then(repaintRecap).catch(err=>console.warn('recap standing failed',err));
+}
+
+/* Which pours the card holds up. Repaints straight away — the SVG
+   redraws with the cup until the new photo is read, which takes a
+   moment and must not make the tap feel unanswered. */
+function pickStandout(id){
+  const r=weekRecap(); if(!r||!id) return;
+  toggleRecapPick(r.key,id);
+  renderOverlay();
+  fillRecap();
 }
 
 /* Share the card as a PNG. `navigator.share` with a file is the phone
@@ -1021,7 +1043,7 @@ async function shareRecap(){
        the photos finished, and the file people keep should not be the
        one that lost the race. Already-loaded pours resolve instantly. */
     const photos=await loadShotPhotos(r);
-    const svg=recapSVG(r,state.me,photos);
+    const svg=recapSVG(r,state.me,photos,weekStanding(r));
     const blob=await recapPNG(svg);
     const file=new File([blob],name,{type:'image/png'});
     if(navigator.canShare&&navigator.canShare({files:[file]})){

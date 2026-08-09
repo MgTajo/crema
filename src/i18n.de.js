@@ -569,8 +569,8 @@ export const DE = {
   'When someone reacts to your coffee':'Wenn jemand auf deinen Kaffee reagiert',
   'Streak reminder':'Streak-Erinnerung',
   'Evenings, only when your streak is at risk':'Abends, nur wenn deine Streak in Gefahr ist',
-  'Weekly recap':'Wochenrückblick',
-  'Monday morning, only if you poured that week':'Montagmorgen, nur wenn du in der Woche Kaffee gemacht hast',
+  'Sunday at 4pm, when your card is ready':'Sonntag um 16 Uhr, wenn deine Karte fertig ist',
+  'Sunday afternoon, if you poured that week':'Sonntagnachmittag, wenn du in der Woche Kaffee gemacht hast',
   'Turn off on this device':'Auf diesem Gerät ausschalten',
   'Reminders on ☕':'Erinnerungen an ☕',
   'Reminders off on this device':'Erinnerungen auf diesem Gerät aus',
@@ -694,22 +694,37 @@ export const DE = {
   'coffee, logged':'Kaffee, eingetragen',
   'coffees, logged':'Kaffees, eingetragen',
   'on {a} of 7 days':'an {a} von 7 Tagen',
-  'your coffee':'dein Kaffee',
-  'No coffee logged last week.':'Letzte Woche kein Kaffee eingetragen.',
-  'This card covers the last full Monday to Sunday, and lands again every Monday.':
-    'Diese Karte zeigt die letzte volle Woche von Montag bis Sonntag — und kommt jeden Montag neu.',
-  '{n} pour on {d} of 7 days — last week, as a card you can post':
-    '{n} Kaffee an {d} von 7 Tagen — letzte Woche, als Karte zum Posten',
-  '{n} pours on {d} of 7 days — last week, as a card you can post':
-    '{n} Kaffees an {d} von 7 Tagen — letzte Woche, als Karte zum Posten',
+  'No coffee logged this week.':'Diese Woche kein Kaffee eingetragen.',
+  'This card covers one Monday to Sunday, and lands every Sunday at 4pm.':
+    'Diese Karte zeigt eine Woche von Montag bis Sonntag — und kommt jeden Sonntag um 16 Uhr.',
+  'This week is still running — the card counts every pour until midnight.':
+    'Die Woche läuft noch — die Karte zählt jeden Kaffee bis Mitternacht.',
+  '{n} pour on {d} of 7 days — your week, as a card you can post':
+    '{n} Kaffee an {d} von 7 Tagen — deine Woche, als Karte zum Posten',
+  '{n} pours on {d} of 7 days — your week, as a card you can post':
+    '{n} Kaffees an {d} von 7 Tagen — deine Woche, als Karte zum Posten',
+  /* the four numbers */
+  'your usual':'dein Üblicher',
+  '{n} of your {total} pours':'{n} von {total} Tassen',
+  'coffee o’clock':'Kaffeezeit',
+  'when you poured, on average':'im Schnitt diese Woche',
+  'ahead of':'weiter als',
+  'of everyone pouring this week':'aller, die diese Woche brühen',
+  'applause':'Applaus',
+  'reaction on your pours':'Reaktion auf deine Tassen',
+  'reactions on your pours':'Reaktionen auf deine Tassen',
+  /* the standouts */
+  'The three you want shown':'Die drei, die groß rauskommen',
+  '{n} of {max}':'{n} von {max}',
+  'Tap to swap one out.':'Tippen, um eine zu tauschen.',
+  'Your most-loved three, until you pick your own.':
+    'Deine drei beliebtesten, bis du eigene wählst.',
+  'Pour':'Kaffee',
   'best run':'beste Serie',
-  'no run that week':'keine Serie in der Woche',
   'busiest day':'stärkster Tag',
   'in one day':'an einem Tag',
   '{n} new that week':'{n} neu in der Woche',
   'the bag':'die Tüte',
-  'unlogged':'nicht eingetragen',
-  'add a coffee to your next pour':'trag beim nächsten Mal einen Kaffee ein',
   'latte art':'Latte Art',
   'poured out':'auswärts',
   'at a café':'im Café',

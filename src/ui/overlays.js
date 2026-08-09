@@ -12,7 +12,7 @@ import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, MACHINE_BRAND
          beanBrands, beanCatalog, machineIndex, searchMachines, searchBeans, machineKnown, beanKnown, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, challenges,
-         beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned, weekRecap } from '../store/store.js';
+         beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned, weekRecap, RECAP_PICKS } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
 import { PREMIUM_MAIL } from '../domain/premium.js';
 import { recapSVG, shotPhotos } from './recap.js';
@@ -570,7 +570,8 @@ function remindersBlock(){
     return `${sw('toggle-notify-morning',state.me.notifyMorning,t('Morning coffee nudge'),t('If you have not logged one yet that day'))}
       ${sw('toggle-notify-social',state.me.notifySocial,t('Likes, comments &amp; follows'),t('When someone reacts to your coffee'))}
       ${sw('toggle-notify-streak',state.me.notifyStreak,t('Streak reminder'),t('Evenings, only when your streak is at risk'))}
-      ${sw('toggle-notify-digest',state.me.notifyDigest,t('Weekly recap'),t('Monday morning, only if you poured that week'))}
+      ${sw('toggle-notify-digest',state.me.notifyDigest,t('Your week in coffee'),
+           state.me.premium?t('Sunday at 4pm, when your card is ready'):t('Sunday afternoon, if you poured that week'))}
       <button class="btn ghost block" style="margin-top:10px" data-action="push-off"${p.busy?' disabled':''}>${t('Turn off on this device')}</button>`;
   }
 }
@@ -742,6 +743,31 @@ function overlayPremium(feature){
    PNG straight into Instagram's composer, which is where this is going.
    The download is the desktop answer and the fallback, and actions.js
    decides between them rather than the markup guessing. */
+/* The three pictures, and the choosing of them.
+   Only pours with a photo appear: a generated cup is a fine thumbnail
+   in a grid and a poor centrepiece at a third of the card. The strip is
+   in the week's own order, each pick numbered where it was tapped, so
+   swapping the fourth one in for the oldest is something you watch
+   happen rather than something you deduce. */
+function standoutPicker(r){
+  if(r.candidates.length<2) return '';
+  const picked=r.standouts.map(s=>s.id);
+  return `<div class="rc-pick">
+    <div class="rc-pick-h"><b>${t('The three you want shown')}</b>
+      <span>${t('{n} of {max}',{n:picked.length,max:RECAP_PICKS})}</span></div>
+    <div class="rc-strip">
+      ${r.candidates.map(s=>{
+        const i=picked.indexOf(s.id);
+        return `<button class="rc-shot${i>=0?' on':''}" data-action="pick-standout" data-id="${s.id}"
+          aria-pressed="${i>=0}" aria-label="${esc(cap(s.drink||t('Pour')))}">
+          <img src="${esc(imageUrl(s.img,'thumb'))}" alt="" loading="lazy">
+          ${i>=0?`<span class="rc-n">${i+1}</span>`:''}</button>`;
+      }).join('')}
+    </div>
+    <div class="rc-hint">${r.chosen?t('Tap to swap one out.'):t('Your most-loved three, until you pick your own.')}</div>
+  </div>`;
+}
+
 function overlayRecap(){
   const r=weekRecap();
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Your week in coffee')}">
@@ -749,9 +775,11 @@ function overlayRecap(){
     <div class="ov-bar" style="border:0"><b>${t('Your week in coffee')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 20px">
       ${r?`<div class="recap-card">${recapSVG(r,state.me,shotPhotos())}</div>
+      ${standoutPicker(r)}
       <button class="btn block" style="margin-top:14px" data-action="share-recap">${icon('share',18)} ${t('Share your week')}</button>
-      <div class="recap-note">${t('Saves as a picture, sized for a post or a story. Nothing leaves Crema until you send it.')}</div>`
-      : `<div class="empty"><div class="big">📅</div>${t('No coffee logged last week.')}<br>${t('This card covers the last full Monday to Sunday, and lands again every Monday.')}<br><br>
+      <div class="recap-note">${t('Saves as a picture, sized for a post or a story. Nothing leaves Crema until you send it.')}
+        ${r.live?`<br>${t('This week is still running — the card counts every pour until midnight.')}`:''}</div>`
+      : `<div class="empty"><div class="big">📅</div>${t('No coffee logged this week.')}<br>${t('This card covers one Monday to Sunday, and lands every Sunday at 4pm.')}<br><br>
          <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`}
     </div></div>`;
 }

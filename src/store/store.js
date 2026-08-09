@@ -74,6 +74,9 @@ export function freshState(){
        on purpose, rather than drifting down as recents age out. Free
        accounts get the automatic recents and nothing to maintain. */
     pins:{machines:[],beans:[]},
+    /* The pours held up as this week's standouts on the recap card,
+       keyed by the week's Monday — see toggleRecapPick(). */
+    recapPicks:{},
     onboarded:false, theme:'auto',
     /* step-1.21 reset the Premium flag on every existing account. A
        brand-new one has nothing to reset, so it is marked done here
@@ -92,7 +95,7 @@ export function freshState(){
 }
 export async function load(){try{const s=await persistence.read(); state=(s&&s.me)?s:freshState();
   ['posts','customBeans','customDrinks','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
-  ['follows','cafeFollow','followPending'].forEach(k=>{if(!state[k])state[k]={};});
+  ['follows','cafeFollow','followPending','recapPicks'].forEach(k=>{if(!state[k])state[k]={};});
   if(!state.pins||!Array.isArray(state.pins.machines)||!Array.isArray(state.pins.beans)) state.pins={machines:[],beans:[]};
   /* Retired in step 1.17: challenges are no longer something you join or
      submit to, so the two maps that tracked that are dropped from any
@@ -614,52 +617,101 @@ export function coffeeStats(){
 /* ----- the week, as something you can hand to someone -----
    coffeeStats() answers "what am I like"; this answers "what did I do
    this week", which is a different question and the only one worth
-   putting on a card. Seven days back including today, so it moves with
-   you rather than resetting on Monday — a recap that is empty every
-   Monday morning is a recap nobody opens.
+   putting on a card. The window is a calendar week that turns over on
+   Sunday afternoon — see recapWindow() for why that hour and not
+   Monday's.
 
    Same two rules as everywhere else: nothing invented, and a week with
    no pours in it returns null so the surface can say so instead of
    drawing a card full of zeroes. */
-/* Which week the card is about: the last COMPLETE Monday–Sunday, not
-   the rolling seven days behind right now. Two reasons, and the second
-   is the product one.
+/* Which week the card is about: a Monday–Sunday calendar week, and
+   which one depends on the clock.
 
    A calendar week is a thing people can share about. "My week" that
    silently means "since last Tuesday" is a different week for everyone
    who reads it, and two friends comparing cards would be comparing
    different windows.
 
-   And it changes once a week, on Monday. The card is a weekly artifact
-   rather than a live dashboard: it lands, it is the same card all week,
-   and it says on its face which week it is. A recap that quietly
-   reshuffled every morning is a stat page, not something you post.
+   It turns over once a week, on Sunday at 16:00 local. Waiting for
+   Monday would be correct and dead: the week's card lands on the
+   morning nobody is looking at their coffee, a day after the week it is
+   about stopped being the thing on anybody's mind. Sunday afternoon is
+   when the week is over in every way that matters to the person who
+   lived it, and it is when a card like this gets posted.
+
+   Which does mean the card is briefly about a week still running: from
+   16:00 to midnight on Sunday, a pour can still join it. That is the
+   trade, and it is the right way round — a card that keeps counting for
+   a few hours is a smaller lie than one that arrives a day late. From
+   Monday morning the week is closed and the card is fixed, which is the
+   state it spends six of its seven days in.
 
    Offsets are days-back-from-today, so they line up with dayIndex(),
    which is the one place in the app that decides what day a pour
-   happened on. Today Monday → last Sunday was 1 day ago, last Monday 7;
-   today Sunday → 7 and 13, because *this* Sunday is not over yet. */
-export function lastWeekWindow(now=new Date()){
+   happened on. Sunday 16:00 → 0 and 6, this week. Any other time →
+   yesterday-or-earlier's completed week. */
+const RECAP_HOUR=16;
+
+export function recapWindow(now=new Date()){
   const dow=(now.getDay()+6)%7;                 // Mon=0 … Sun=6
-  const endOff=dow+1, startOff=dow+7;
+  const live=dow===6 && now.getHours()>=RECAP_HOUR;
+  const endOff=live?0:dow+1, startOff=endOff+6;
   const mid=new Date(now); mid.setHours(0,0,0,0);
   const from=new Date(mid); from.setDate(mid.getDate()-startOff);
   const to=new Date(mid);   to.setDate(mid.getDate()-endOff);
-  return { startOff, endOff, from, to };
+  return { startOff, endOff, from, to, live };
+}
+
+/* The week's own name, used to key the standouts someone picked for it.
+   Local date parts rather than toISOString(), which would shift the key
+   across the date line for anyone west of UTC and quietly hand them
+   last week's picks. */
+const dayKey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+/* ----- the standouts -----
+   Up to three pours the card shows as pictures. Chosen by the person
+   whose week it is — which is the whole point, a favourite is not
+   something a query can work out — and keyed by week, so picking three
+   for this week does not overwrite the three that went on last week's
+   card.
+
+   The default is the week's most-reacted pours, so the card is worth
+   posting before anyone has touched the picker. Only pours with a photo
+   are ever offered: a generated cup is a fine tile in a grid of seven
+   and a poor centrepiece at three times the size. */
+export const RECAP_PICKS=3;
+
+export function recapPicks(key){
+  const m=state.recapPicks||{};
+  return Array.isArray(m[key])?m[key].slice():[];
+}
+/* Oldest out when a fourth is picked, rather than refusing the tap. The
+   strip numbers each pick, so the swap is visible where it happens. */
+export function toggleRecapPick(key,id){
+  if(!state.recapPicks) state.recapPicks={};
+  const l=recapPicks(key), i=l.indexOf(id);
+  if(i>=0) l.splice(i,1);
+  else { l.push(id); if(l.length>RECAP_PICKS) l.shift(); }
+  state.recapPicks[key]=l;
+  /* Only the current week's picks are worth keeping — the card for a
+     week nobody can reach any more is not coming back. */
+  Object.keys(state.recapPicks).forEach(k=>{ if(k!==key) delete state.recapPicks[k]; });
+  save();
+  return l;
 }
 
 export function weekRecap(){
   const posts=myPosts();
-  const w=lastWeekWindow();
+  const w=recapWindow();
   /* Monday is 0. -1 means the pour is outside the week entirely. */
   const dayOf=p=>{ const i=dayIndex(p);
     return (i>=w.endOff && i<=w.startOff) ? w.startOff-i : -1; };
   const week=posts.filter(p=>dayOf(p)>=0);
   if(!week.length) return null;
 
-  /* The distribution across the week, Monday first — the card draws the
-     pours themselves stacked into these seven columns, so this is both
-     the shape of the week and the index every shot is placed by. */
+  /* The distribution across the week, Monday first — the card draws one
+     bar per day from these, so this is both the shape of the week and
+     the index every shot is placed by. */
   const days=Array(7).fill(0);
   week.forEach(p=>{ days[dayOf(p)]++; });
 
@@ -677,11 +729,20 @@ export function weekRecap(){
   /* The pours themselves, Monday first, slimmed to what a picture of
      them needs: the photo where there is one, and the pattern/quality/
      seed to generate a cup where there isn't — exactly what art() in the
-     feed decides between, from exactly the same three fields. */
+     feed decides between, from exactly the same three fields.
+
+     `pop` is how much the pour was answered — reactions first, likes
+     after — and it exists only to order the picker and to seed the
+     three standouts before anyone has chosen any. */
+  const popOf=p=>{
+    const r=p.reactions||{};
+    return (r.art|0)+(r.scene|0)+(r.drink|0)+(p.likes|0);
+  };
   const shots=week.slice()
     .sort((a,b)=>dayOf(a)-dayOf(b))
     .map(p=>({ id:p.id, day:dayOf(p), img:p.img||null, pattern:p.pattern||null,
-               quality:p.quality==null?0.9:p.quality, drink:p.drink||'' }));
+               quality:p.quality==null?0.9:p.quality, drink:p.drink||'',
+               cafe:p.cafe||'', pop:popOf(p) }));
 
   /* The longest run inside the week, not the live streak. A card about
      last week that carries today's number would be two different weeks
@@ -689,14 +750,56 @@ export function weekRecap(){
   let bestRun=0, run=0;
   days.forEach(c=>{ run=c?run+1:0; if(run>bestRun) bestRun=run; });
 
+  /* The hour you pour at, averaged around the clock rather than along a
+     number line: 23:30 and 00:30 average to midnight, not to noon. Only
+     pours carrying a real timestamp are in it — a "3d" label knows its
+     day but has no clock in it — and a week whose pours are spread
+     evenly round the dial has no meaningful average, so it says null
+     rather than pointing somewhere arbitrary. */
+  const mins=week.map(p=>Date.parse(p.createdAt)).filter(isFinite)
+    .map(ms=>{ const d=new Date(ms); return d.getHours()*60+d.getMinutes(); });
+  let x=0,y=0;
+  mins.forEach(m=>{ const a=m/1440*2*Math.PI; x+=Math.cos(a); y+=Math.sin(a); });
+  const spread=Math.sqrt(x*x+y*y)/(mins.length||1);
+  const avgMin = (mins.length && spread>0.05)
+    ? (Math.round(((Math.atan2(y,x)+2*Math.PI)%(2*Math.PI))/(2*Math.PI)*1440))%1440
+    : null;
+
+  /* What the week was answered with, from whatever the app happens to
+     have hydrated. The card prefers the server's count (data/recap.js)
+     because your own pours are not fetched through the feed and so
+     usually arrive without their tallies — this is the offline floor,
+     never an upper bound. */
+  const reactions=week.reduce((n,p)=>{ const r=p.reactions||{};
+    return n+(r.art|0)+(r.scene|0)+(r.drink|0); },0);
+
+  /* Three pictures, theirs to choose. A pick that has since been deleted
+     is dropped rather than drawn as a gap, and the remainder is topped
+     up from the week's most-answered photos so the card is never blank
+     where the pictures go. */
+  const key=dayKey(w.from);
+  const withPhoto=shots.filter(s=>s.img);
+  const picked=recapPicks(key)
+    .map(id=>withPhoto.find(s=>s.id===id)).filter(Boolean);
+  /* A week with no photographs in it at all falls back to the generated
+     cups, which is what the feed shows those pours as anyway. Only when
+     there are none: one real photo beside two drawn cups is a card that
+     looks like it failed to load something. */
+  const pool=withPhoto.length?withPhoto:shots;
+  const auto=pool.slice().sort((a,b)=>b.pop-a.pop)
+    .filter(s=>!picked.some(p=>p.id===s.id))
+    .slice(0,RECAP_PICKS-picked.length);
+  const standouts=[...picked,...auto].sort((a,b)=>a.day-b.day);
+
   return {
-    pours:week.length, shots, days,
+    pours:week.length, shots, days, key, live:w.live,
     daysWithCoffee:days.filter(Boolean).length,
     busiest:Math.max(...days),
     drinks, beans, patterns, newBeans,
     artPours:week.filter(p=>p.art&&p.pattern).length,
     cafePours:week.filter(p=>p.cafe).length,
-    bestRun,
+    bestRun, avgMin, timed:mins.length, reactions,
+    candidates:withPhoto, standouts, chosen:picked.length>0,
     from:w.from, to:w.to
   };
 }

@@ -752,6 +752,27 @@
   .recap-card{border-radius:var(--r); overflow:hidden; box-shadow:var(--sh); background:#F7F1E7}
   .recap-card svg{display:block; width:100%; height:auto}
   .recap-note{font-size:11.5px; line-height:1.5; color:var(--muted); text-align:center; margin-top:10px}
+  /* Choosing the three the card holds up. A horizontal strip rather
+     than a grid: the week is an order, and scrolling it left to right
+     is the same movement as reading the bars underneath the photos. */
+  .rc-pick{margin-top:14px}
+  .rc-pick-h{display:flex; align-items:baseline; justify-content:space-between; gap:10px}
+  .rc-pick-h b{font-family:var(--serif); font-size:15px; font-weight:400; letter-spacing:-.01em}
+  .rc-pick-h span{font-family:var(--mono); font-size:10.5px; font-weight:500; letter-spacing:.08em; color:var(--muted)}
+  .rc-strip{display:flex; gap:8px; overflow-x:auto; padding:9px 2px 3px; margin:0 -2px;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch}
+  .rc-strip::-webkit-scrollbar{display:none}
+  .rc-shot{flex:none; position:relative; width:66px; height:66px; padding:0; border:0; border-radius:12px;
+    overflow:hidden; background:var(--cream); cursor:pointer; opacity:.58;
+    box-shadow:0 0 0 1px var(--line); transition:opacity .12s, box-shadow .12s}
+  .rc-shot img{width:100%; height:100%; object-fit:cover; display:block}
+  .rc-shot.on{opacity:1; box-shadow:0 0 0 2.5px var(--crema)}
+  /* Numbered where it was tapped, so swapping the oldest out for a
+     fourth pick is something you watch rather than something you infer. */
+  .rc-n{position:absolute; top:4px; right:4px; min-width:17px; height:17px; border-radius:999px;
+    background:var(--crema); color:var(--on-crema); font-family:var(--mono); font-size:10px; font-weight:600;
+    display:grid; place-items:center}
+  .rc-hint{font-size:11.5px; color:var(--muted); margin-top:4px}
 
   /* ----- stats tab ----- */
   .stx{margin-top:4px; display:flex; flex-direction:column; gap:12px}

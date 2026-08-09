@@ -32,6 +32,7 @@
 import { esc, seedOf, cap } from '../core/util.js';
 import { cupSVG } from '../domain/art.js';
 import { imageSource } from '../data/media.js';
+import { fetchWeekStanding } from '../data/recap.js';
 import { t, tn, locale } from '../i18n.js';
 
 const W=1080, H=1350, M=84;
@@ -86,11 +87,11 @@ function tile(x,y,w,h,label,value,note){
     +(note?txt(x+28,y+h-24,clip(note,30),{size:21,fill:C.ink2}):'');
 }
 
-/* Which week this is, spelled out on the card. The recap is a fixed
-   artifact for a week that has finished, so the dates are not
-   decoration — they are the thing that makes it true a week later, and
-   the thing two people need to be looking at the same window. The year
-   only appears when the week is not in the current one. */
+/* Which week this is, spelled out on the card. The recap is an artifact
+   for one named week, so the dates are not decoration — they are the
+   thing that makes it true a week later, and the thing two people need
+   to be looking at the same window. The year only appears when the week
+   is not in the current one. */
 const range=(from,to)=>{
   const f={day:'numeric',month:'short'};
   const y=from.getFullYear()!==new Date().getFullYear()?` ${from.getFullYear()}`:'';
@@ -104,39 +105,83 @@ const mark=(x,y,s)=>`<g transform="translate(${x} ${y}) scale(${s/40})">`
   +`<circle cx="20" cy="20" r="20" fill="${C.crema}"/>`
   +`<path transform="translate(11.1,11.1) scale(.178)" fill="${C.soft}" d="M50 92C50 92 6 62 6 34.5 6 18.5 17.5 8 30.5 8 39.5 8 46 13.2 50 20.5 54 13.2 60.5 8 69.5 8 82.5 8 94 18.5 94 34.5 94 62 50 92 50 92Z"/></g>`;
 
-/* ---------- the week, as a mosaic ----------
-   Seven columns, one per day, Monday first, with that day's coffees
-   stacked up from a shared baseline. It is a bar chart whose bars are
-   made of the coffee: the height of a column IS the count, so the
-   distribution across the week and the pictures of it are one drawing
-   rather than two blocks competing for the same 400px.
+/* ---------- the standouts ----------
+   Up to three photos from the week, chosen by the person whose week it
+   was. They used to be every pour of the week, stacked into seven
+   columns — which was a lovely idea and made the card an inventory: a
+   fortnight of thumbnails at 120px, none of them worth looking at, and
+   the good one buried among them. A week has two or three pictures in
+   it that are actually worth showing. This shows those, big enough to
+   see, and counts the rest as bars underneath.
 
-   Each tile is a photo where the photo can be read and the generated
-   cup where it can't — the same choice art() makes in the feed, from
-   the same three fields. `photos` is an id→data-URI map filled by
-   loadShotPhotos(); a miss is not an error, it is the cup, so the card
-   is never blocked on the network.
+   Sized to whatever was picked rather than padded out to three: two
+   photos across the full width read as a deliberate pair, while two
+   photos and an empty slot read as a bug.
 
-   A day with nothing gets a flat stub rather than an empty column: the
-   gap in the week is the honest part of the picture, and a column that
-   simply wasn't drawn reads as a rendering bug. */
-const COLS=7, CGAP=12, VGAP=10;
-const TILE=(W-M*2-(COLS-1)*CGAP)/COLS;      // 120
-/* Three deep is the cap. Four would be 520px of column and would push
-   the stat tiles off the bottom on the one week somebody had a very
-   good Saturday; the overflow is counted on the top tile instead. */
-const STACK_MAX=3;
-const BASE=860;                              // the baseline every column sits on
+   `photos` is an id→data-URI map filled by loadShotPhotos(). A miss is
+   not an error — it falls back to the generated cup, the same way art()
+   does in the feed — so the card is never blocked on the network. */
+const SY=472, SH=214, SGAP=24;
 
-/* The week bucketed into its seven days, and then capped — the same
-   list the mosaic draws and the loader fetches, so the card never waits
-   on a photo it had no room for. */
-export function mosaicColumns(r){
-  const perDay=[[],[],[],[],[],[],[]];
-  (r&&r.shots||[]).forEach(s=>{ if(s.day>=0&&s.day<7) perDay[s.day].push(s); });
-  return perDay;
+function standouts(r,photos,u){
+  const list=(r.standouts||[]).slice(0,3);
+  if(!list.length) return '';
+  const w=(W-M*2-SGAP*(list.length-1))/list.length;
+  let out=`<defs>`
+    +list.map((s,i)=>`<clipPath id="so${u}-${i}" clipPathUnits="userSpaceOnUse">`
+      +`<rect x="0" y="0" width="${w}" height="${SH}" rx="22"/></clipPath>`).join('')
+    /* The name sits on the photo, so it needs its own darkness under
+       it — a caption band below would cost 40px of a card that is
+       already spending 214 on the pictures. */
+    +`<linearGradient id="scrim${u}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0.62"/></linearGradient></defs>`;
+
+  list.forEach((s,i)=>{
+    const x=M+i*(w+SGAP), src=photos&&photos.get(s.id);
+    /* Where it was beats what it was: "Sey Coffee" says more about a
+       morning than "Cappuccino" does. The drink is the fallback. */
+    const label=clip(s.cafe||cap(s.drink||''), list.length>2?18:30);
+    out+=`<g transform="translate(${x} ${SY})" clip-path="url(#so${u}-${i})">`
+      + (src
+          ? `<image x="0" y="0" width="${w}" height="${SH}" preserveAspectRatio="xMidYMid slice" href="${esc(src)}"/>`
+          : `<rect width="${w}" height="${SH}" fill="${C.card}"/>`
+            + cupSVG(s.pattern||'none', s.quality, seedOf(s.id),
+                { attrs:`x="${(w-SH*0.9)/2}" y="${SH*0.05}" width="${SH*0.9}" height="${SH*0.9}"` }))
+      + (label&&src
+          ? `<rect x="0" y="${SH-84}" width="${w}" height="84" fill="url(#scrim${u})"/>`
+            +txt(20,SH-24,label,{size:23,fill:'#FFFDF9',weight:500})
+          : '')
+      + `<rect width="${w}" height="${SH}" fill="none" stroke="${C.line}" stroke-width="2" rx="22"/>`
+      + `</g>`;
+  });
+  return out;
 }
-export const drawnShots=r=>mosaicColumns(r).flatMap(c=>c.slice(0,STACK_MAX));
+
+/* ---------- the week, as seven bars ----------
+   One bar per day, Monday first, and the height is the count. This is
+   the part of the card that is a chart rather than a picture: it
+   answers "what did the week look like" in a glance, which seven photo
+   columns of differing heights never quite did — a tall column read as
+   a good photo day rather than as a busy one.
+
+   A day with nothing gets a flat stub on the baseline rather than
+   nothing at all. The gap is the honest part of the shape, and a
+   missing bar reads as a rendering fault.
+
+   The busiest day is drawn in the darker roast so the peak is where the
+   eye lands; every other bar is the gold. */
+const CGAP=20;
+const BW=(W-M*2-CGAP*6)/7;                   // ~113
+const BASE=900;                              // the baseline every bar sits on
+const BAR_MIN=30;                            // one pour is still a block
+
+/* Rounded at the top only — a bar with a rounded foot floats off its
+   own baseline. */
+const bar=(x,y,w,h,fill)=>{
+  const r=Math.min(14,w/2,h/2);
+  return `<path d="M${x} ${y+h} V${y+r} a${r} ${r} 0 0 1 ${r} -${r} h${w-2*r} a${r} ${r} 0 0 1 ${r} ${r} V${y+h} Z" fill="${fill}"/>`;
+};
 
 const dayLabels=from=>{
   const out=[];
@@ -147,66 +192,107 @@ const dayLabels=from=>{
   return out;
 };
 
-function mosaic(r,photos){
-  const cols=mosaicColumns(r), labels=dayLabels(r.from);
-  let out=`<defs><clipPath id="tile" clipPathUnits="userSpaceOnUse">
-    <rect x="0" y="0" width="${TILE}" height="${TILE}" rx="20"/></clipPath></defs>`;
+function bars(r){
+  const days=r.days||[], labels=dayLabels(r.from);
+  const peak=Math.max(0,...days);
+  /* Scaled against three even when the best day was one, so a quiet
+     week looks like a quiet week. Scaling to the peak alone would draw
+     seven single coffees as seven full-height bars — the same picture a
+     seven-a-day week gets, which is the one thing a chart of counts
+     must never do. */
+  const scale=Math.max(peak,3);
+  /* Highlighted only when one day actually won it. A week where every
+     day tied has no busiest day, and colouring all seven says the
+     opposite of what the colour means everywhere else on the card. */
+  const solo=days.filter(n=>n===peak).length===1;
+  /* The chart takes whatever the standouts left. With no photos above
+     it, it grows into the space rather than leaving a hole. The 46 is
+     the count that rides above the tallest bar — it has to clear the
+     photo edge, not tuck under it. */
+  const top=(r.standouts&&r.standouts.length)?SY+SH+46:600;
+  const maxH=BASE-top;
+  let out=`<rect x="${M}" y="${BASE}" width="${W-M*2}" height="2" fill="${C.line}"/>`;
 
-  cols.forEach((day,i)=>{
-    const x=M+i*(TILE+CGAP);
-    const shown=day.slice(0,STACK_MAX), hidden=day.length-shown.length;
-
-    if(!day.length){
-      out+=`<rect x="${x}" y="${BASE-10}" width="${TILE}" height="10" rx="5" fill="${C.line}"/>`;
-    }else shown.forEach((s,k)=>{
-      /* Stacked upward from the baseline, so the newest of a day sits
-         on top and every column grows the same way. */
-      const y=BASE-(k+1)*TILE-k*VGAP;
-      const src=photos&&photos.get(s.id);
-      out+=`<g transform="translate(${x} ${y})" clip-path="url(#tile)">`
-        + (src
-            ? `<image x="0" y="0" width="${TILE}" height="${TILE}" preserveAspectRatio="xMidYMid slice" href="${esc(src)}"/>`
-            : `<rect width="${TILE}" height="${TILE}" fill="${C.card}"/>`
-              + cupSVG(s.pattern||'none', s.quality, seedOf(s.id),
-                  { attrs:`x="${TILE*0.05}" y="${TILE*0.05}" width="${TILE*0.9}" height="${TILE*0.9}"` }))
-        + `<rect width="${TILE}" height="${TILE}" fill="none" stroke="${C.line}" stroke-width="2" rx="20"/>`
-        + (hidden>0 && k===shown.length-1
-            ? `<rect width="${TILE}" height="${TILE}" fill="${C.ink}" opacity="0.62"/>`
-              + txt(TILE/2,TILE/2+13,`+${hidden}`,{f:SERIF,size:38,fill:'#FFFDF9',anchor:'middle'})
-            : '')
-        + `</g>`;
-    });
-
-    const on=day.length>0;
-    out+=txt(x+TILE/2,BASE+40,labels[i],
-      {f:MONO,size:21,fill:on?C.crema:C.muted,weight:500,anchor:'middle',spacing:1.5});
-    if(day.length>1)
-      out+=txt(x+TILE/2,BASE+68,`${day.length}`,{f:MONO,size:18,fill:C.muted,weight:500,anchor:'middle'});
+  days.forEach((n,i)=>{
+    const x=M+i*(BW+CGAP), best=solo&&n===peak&&n>0;
+    if(!n){
+      out+=`<rect x="${x}" y="${BASE-8}" width="${BW}" height="8" rx="4" fill="${C.line}"/>`;
+    }else{
+      const h=Math.max(BAR_MIN, Math.round(n/scale*maxH));
+      out+=bar(x,BASE-h,BW,h,best?C.crema:C.gold)
+        +txt(x+BW/2,BASE-h-18,''+n,{f:MONO,size:24,fill:best?C.crema:C.ink2,weight:500,anchor:'middle'});
+    }
+    out+=txt(x+BW/2,BASE+40,labels[i],
+      {f:MONO,size:21,fill:n?C.crema:C.muted,weight:500,anchor:'middle',spacing:1.5});
   });
   return out;
 }
 
-/* ---------- the card ---------- */
-export function recapSVG(r,me,photos){
-  const name=(me&&me.name||'').trim();
-  const top=r.drinks[0], bean=r.beans[0], pat=r.patterns[0];
+/* ---------- the four numbers ----------
+   What you poured most, the hour you poured at, where that put you
+   among everyone else pouring the same week, and what the week was
+   answered with. Four questions somebody actually asks about their own
+   week — and, unlike a ratio or a bean count, four that mean something
+   to the person reading the card over their shoulder.
 
-  /* Four tiles, and every one of them is a real count. What goes in the
-     fourth slot depends on what that week actually held — latte art if
-     they poured any, a cafe count if they went out, the best run
-     otherwise — because a tile reading "0 with latte art" is a reproach,
-     not a souvenir. */
-  const tw=(W-M*2-24)/2, th=152, t1=958, t2=t1+th+16;
-  const fourth = r.artPours
-      ? [t('latte art'), ''+r.artPours, pat?cap(pat.name):'']
-    : r.cafePours
-      ? [t('poured out'), ''+r.cafePours, t('at a café')]
-      : [t('busiest day'), ''+r.busiest, t('in one day')];
+   Every tile is still a real count. Two of the four can legitimately
+   have no answer — a week of pours carrying no clock has no average
+   hour, and a standing needs both a crowd and a network — so the list
+   is built longer than it needs to be and cut to four. The entries
+   below the line are the old tiles, in the order they are worth
+   showing: four slots must always be filled, and a tile reading "0" is
+   a reproach rather than a souvenir. */
+const hhmm=m=>{
+  const d=new Date(2000,0,2); d.setMinutes(m);
+  return d.toLocaleTimeString(locale(),{hour:'2-digit',minute:'2-digit'});
+};
+
+export function statTiles(r,standing){
+  const top=r.drinks[0], bean=r.beans[0], pat=r.patterns[0];
+  const react=standing?standing.reactions:r.reactions;
+  const out=[];
+
+  if(top) out.push([t('your usual'), cap(top.name),
+    t('{n} of your {total} pours',{n:top.count,total:r.pours})]);
+  if(r.avgMin!=null) out.push([t('coffee o’clock'), hhmm(r.avgMin),
+    t('when you poured, on average')]);
+  if(standing&&standing.aheadPct!=null) out.push([t('ahead of'), standing.aheadPct+'%',
+    t('of everyone pouring this week')]);
+  if(react>0) out.push([t('applause'), ''+react,
+    tn(react,'reaction on your pours','reactions on your pours')]);
+
+  /* ----- and, when any of those four had nothing to say ----- */
+  if(r.artPours) out.push([t('latte art'), ''+r.artPours, pat?cap(pat.name):'']);
+  if(bean) out.push([t('the bag'), bean.name,
+    r.newBeans.length?t('{n} new that week',{n:r.newBeans.length}):t('{n}×',{n:bean.count})]);
+  if(r.cafePours) out.push([t('poured out'), ''+r.cafePours, t('at a café')]);
+  if(r.bestRun>1) out.push([t('best run'), r.bestRun+' 🔥',
+    tn(r.bestRun,'day in a row','days in a row')]);
+  out.push([t('busiest day'), ''+r.busiest, t('in one day')]);
+
+  return out.slice(0,4);
+}
+
+/* ---------- the card ----------
+   Every id inside is suffixed with a per-render number. SVG ids are
+   document-global once the card is inlined into the page, so two cards
+   in one document would both point at the first one's clip paths — the
+   full-width standout would silently be drawn clipped to a third of the
+   card. One card at a time is only true until it isn't. */
+let uid=0;
+
+export function recapSVG(r,me,photos,standing){
+  const name=(me&&me.name||'').trim();
+  const st=standing===undefined?weekStanding(r):standing;
+  const u=++uid;
+  const tw=(W-M*2-24)/2, th=150, t1=974, t2=t1+th+16;
+  const four=statTiles(r,st);
+  const at=i=>[M+(i%2)*(tw+24), i<2?t1:t2];
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-kerning="normal">
-  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+  <defs><linearGradient id="bg${u}" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0%" stop-color="${C.paper}"/><stop offset="100%" stop-color="${C.paper2}"/></linearGradient></defs>
-  <rect width="${W}" height="${H}" fill="url(#bg)"/>
+  <rect width="${W}" height="${H}" fill="url(#bg${u})"/>
 
   ${mark(M,M,60)}
   ${txt(M+78,M+45,'Crema',{f:SERIF,size:48})}
@@ -218,17 +304,13 @@ export function recapSVG(r,me,photos){
   ${txt(M+numW(r.pours),388,r.pours===1?t('coffee, logged'):t('coffees, logged'),{f:SERIF,size:42,fill:C.ink2,style:'italic'})}
   ${txt(M+numW(r.pours),428,t('on {a} of 7 days',{a:r.daysWithCoffee}),{size:25,fill:C.muted})}
 
-  ${mosaic(r,photos)}
+  ${standouts(r,photos,u)}
+  ${bars(r)}
 
-  ${tile(M,t1,tw,th,t('your coffee'),top?top.name:'\u2014',top?t('{n}×',{n:top.count}):'')}
-  ${tile(M+tw+24,t1,tw,th,t('best run'),r.bestRun+' \ud83d\udd25',
-        r.bestRun?tn(r.bestRun,'day in a row','days in a row'):t('no run that week'))}
-  ${tile(M,t2,tw,th,t('the bag'),bean?bean.name:t('unlogged'),
-        bean?(r.newBeans.length?t('{n} new that week',{n:r.newBeans.length}):t('{n}×',{n:bean.count})):t('add a coffee to your next pour'))}
-  ${tile(M+tw+24,t2,tw,th,fourth[0],fourth[1],fourth[2])}
+  ${four.map((s,i)=>tile(at(i)[0],at(i)[1],tw,th,s[0],s[1],s[2])).join('\n  ')}
 
-  ${txt(M,H-40,name?t('{name} on Crema',{name:clip(name,28)}):'crema-app.com',{size:26,fill:C.ink2,weight:500})}
-  ${name?txt(W-M,H-40,'crema-app.com',{f:MONO,size:24,fill:C.muted,weight:500,anchor:'end'}):''}
+  ${txt(M,H-32,name?t('{name} on Crema',{name:clip(name,28)}):'crema-app.com',{size:26,fill:C.ink2,weight:500})}
+  ${name?txt(W-M,H-32,'crema-app.com',{f:MONO,size:24,fill:C.muted,weight:500,anchor:'end'}):''}
 </svg>`;
 }
 
@@ -236,6 +318,29 @@ export function recapSVG(r,me,photos){
    clear of it. SVG cannot measure text, and Georgia's digits are close
    enough to uniform at this size for a per-digit estimate to hold. */
 const numW=n=>(''+n).length*96+34;
+
+/* ---------- where the week stands ----------
+   Two of the four tiles are not about this device: the percentile is a
+   count across every account, and the reaction total is one the client
+   only ever sees for posts that came through a feed page — which your
+   own never do. Both arrive from one RPC (data/recap.js).
+
+   Cached per week and per session. The card repaints when it lands; a
+   card drawn before it does is complete without it, and simply shows
+   one of the fallback tiles instead. Never rejects: an absent standing
+   is a shape the card already handles, not a failure to report. */
+const standingCache=new Map();   // week key -> standing, or null for "asked, nothing"
+const standingJobs=new Map();
+
+export async function loadStanding(r){
+  if(!r) return null;
+  if(standingCache.has(r.key)) return standingCache.get(r.key);
+  if(!standingJobs.has(r.key))
+    standingJobs.set(r.key, fetchWeekStanding(r.from,r.to)
+      .then(s=>{ standingCache.set(r.key,s); standingJobs.delete(r.key); return s; }));
+  return standingJobs.get(r.key);
+}
+export const weekStanding=r=>(r&&standingCache.get(r.key))||null;
 
 /* ---------- photos, or the cup instead ----------
    A card that is going to be rasterised can only carry pixels it owns.
@@ -285,16 +390,26 @@ function toTile(src,px){
   });
 }
 
-/* Fills the cache for the pours the sheet will actually draw. Resolves
-   when there is nothing further to wait for, never rejects: every
-   failure has already become a cup. */
+/* Fills the cache for the standouts the card will actually draw — three
+   photos rather than the twenty-odd the mosaic used to ask for, which
+   is most of why the sheet now opens with its pictures already in it.
+
+   The resolution follows the slot: one standout spans the full 912 and
+   is exported at twice that, three share it. Resolves when there is
+   nothing further to wait for, never rejects: every failure has already
+   become a cup. */
 export async function loadShotPhotos(r){
-  const want=drawnShots(r).filter(s=>s.img);
+  const want=(r&&r.standouts||[]).filter(s=>s.img);
+  const px=want.length<2?1080:want.length<3?800:640;
   await Promise.all(want.map(s=>{
-    if(!photoJobs.has(s.id))
-      photoJobs.set(s.id, toTile(imageSource(s.img),432)
+    /* Keyed by size as well as by pour: the same photo can be wanted
+       small in a three-up and large on its own, and the cached small
+       one would be drawn soft across the full width. */
+    const key=`${s.id}@${px}`;
+    if(!photoJobs.has(key))
+      photoJobs.set(key, toTile(imageSource(s.img),px)
         .then(u=>{ photoCache.set(s.id,u); return u; }));
-    return photoJobs.get(s.id);
+    return photoJobs.get(key);
   }));
   return photoCache;
 }

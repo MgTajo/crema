@@ -25,7 +25,7 @@ import { useSession, applyMe, findPost, cachePosts, state, ui } from './store/st
 import { render } from './ui/views.js';
 import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
-import { applyTheme, tick, toast, syncProfile, initPush, openPost } from './ui/actions.js';
+import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap } from './ui/actions.js';
 import { applyLang } from './i18n.js';
 
 /* Before anything paints: <html lang> has to match the copy the first
@@ -71,6 +71,10 @@ function openPostById(id, uid){
     .catch(()=>{});
 }
 const deepLink = () => (location.hash.match(/#p\/([\w-]+)/)||[])[1] || null;
+/* Where the Sunday notification lands. The card is the thing that push
+   is about, so tapping it opens the card rather than the feed and a
+   hunt for the row on the profile. */
+const wantsRecap = () => /#recap\b/.test(location.hash);
 
 if(auth.session){
   /* The profile row is the truth about who this is, and whether the
@@ -80,7 +84,11 @@ if(auth.session){
 
   if(!state.onboarded){ pushOv({type:'onboard'}); }
   else if(auth.recovery){ pushOv({type:'password'}); toast('Signed in — pick a new password'); }
-  else { const id=deepLink(); if(id) openPostById(id, auth.session.user.id); }
+  else {
+    const id=deepLink();
+    if(id) openPostById(id, auth.session.user.id);
+    else if(wantsRecap()) openRecap();
+  }
 }else{
   const id=deepLink(); if(id) openPostById(id, null);
 }
@@ -104,6 +112,7 @@ if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','
     if(d.type==='navigate'&&d.url){
       const m=String(d.url).match(/#p\/([\w-]+)/);
       if(m) openPostById(m[1], auth.session ? auth.session.user.id : null);
+      else if(/#recap\b/.test(String(d.url)) && auth.session) openRecap();
     }
     else if(d.type==='push-resubscribed') initPush();
   });

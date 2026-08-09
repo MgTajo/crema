@@ -318,7 +318,7 @@ function recapTeaser(){
   return `<div class="recap-row" data-action="${prem?'open-recap':'open-premium'}"${prem?'':` data-f="${t('Your week in coffee')}"`}>
     <div class="rr-i">${prem?'📅':'🔒'}</div>
     <div class="rr-t"><b>${t('Your week in coffee')}</b>
-      <span>${tn(r.pours,'{n} pour on {d} of 7 days — last week, as a card you can post','{n} pours on {d} of 7 days — last week, as a card you can post',{d:r.daysWithCoffee})}</span></div>
+      <span>${tn(r.pours,'{n} pour on {d} of 7 days — your week, as a card you can post','{n} pours on {d} of 7 days — your week, as a card you can post',{d:r.daysWithCoffee})}</span></div>
     <div class="rr-go">${prem?t('Open'):t('Premium')}</div></div>`;
 }
 
