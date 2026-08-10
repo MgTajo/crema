@@ -128,7 +128,29 @@
   .phone:after{content:""; position:absolute; left:-3px; top:150px; width:3px; height:52px; background:linear-gradient(#3b2e22,#20180f); border-radius:3px 0 0 3px; box-shadow:0 74px 0 -1px #3b2e22,0 74px 0 0 transparent}
   .screen{position:relative; width:100%; height:100%; overflow:hidden; background:var(--cream); border-radius:44px; display:flex; flex-direction:column}
   .screen:before{content:""; position:absolute; top:11px; left:50%; transform:translateX(-50%); width:92px; height:27px; background:#000; border-radius:16px; z-index:12; pointer-events:none}
-  @media(max-width:520px){ body{padding:0} .phone{width:100vw; height:100dvh; border-radius:0; padding:0; box-shadow:none} .phone:before,.phone:after{display:none} .screen{border-radius:0} .screen:before{display:none} }
+  /* On a phone the shell *is* the window. Two things used to go wrong here:
+
+     — body centred an item as tall as the viewport inside a box as tall as
+       the viewport. The moment those two disagree by even a pixel — and
+       they disagree on every resume where the dynamic viewport (dvh) and
+       the initial containing block (html's 100%) are measured a frame
+       apart — `align-items:center` splits the overflow across *both*
+       ends, which is the top-and-bottom cutoff. A centred child cannot be
+       scrolled back into view at the top, so a cold boot was the only cure.
+       display:block pins the shell to the top edge instead; overflow:hidden
+       means a stale measurement can never scroll the document at all.
+
+     — 100dvh is only re-evaluated when the UA decides the dynamic viewport
+       changed, and a TWA returning from the background is exactly the case
+       it gets wrong. --app-h (ui/viewport.js) is re-measured on every
+       resume, so it leads; 100dvh stays as the pre-JS fallback. */
+  @media(max-width:520px){
+    body{padding:0; display:block; height:100dvh; height:var(--app-h,100dvh); min-height:0; overflow:hidden}
+    .phone{width:100%; height:100dvh; height:var(--app-h,100dvh); border-radius:0; padding:0; box-shadow:none}
+    .phone:before,.phone:after{display:none}
+    .screen{border-radius:0; padding-left:env(safe-area-inset-left,0px); padding-right:env(safe-area-inset-right,0px)}
+    .screen:before{display:none}
+  }
 
   .statusbar{flex:none; height:46px; display:flex; align-items:center; justify-content:space-between; padding:0 26px; font-size:14.5px; font-weight:600; letter-spacing:.2px; z-index:5}
   .statusbar .dots{display:flex; align-items:center; gap:6px}
@@ -140,6 +162,10 @@
   /* ---------- app bar ---------- */
   .appbar{flex:none; padding:8px 18px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;
     background:linear-gradient(var(--cream) 62%, transparent); z-index:4}
+  /* Under the notch / status bar only on a real device — the fake .statusbar
+     of the desktop mockup already holds this space open, and it is the
+     element that goes display:none at 520px. env() is 0 everywhere else. */
+  @media(max-width:520px){ .appbar{padding-top:calc(8px + env(safe-area-inset-top,0px))} }
   .appbar .title{font-family:var(--serif); font-size:29px; font-weight:400; letter-spacing:-.025em; display:flex; align-items:center; gap:10px}
   .appbar .actions{display:flex; align-items:center; gap:9px}
   .iconbtn{position:relative; width:40px; height:40px; border-radius:50%; border:1px solid var(--line2); background:var(--surface); display:grid; place-items:center; color:var(--ink); cursor:pointer; box-shadow:var(--sh-sm); flex:none; transition:transform .12s, background .15s}
@@ -188,7 +214,11 @@
   .swch.on::after{transform:translateX(17px)}
 
   /* ---------- scroll view & sections ---------- */
-  .view{flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none; overscroll-behavior:contain}
+  /* min-height:0 — without it a flex item's automatic minimum size is its
+     content, so a long feed refuses to shrink and pushes the tabbar out
+     through the bottom of .screen (which clips, so the bar simply is not
+     there) instead of scrolling inside itself. */
+  .view{flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none; overscroll-behavior:contain}
   .view::-webkit-scrollbar{display:none}
   .pad{padding:2px 16px 22px}
   .section-h{display:flex; align-items:baseline; justify-content:space-between; margin:24px 2px 13px}
@@ -567,7 +597,11 @@
   .badge.locked .bic{background:var(--surface3); border-color:var(--surface3); filter:grayscale(.6)}
 
   /* ---------- tab bar ---------- */
-  .tabbar{flex:none; height:66px; display:flex; align-items:center; background:var(--tabbarbg); backdrop-filter:blur(16px) saturate(1.2); border-top:1px solid var(--line); padding:0 6px 5px; position:relative; z-index:6}
+  /* height→min-height so the home-indicator inset grows the bar rather than
+     squashing the tabs inside a fixed 66px. The padding carries the bar's
+     own background down under the indicator; the tabs stay above it. */
+  .tabbar{flex:none; min-height:66px; display:flex; align-items:center; background:var(--tabbarbg); backdrop-filter:blur(16px) saturate(1.2); border-top:1px solid var(--line); padding:0 6px 5px; position:relative; z-index:6}
+  @media(max-width:520px){ .tabbar{padding-bottom:calc(5px + env(safe-area-inset-bottom,0px))} }
   /* renderTabbar() hides the bar on the sign-in screen by setting
      `hidden`, which this rule's display:flex would otherwise win against
      — leaving an empty 66px strip below the gate. Invisible while the

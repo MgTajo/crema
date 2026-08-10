@@ -27,6 +27,10 @@ import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap } from './ui/actions.js';
 import { applyLang } from './i18n.js';
+/* Side effect only: measures the window and keeps --app-h in step with it
+   for the rest of the session. Module evaluation happens before anything
+   below runs, so the shell is the right height for the first paint. */
+import './ui/viewport.js';
 
 /* Before anything paints: <html lang> has to match the copy the first
    render is about to write, or the browser offers to translate a page

@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<!-- viewport-fit=cover: the Android 15 TWA (targetSdk 35) is edge-to-edge
+     whether we ask for it or not, so we take the insets ourselves via
+     env(safe-area-inset-*) rather than leaving them to the UA — see the
+     .screen / .appbar / .tabbar rules in styles.css.
+     interactive-widget=resizes-content: the on-screen keyboard shrinks the
+     layout viewport instead of sliding it, so window.innerHeight (the
+     measurement behind --app-h) stays truthful while someone is typing. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
 <meta name="color-scheme" content="light dark" />
 <meta name="theme-color" content="#F7F1E7" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#17100B" media="(prefers-color-scheme: dark)" />
