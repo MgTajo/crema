@@ -982,7 +982,13 @@ function visibilityPicker(c){
 /* The same sheet does double duty: with `editId` set it edits that pour
    instead of starting a new one. Everything except the photo is the same
    form, so an edit looks and behaves exactly like the post did — the
-   camera row is simply not there, because the photo is not editable. */
+   camera row is simply not there, because the photo is not editable.
+
+   The "Add a photo" badge over the empty preview reads as a button and
+   was not one, so the biggest target on the sheet did nothing. It is a
+   <label for="c-photo-cam"> now: same camera as the Take photo button,
+   which is what someone starting a post is reaching for. Gallery is
+   still one tap away in the row underneath. */
 function overlayCreate(){
   const c=ui.create||freshCreate(), isArt=!!DRINK_ART[c.drink], editing=!!c.editId;
   const pats=[['heart',t('Heart')],['rosetta',t('Rosetta')],['tulip',t('Tulip')],['swan',t('Swan')],['abstract',t('Abstract art')]];
@@ -996,7 +1002,8 @@ function overlayCreate(){
     <div class="ov-body" style="padding:0 16px 16px">
       <div class="create-prev">
         ${c.img?`<img class="photo" src="${imageUrl(c.img,'feed')}" alt="${t('your coffee photo')}">`:cupSVG(isArt&&c.pattern?c.pattern:'none',.85,999)}
-        ${c.img?(c.uploading?`<span class="up-hint">${t('Uploading…')}</span>`:(c.uploadFailed?`<span class="up-hint" style="background:rgba(168,84,74,.9)">${t('Upload failed')}</span>`:'')):(editing?'':`<span class="up-hint">${icon('cam',15)} ${t('Add a photo')}</span>`)}
+        ${c.img?(c.uploading?`<span class="up-hint">${t('Uploading…')}</span>`:(c.uploadFailed?`<span class="up-hint" style="background:rgba(168,84,74,.9)">${t('Upload failed')}</span>`:''))
+          :(editing?'':`<label class="up-hint tap" for="c-photo-cam">${icon('cam',15)} ${t('Add a photo')}</label>`)}
       </div>
       ${!editing&&c.uploadFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
         ${t('That photo could not reach the server. Tap Post to try again, or drop it and post without a photo.')}

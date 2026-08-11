@@ -18,7 +18,7 @@
    Importing ./ui/actions.js registers the global event handlers as a
    side effect.
    ============================================================ */
-import { initAuth } from './data/supabase.js';
+import { initAuth, getSession } from './data/supabase.js';
 import { loadReferenceData } from './data/remote.js';
 import { fetchPost } from './data/posts.js';
 import { useSession, applyMe, findPost, cachePosts, state, ui } from './store/store.js';
@@ -67,18 +67,63 @@ if(auth.error && auth.session) toast(auth.error);
    `uid` is who is looking, or null — a stranger following a shared link
    is the case this has to work for, since that link is what the OG card
    in index.html exists to earn. RLS hands the `anon` role public pours
-   and nothing else, so a followers-only link simply doesn't resolve. */
+   and nothing else, so a followers-only link simply doesn't resolve.
+
+   Opening the pour that is already on top is nothing at all rather than
+   a second identical sheet — otherwise tapping the same link twice, now
+   that both taps arrive, would cost two back presses to get out of. */
 function openPostById(id, uid){
+  const top=ui.ovStack[ui.ovStack.length-1];
+  if(top && top.type==='post' && top.id===id) return;
   if(findPost(id)){ openPost(id); return; }
   fetchPost(id, uid)
     .then(p=>{ if(p){ cachePosts([p]); openPost(p.id); } })
     .catch(()=>{});
 }
-const deepLink = () => (location.hash.match(/#p\/([\w-]+)/)||[])[1] || null;
+const postIn = h => (String(h||'').match(/#p\/([\w-]+)/)||[])[1] || null;
 /* Where the Sunday notification lands. The card is the thing that push
    is about, so tapping it opens the card rather than the feed and a
    hunt for the row on the profile. */
-const wantsRecap = () => /#recap\b/.test(location.hash);
+const recapIn = h => /#recap\b/.test(String(h||''));
+
+/* Read the hash AND wipe it, in one go.
+
+   A shared link is a one-shot instruction, not a place: once the pour is
+   open, leaving `#p/<id>` in the address bar means the *next* link can
+   arrive at a URL that differs from the current one in nothing at all —
+   and a navigation to an identical URL is not a navigation. That is the
+   bug people hit with the app already running in the background: the
+   Android launcher hands the link to the live instance, the URL is
+   already that link, nothing fires, and Crema comes back up on whatever
+   screen it was last on rather than on the pour.
+
+   replaceState keeps `history.state` as it was, so the spare back-button
+   entry ui/history.js keeps track of is left exactly where it was. */
+function takeHash(){
+  const h = location.hash || '';
+  if(h && typeof history!=='undefined'){
+    try{ history.replaceState(history.state, '', location.pathname + location.search); }catch(e){}
+  }
+  return h;
+}
+
+/* The one place that turns a hash into a screen — used by the cold
+   start, by a link that arrives while the app is already open, and by
+   the service worker handing over a tapped notification. The session is
+   read live rather than captured at boot: someone can sign in between
+   the two, and then the fetch should be theirs and not a stranger's. */
+function openFromHash(h){
+  const id = postIn(h);
+  const s = getSession();
+  if(id){ openPostById(id, s ? s.user.id : null); return true; }
+  if(recapIn(h) && s){ openRecap(); return true; }
+  return false;
+}
+
+/* A link opened while Crema is already running is a same-document
+   navigation: no reload, no boot, just this event. Everything above ran
+   once, a long time ago, so without this the link does nothing. */
+addEventListener('hashchange', ()=>{ openFromHash(takeHash()); });
 
 if(auth.session){
   /* The profile row is the truth about who this is, and whether the
@@ -88,13 +133,9 @@ if(auth.session){
 
   if(!state.onboarded){ pushOv({type:'onboard'}); }
   else if(auth.recovery){ pushOv({type:'password'}); toast('Signed in — pick a new password'); }
-  else {
-    const id=deepLink();
-    if(id) openPostById(id, auth.session.user.id);
-    else if(wantsRecap()) openRecap();
-  }
+  else openFromHash(takeHash());
 }else{
-  const id=deepLink(); if(id) openPostById(id, null);
+  openFromHash(takeHash());
 }
 
 if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname))){
@@ -114,9 +155,8 @@ if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','
   navigator.serviceWorker.addEventListener('message',e=>{
     const d=e.data||{};
     if(d.type==='navigate'&&d.url){
-      const m=String(d.url).match(/#p\/([\w-]+)/);
-      if(m) openPostById(m[1], auth.session ? auth.session.user.id : null);
-      else if(/#recap\b/.test(String(d.url)) && auth.session) openRecap();
+      const i=String(d.url).indexOf('#');
+      if(i>=0) openFromHash(String(d.url).slice(i));
     }
     else if(d.type==='push-resubscribed') initPush();
   });

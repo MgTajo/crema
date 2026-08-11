@@ -402,6 +402,52 @@ the notification inbox): a large share of the audience is on an iPhone in a Safa
 never receive one. `iosNeedsInstall()` in [`src/data/push.js`](../../src/data/push.js) detects that
 case and the reminders sheet asks for the Home Screen instead of showing a toggle that cannot work.
 
+## 6. Deploy the report mailer (step 1.23)
+
+The report sheet promises that a person reads every report. Until 1.23 nothing told a person
+one existed — the row went into `reports` and stayed there. Now a trigger hands each new row
+to the `report-mail` Edge Function, which emails **hello@crema-app.com**.
+
+Deploy the function first, then run the SQL, then point Postgres at it. Reports file normally
+at every stage in between; an unconfigured step raises a notice and skips the email.
+
+```bash
+supabase functions deploy report-mail --no-verify-jwt
+supabase secrets set \
+  RESEND_API_KEY=<your Resend API key> \
+  REPORT_MAIL_FROM='Crema <reports@crema-app.com>' \
+  REPORT_MAIL_TO=hello@crema-app.com
+```
+
+`crema-app.com` has to be a **verified domain in Resend** (DNS records under Domains), or every
+send comes back 403 and the reports are only in the function log. `PUSH_HOOK_SECRET` is not set
+again here — this function shares the one from §5, because Supabase secrets are per project and
+the caller is the same Postgres.
+
+Then run [`step-1.23.sql`](step-1.23.sql), and in the SQL editor as `postgres`:
+
+```sql
+select push_set_config('report_endpoint', 'https://diabtvahplwoipvrprvb.supabase.co/functions/v1/report-mail');
+```
+
+### Verify
+
+From the app: open any pour that isn't yours → ⋯ → Report → pick a reason. The email should
+arrive within seconds. If it doesn't:
+
+```sql
+-- did the trigger fire, and what did the function answer?
+select id, status_code, left(content, 200), created from net._http_response order by id desc limit 5;
+```
+
+```bash
+supabase functions logs report-mail
+```
+
+A `403` there means `report_endpoint` is set but `push_secret` no longer matches the function's
+`PUSH_HOOK_SECRET`. No row in `net._http_response` at all means `report_endpoint` is unset —
+`select push_config('report_endpoint');` as `postgres` says so.
+
 ## A trap worth knowing about
 
 PostgREST resolves embedded relationships by name, and `posts`, `comments` and

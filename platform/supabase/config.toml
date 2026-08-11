@@ -21,6 +21,13 @@ project_id = "diabtvahplwoipvrprvb"
 # between it and the open internet.
 verify_jwt = false
 
+[functions.report-mail]
+# Same caller, same reason, same guard: Postgres fires this from the
+# trigger on `reports` and presents no user session. It shares
+# send-push's X-Push-Secret rather than carrying a secret of its own —
+# Supabase secrets are per project, so one value covers both.
+verify_jwt = false
+
 # The media functions are the opposite case: the browser calls them with
 # its own session, and they derive the R2 object key from the verified
 # JWT rather than from anything the client sends. JWT verification stays

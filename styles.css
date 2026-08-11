@@ -684,6 +684,11 @@
   .uploader{cursor:pointer}
   .photo-actions{display:flex; gap:8px; margin:-4px 0 14px}
   .photo-actions label{flex:1; cursor:pointer}
+  /* "Add a photo" is the only hint that is also a control: it is a
+     <label for="c-photo-cam">, so tapping it opens the camera exactly
+     like the Take photo button below it. The others are status. */
+  .up-hint.tap{cursor:pointer; -webkit-tap-highlight-color:transparent}
+  .up-hint.tap:active{transform:translateX(-50%) scale(.96)}
   .up-hint{position:absolute; left:50%; bottom:14px; transform:translateX(-50%); background:#000000ad; backdrop-filter:blur(4px); color:#fff; font-size:12.5px; font-weight:700; padding:9px 16px; border-radius:999px; display:flex; align-items:center; gap:7px; white-space:nowrap; z-index:2}
   .field{margin-bottom:13px}
   .field label{display:block; font-family:var(--mono); font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-bottom:8px}
