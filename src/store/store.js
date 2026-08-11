@@ -526,6 +526,44 @@ const numOf=v=>{
 };
 const mean=l=>l.length?l.reduce((a,b)=>a+b,0)/l.length:null;
 
+/* The time you usually pour at — not the average of a set of timestamps
+   and not their median either, because both answer "where is the
+   middle" rather than "when do you actually do this". A history of 8am
+   cappuccinos plus one 2am pour after a party has a median that still
+   lands near 8, which happens to be right, but a set split between 8am
+   and 8pm pours has a median sitting at 2pm — a time nobody ever poured
+   a coffee at. "Usual" means the time with company: the pour with the
+   most others within half an hour of it, around the clock so 23:45 and
+   00:15 count as fifteen apart rather than a day.
+
+   Ties go to whichever cluster is tighter, then to the earlier one —
+   both arbitrary, but a fixed rule beats a number that answers
+   differently on a reload. Returns minutes since midnight, or null when
+   nobody shares a half-hour window with anyone else (including a list of
+   one). Shared by coffeeStats() below and weekRecap() further down — the
+   Stats tab and the week card disagreeing about "when you pour" would be
+   worse than either being simple. */
+export function usualMinute(mins){
+  const n=mins.length; if(!n) return null;
+  if(n===1) return mins[0];
+  const WINDOW=30;                          // half an hour, either side
+  const circDist=(a,b)=>{ const d=Math.abs(a-b); return Math.min(d,1440-d); };
+  let best=null;
+  mins.forEach(center=>{
+    const members=mins.filter(m=>circDist(m,center)<=WINDOW);
+    /* Unwrapped relative to this center, so a spread that straddles
+       midnight measures correctly instead of coming out near 1440. */
+    const rel=members.map(m=>{ let d=m-center; if(d>720)d-=1440; if(d<-720)d+=1440; return d; });
+    const spread=Math.max(...rel)-Math.min(...rel);
+    if(!best || members.length>best.n || (members.length===best.n && spread<best.spread))
+      best={ n:members.length, spread, center, rel };
+  });
+  if(best.n<2) return null;                 // every pour stood alone
+  const mid=best.rel.slice().sort((a,b)=>a-b);
+  const m=mid.length%2 ? mid[mid.length>>1] : (mid[mid.length/2-1]+mid[mid.length/2])/2;
+  return Math.round(((best.center+m)%1440+1440)%1440);
+}
+
 export function coffeeStats(){
   const posts=myPosts(), n=posts.length;
   if(!n) return null;
@@ -556,11 +594,20 @@ export function coffeeStats(){
      and does it through dayIndex() so the two agree about where a day
      starts. */
   const weekdays=Array(7).fill(0);
+  const mins=[];
   posts.forEach(p=>{ const t=Date.parse(p.createdAt);
-    if(isFinite(t)){ hours[new Date(t).getHours()]++; timed++; }
+    if(isFinite(t)){ const dt=new Date(t); hours[dt.getHours()]++; timed++; mins.push(dt.getHours()*60+dt.getMinutes()); }
     const d=dayIndex(p);
     if(d>=0&&isFinite(d)) weekdays[new Date(Date.now()-d*864e5).getDay()]++; });
-  const peakHour=timed?hours.indexOf(Math.max(...hours)):null;
+  /* The tallest hour bucket used to be "peak" on its own, which is the
+     same "where is the middle" mistake usualMinute() exists to avoid —
+     a lifetime of history spreads pours across more hours than one week
+     does, so the naive mode was picking whichever hour edged out the
+     rest by one pour rather than the hour with real company around it.
+     peakHour still drives which bar lights up (the histogram is hourly),
+     but the headline time is peakMin, to the minute. */
+  const peakMin=usualMinute(mins);
+  const peakHour=peakMin!=null?Math.floor(peakMin/60):null;
 
   /* ----- the long arc -----
      Weekly totals counting back from today, so every bucket is a full
@@ -608,7 +655,7 @@ export function coffeeStats(){
     drinks, beans, machines, milks, roasters, patterns,
     artPours:posts.filter(p=>p.art&&p.pattern).length,
     cafePours:posts.filter(p=>p.cafe).length,
-    hours, timed, peakHour, weekdays,
+    hours, timed, peakHour, peakMin, weekdays,
     weeks, trend,
     brew, streak:st.days, best:st.best
   };
@@ -749,47 +796,18 @@ export function weekRecap(){
   let bestRun=0, run=0;
   days.forEach(c=>{ run=c?run+1:0; if(run>bestRun) bestRun=run; });
 
-  /* The hour you usually pour at — not the average of the week's
-     timestamps and not their median either, because both answer "where
-     is the middle" rather than "when do you actually do this". A week
-     of 8am cappuccinos plus one 2am pour after a party has a median
-     that still lands near 8, which happens to be right, but a week
-     split between an 8am cappuccino and an 8pm decaf has a median
-     sitting at 2pm — a time nobody ever poured a coffee at. "Usual"
-     means the time with company: the pour with the most others within
-     half an hour of it, around the clock so 23:45 and 00:15 count as
-     fifteen apart rather than a day.
-
-     Ties go to whichever cluster is tighter, then to the earlier one —
-     both arbitrary, but a fixed rule beats a card that answers
-     differently on a reload. A week where nobody shares a half-hour
-     window with anyone else has no usual time to report, and says so
-     rather than pointing at whichever pour happened to load first.
+  /* The hour you usually pour at — usualMinute() above, the same
+     clustering coffeeStats() uses for the Stats tab's "When you pour",
+     so the two never disagree about what "usual" means. A week where
+     nobody shares a half-hour window with anyone else has no usual time
+     to report, and says so rather than pointing at whichever pour
+     happened to load first.
 
      Only pours carrying a real timestamp are in it — a "3d" label knows
      its day but has no clock in it. */
   const mins=week.map(p=>Date.parse(p.createdAt)).filter(isFinite)
-    .map(ms=>{ const d=new Date(ms); return d.getHours()*60+d.getMinutes(); }).sort((a,b)=>a-b);
-  const avgMin=(()=>{
-    const n=mins.length; if(!n) return null;
-    if(n===1) return mins[0];
-    const WINDOW=30;                          // half an hour, either side
-    const circDist=(a,b)=>{ const d=Math.abs(a-b); return Math.min(d,1440-d); };
-    let best=null;
-    mins.forEach(center=>{
-      const members=mins.filter(m=>circDist(m,center)<=WINDOW);
-      /* Unwrapped relative to this center, so a spread that straddles
-         midnight measures correctly instead of coming out near 1440. */
-      const rel=members.map(m=>{ let d=m-center; if(d>720)d-=1440; if(d<-720)d+=1440; return d; });
-      const spread=Math.max(...rel)-Math.min(...rel);
-      if(!best || members.length>best.n || (members.length===best.n && spread<best.spread))
-        best={ n:members.length, spread, center, rel };
-    });
-    if(best.n<2) return null;                 // every pour stood alone
-    const mid=best.rel.slice().sort((a,b)=>a-b);
-    const m=mid.length%2 ? mid[mid.length>>1] : (mid[mid.length/2-1]+mid[mid.length/2])/2;
-    return Math.round(((best.center+m)%1440+1440)%1440);
-  })();
+    .map(ms=>{ const d=new Date(ms); return d.getHours()*60+d.getMinutes(); });
+  const avgMin=usualMinute(mins);
 
   /* How the week was answered — likes and comments, the two counts
      every pour carries regardless of where it came from (postOf() embeds

@@ -15,12 +15,14 @@
       today does not break it — you haven't had your coffee yet.
 
    2. A REST DAY. Once a streak has reached REST_AFTER days, a single
-      missed day is forgiven, once per streak. This is not generosity
-      for its own sake: losing a 40-day streak to one hotel morning is
-      the moment people quit an app like this, and a streak nobody
-      believes they can keep is not a habit, it's a countdown. One
-      forgiven day keeps the number honest — you did pour on all those
-      other days — while removing the cliff.
+      missed day is forgiven, once per streak: it does not break the
+      run. This is not generosity for its own sake: losing a 40-day
+      streak to one hotel morning is the moment people quit an app like
+      this, and a streak nobody believes they can keep is not a habit,
+      it's a countdown. The missed day itself still does not COUNT,
+      though — the number stays honest about how many days you actually
+      poured, which a hotel morning was not one of. Forgiven and counted
+      are different things; this rule only ever does the first.
 
    Rest days are DERIVED, never stored, in keeping with the rest of
    Crema's counts: replay the same pours and you get the same streak.
@@ -41,8 +43,10 @@ function plainRun(days, d){
 
 /* Walk back from `start`, counting days present in `days`, allowing one
    gap when a week's habit sits on either side of it. Returns the run
-   length in days (the rest day included — you kept the habit, not the
-   calendar) and whether the allowance was spent.
+   length in days ACTUALLY poured — the missed day crosses the gap
+   without breaking the run, but it is not one of the days counted, so a
+   9-day streak with a forgiven gap in it still reads as 9, not 10 — and
+   whether the allowance was spent.
 
    Note the direction: index 0 is today, so `d + 1` is *older*. The week
    that earns the rest is therefore usually the run on the far side of
@@ -64,7 +68,7 @@ function runFrom(days, start){
     if(days.has(d)){ n++; d++; continue; }
     if(!rested && days.has(d + 1)
        && (n >= REST_AFTER || plainRun(days, d + 1) >= REST_AFTER)){
-      rested = true; n++; d++; continue;
+      rested = true; d++; continue;   // crosses the gap; the missed day itself isn't counted
     }
     return { n, rested };
   }

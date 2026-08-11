@@ -10,7 +10,8 @@ import { streakFrom } from '../../src/domain/streak.js';
 
 const REST_AFTER = 7; // rest_after constant in the plpgsql
 
-/* Line-by-line port of streak_run(). */
+/* Line-by-line port of streak_run() (step-1.24.sql: the missed day
+   crosses the gap without being counted). */
 function sqlStreakRun(days, start) {
   let n = 0, rested = false, d = start, fwd;
   for (;;) {
@@ -19,7 +20,7 @@ function sqlStreakRun(days, start) {
       fwd = 0;
       while (days.has(d + 1 + fwd)) fwd++;
       if (n < REST_AFTER && fwd < REST_AFTER) break;
-      rested = true; n++; d++;
+      rested = true; d++;
     } else break;
   }
   return { n, rested };

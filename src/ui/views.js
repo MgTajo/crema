@@ -18,6 +18,7 @@ import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scor
 import { t, tn, lang, locale, LANGS } from '../i18n.js';
 import { postCard, searchHTML, avatar, podiumRow, gcell, followBtn } from './components.js';
 import { icon, logoMark } from './icons.js';
+import { hhmm } from './recap.js';
 import { renderOverlay, challengeCard } from './overlays.js';
 import { renderGate } from './gate.js';
 import { arm } from './history.js';
@@ -539,14 +540,19 @@ export function renderStats(){
   out.push(statCard(t('Your rhythm'),`<p class="stx-p">${rhythm.join(' ')}</p>`));
 
   /* The hour histogram only claims the pours that carry a real
-     timestamp, and says so when that isn't all of them. */
-  if(s.timed>=3&&s.peakHour!=null){
+     timestamp, and says so when that isn't all of them. The headline
+     time is peakMin — usualMinute() from store.js, the same clustering
+     the week card's "coffee o'clock" tile runs — rather than whichever
+     hourly bucket happens to have the most pours in it; the bars stay
+     hourly (that's the shape a 24-slot histogram can draw) and peakHour
+     just says which one to light up. */
+  if(s.timed>=3&&s.peakMin!=null){
     const max=Math.max(...s.hours);
     const bars=s.hours.map((c,h)=>`<i class="${h===s.peakHour?'on':''}" style="height:${c?Math.max(9,Math.round(c/max*100)):3}%" title="${hourLabel(h)} · ${c}"></i>`).join('');
     out.push(statCard(t('When you pour'),
       `<div class="stx-hours">${bars}</div>
        <div class="stx-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>`,
-      t('Most of your coffee happens around <b>{h}</b>.',{h:hourLabel(s.peakHour)})
+      t('Most of your coffee happens around <b>{h}</b>.',{h:hhmm(s.peakMin)})
         +(s.timed<s.pours?' '+t('Counted from the {n} pours that carry a recorded time.',{n:s.timed}):'')));
   }
 

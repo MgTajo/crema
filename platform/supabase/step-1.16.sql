@@ -240,8 +240,10 @@ create or replace function crema_rest_after() returns int
 
 -- A faithful port of runFrom() in src/domain/streak.js: walk back from
 -- `start` over the day-index array, forgiving at most one gap when a
--- week's habit sits on either side of it. Returns the run length and
--- whether the allowance was spent.
+-- week's habit sits on either side of it. Returns the run length
+-- ACTUALLY poured — the missed day crosses the gap without breaking the
+-- run, but is not itself one of the days counted — and whether the
+-- allowance was spent.
 --
 -- Note the direction: index 0 is today, so d + 1 is OLDER. The week that
 -- earns a rest is usually the run on the far side of the gap, not the
@@ -263,7 +265,7 @@ begin
       fwd := 0;
       while (d + 1 + fwd) = any(days) loop fwd := fwd + 1; end loop;
       exit when n < ra and fwd < ra;
-      rested := true; n := n + 1; d := d + 1;
+      rested := true; d := d + 1;   -- crosses the gap; the missed day itself isn't counted
     else
       exit;
     end if;

@@ -266,7 +266,11 @@ function bars(r){
    below the line are the old tiles, in the order they are worth
    showing: four slots must always be filled, and a tile reading "0" is
    a reproach rather than a souvenir. */
-const hhmm=m=>{
+/* Minutes since midnight → a locale-formatted clock time. Exported for
+   ui/views.js: the Stats tab's "When you pour" reports usualMinute()
+   from store.js too now, and ought to look like the same kind of number
+   the week card shows rather than a second, differently-formatted one. */
+export const hhmm=m=>{
   const d=new Date(2000,0,2); d.setMinutes(m);
   return d.toLocaleTimeString(locale(),{hour:'2-digit',minute:'2-digit'});
 };

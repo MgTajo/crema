@@ -22,9 +22,10 @@ console.log('\nstreakFrom — rest day');
 const wk=[0,1,2,3,4,5,6];                      // 7 straight days incl. today
 eq('7 straight, poured today',   live(wk),            [7,true,false,false,true]);
 eq('6 straight is too short to rest', live([0,1,2,3,4,5]), [6,true,false,false,false]);
-// 7-day run days 2..8, day 1 missed, poured today -> rest day covers day 1
+// 7-day run days 2..8, day 1 missed, poured today -> rest day covers day 1,
+// but day 1 itself is not a day poured, so the count is 8 (0, 2..8), not 9
 eq('miss yesterday, poured today, long run',
-   live([0,2,3,4,5,6,7,8]),                            [9,true,false,true,false]);
+   live([0,2,3,4,5,6,7,8]),                            [8,true,false,true,false]);
 // same but too short a run to earn it
 eq('miss yesterday, poured today, short run',
    live([0,2,3,4]),                                    [1,true,false,false,false]);
@@ -34,16 +35,17 @@ eq('resting on yesterday, today open',
 eq('two blank days ends it even when long',
    live([3,4,5,6,7,8,9,10]),                           [0,false,false,false,false]);
 eq('only one rest per streak',
-   live([0,2,3,4,5,6,7,8,10,11,12,13,14,15,16]),       [9,true,false,true,false]);
+   live([0,2,3,4,5,6,7,8,10,11,12,13,14,15,16]),       [8,true,false,true,false]);
 
 console.log('\nbestStreakFrom');
 eq('empty',                    bestStreakFrom(S([])),               0);
 eq('single day',               bestStreakFrom(S([5])),              1);
 eq('one block',                bestStreakFrom(S([3,4,5])),          3);
 eq('picks the longer block',   bestStreakFrom(S([0,1, 5,6,7,8])),   4);
-// old 10-day run (days 20..29) with a forgiven gap at 19 and 3 more days 16..18
+// old 10-day run (days 20..29) with a forgiven gap at 19 and 3 more days
+// 16..18 — 13 days actually poured; the forgiven gap crosses but doesn't count
 eq('merges across a forgiven gap',
-   bestStreakFrom(S([16,17,18, 20,21,22,23,24,25,26,27,28,29])),    14);
+   bestStreakFrom(S([16,17,18, 20,21,22,23,24,25,26,27,28,29])),    13);
 eq('does not merge a short block', bestStreakFrom(S([0, 2,3,4])),   3);
 eq('live streak is also the best', bestStreakFrom(S(wk)),           7);
 
