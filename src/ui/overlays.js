@@ -1034,7 +1034,7 @@ function overlayCreate(){
         <div class="recipe-mach"><span>${t('Machine')}</span><b>${esc(chosenCafe.menu.machine)}</b></div></div></div>`:''}
       <div style="font-size:11.5px;color:var(--muted);margin:8px 2px 2px">${t('Your pour will be tagged 📍 {cafe}',{cafe:esc(chosenCafe.name)})}</div>`
       : `<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">${t('Pick a café above to load the beans and gear they use.')}</div>`)
-      : `
+      : (c.recipeOpen ? `
       <div class="rlabel">${t('Recipe')} <span>· ${t('optional, add only what you know')}</span></div>
       ${beanPicker('c',c.bean)}
       ${machinePicker('c',c.machineBrand,c.machineModel)}
@@ -1042,7 +1042,8 @@ function overlayCreate(){
         <div class="field"><label>${t('Dose in')}</label><input id="c-dose" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.dose,'g'))}"></div>
         <div class="field"><label>${t('Yield out')}</label><input id="c-yield" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.yield,'g'))}"></div>
         <div class="field"><label>${t('Time')}</label><input id="c-time" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.time,'s'))}"></div>
-        <div class="field"><label>${t('Temp')}</label><input id="c-temp" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.temp,'°'))}"></div></div>`}
+        <div class="field"><label>${t('Temp')}</label><input id="c-temp" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.temp,'°'))}"></div></div>`
+      : `<button type="button" class="btn ghost block" style="margin-top:4px" data-action="open-recipe">${t('+ Add recipe (bean, machine, dose…)')}</button>`)}
       <button class="btn block" style="margin-top:12px" data-action="submit-post">${editing?t('Save changes'):`${icon('bolt',18)} ${t('Post it')}`}</button>
       ${editing?`<button class="btn ghost block" style="margin-top:8px" data-action="close-ov">${t('Cancel')}</button>`:''}
       <div style="height:8px"></div>

@@ -419,6 +419,12 @@ export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
    stored. */
 export function freshCreate(){
   return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',drinkCustom:'',pattern:null,caption:'',img:null,source:'home',cafe:'',
+  /* Closed by default — most people posting a coffee are not tracking
+     dose/yield/time/temp, and a form full of espresso-nerd fields reads
+     as "this app is not for me". The bean/machine are still prefilled
+     from what you last used, ready the moment someone opens the panel,
+     but composeFromSheet only reads them once recipeOpen is true. */
+  recipeOpen:false,
   bean:state.lastBean||'',machineBrand:state.me.machineBrand||'',machineModel:state.me.machineModel||'',milk:state.me.favMilk||'',dose:'',yield:'',time:'',temp:''};}
 
 /* ---------- derived selectors (read-only views over state) ----------

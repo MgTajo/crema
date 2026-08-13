@@ -257,6 +257,7 @@ document.addEventListener('click',e=>{
 
     case 'cpat':{ syncCreate(); ui.create.pattern=(ui.create.pattern===el.dataset.p)?null:el.dataset.p; renderOverlay(); break;}
     case 'csource':{ syncCreate(); ui.create.source=el.dataset.s; if(el.dataset.s==='home')ui.create.cafe=''; renderOverlay(); break;}
+    case 'open-recipe':{ syncCreate(); ui.create.recipeOpen=true; renderOverlay(); break;}
     /* Remembered here rather than at submit time, so it sticks even if
        the sheet is abandoned — the choice was still made. */
     case 'cvis':{ syncCreate(); ui.create.visibility=el.dataset.v; state.lastVisibility=el.dataset.v; save(); renderOverlay(); break;}
@@ -1496,7 +1497,10 @@ function editMyPost(id){
     /* prefill from the post, never from the profile: an edit shows what
        was posted, not what you usually drink */
     milk:r.milk||'', dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||'',
-    machineBrand:'', machineModel:''
+    machineBrand:'', machineModel:'',
+    /* a pour that already carries a recipe should show it open, not hide
+       what the person deliberately filled in the first time */
+    recipeOpen:!!(r.bean||r.machine||r.dose||r.yield||r.time||r.temp)
   });
   if(r.machine&&!cafe){ const m=splitMachine(r.machine); c.machineBrand=m.brand; c.machineModel=m.model; }
   ui.create=c; ui.ovStack=[]; pushOv({type:'create'});
@@ -1532,7 +1536,8 @@ function brewAgain(id){
   ui.create=freshCreate();
   Object.assign(ui.create,{drink:p.drink||ui.create.drink, pattern:p.pattern||ui.create.pattern,
     bean:r.bean||'', milk:r.milk||ui.create.milk,
-    dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||''});
+    dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||'',
+    recipeOpen:!!(r.bean||r.machine||r.dose||r.yield||r.time||r.temp)});
   /* The recipe stores one combined "Brand Model" string; the picker needs
      the two halves back or it silently falls back to your own machine. */
   if(r.machine){ const m=splitMachine(r.machine); ui.create.machineBrand=m.brand; ui.create.machineModel=m.model; }
@@ -1595,25 +1600,31 @@ function composeFromSheet(c){
     if(cafe.menu&&cafe.menu.machine) recipe.machine=cafe.menu.machine;
     if(HAS_MILK.has(drink)&&c.milk) recipe.milk=c.milk;
   }else{
-    /* A coffee the catalogue has never heard of is still the coffee they
-       drank — it is kept, and kept on their own list so the picker offers
-       it back tomorrow. Free: see the note in data/catalog.js. */
-    const bean=T(c.bean);
-    if(bean && !BEANS.some(b=>b.n===bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
-    if(bean) recipe.bean=bean;
-    /* A bag of coffee outlasts a single pour, so the next create sheet
-       opens on this one already chosen (freshCreate). Only pours you
-       made yourself count — a café's bean is theirs, not what's on your
-       shelf. Posting without a bean leaves the memory alone: the last
-       coffee you actually used is still the last one you used. */
-    if(bean) state.lastBean=bean;
-    const machine=combineMachine(c.machineBrand,c.machineModel);
-    if(machine) recipe.machine=machine;
+    /* The bean/machine/dose/yield/time/temp block is opt-in (see
+       recipeOpen in freshCreate) — someone who never opened it never
+       agreed to post that detail, even if their profile has a default
+       machine sitting there from a past pour. */
+    if(c.recipeOpen){
+      /* A coffee the catalogue has never heard of is still the coffee they
+         drank — it is kept, and kept on their own list so the picker offers
+         it back tomorrow. Free: see the note in data/catalog.js. */
+      const bean=T(c.bean);
+      if(bean && !BEANS.some(b=>b.n===bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
+      if(bean) recipe.bean=bean;
+      /* A bag of coffee outlasts a single pour, so the next create sheet
+         opens on this one already chosen (freshCreate). Only pours you
+         made yourself count — a café's bean is theirs, not what's on your
+         shelf. Posting without a bean leaves the memory alone: the last
+         coffee you actually used is still the last one you used. */
+      if(bean) state.lastBean=bean;
+      const machine=combineMachine(c.machineBrand,c.machineModel);
+      if(machine) recipe.machine=machine;
+      if(T(c.dose)) recipe.dose=T(c.dose);
+      if(T(c.yield)) recipe.yield=T(c.yield);
+      if(T(c.time)) recipe.time=T(c.time);
+      if(T(c.temp)) recipe.temp=T(c.temp);
+    }
     if(HAS_MILK.has(drink)&&c.milk) recipe.milk=c.milk;
-    if(T(c.dose)) recipe.dose=T(c.dose);
-    if(T(c.yield)) recipe.yield=T(c.yield);
-    if(T(c.time)) recipe.time=T(c.time);
-    if(T(c.temp)) recipe.temp=T(c.temp);
   }
   const hasRecipe=Object.keys(recipe).length>0;
   return { drink, art:hasArt, pattern:hasArt?c.pattern:null,
