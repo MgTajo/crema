@@ -190,7 +190,7 @@ document.addEventListener('click',e=>{
 
     case 'cmt-like':{ const p=findPost(el.dataset.pid); const c=p&&p.comments[+el.dataset.idx]; if(!c)break;
       c.likedByMe=!c.likedByMe; c.likes=(c.likes||0)+(c.likedByMe?1:-1); save();
-      t.classList.toggle('on',c.likedByMe); t.innerHTML=icon(c.likedByMe?'heartF':'heart',15)+'<span>'+(c.likes||'')+'</span>';
+      el.classList.toggle('on',c.likedByMe); el.innerHTML=icon(c.likedByMe?'heartF':'heart',15)+'<span>'+(c.likes||'')+'</span>';
       const u=currentUser(), cid=el.dataset.cid;
       if(u&&cid){ const want=c.likedByMe;
         (want?social.likeComment(u.id,cid):social.unlikeComment(u.id,cid)).catch(err=>{
