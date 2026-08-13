@@ -300,6 +300,8 @@ export const DE = {
   '(you)':'(du)',
   'Recipe':'Rezept',
   'Recipe · {a} in → {b} out':'Rezept · {a} rein → {b} raus',
+  '+ Add recipe (bean, machine, dose…)':'+ Rezept hinzufügen (Bohne, Maschine, Einwaage…)',
+  'Remove recipe':'Rezept entfernen',
   'Copy link':'Link kopieren',
   'Remove from saved':'Aus Gemerkt entfernen',
   'Save to collection':'In die Sammlung',

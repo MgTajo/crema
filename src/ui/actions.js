@@ -258,6 +258,14 @@ document.addEventListener('click',e=>{
     case 'cpat':{ syncCreate(); ui.create.pattern=(ui.create.pattern===el.dataset.p)?null:el.dataset.p; renderOverlay(); break;}
     case 'csource':{ syncCreate(); ui.create.source=el.dataset.s; if(el.dataset.s==='home')ui.create.cafe=''; renderOverlay(); break;}
     case 'open-recipe':{ syncCreate(); ui.create.recipeOpen=true; renderOverlay(); break;}
+    /* Collapsing clears the fields too, not just recipeOpen — composeFromSheet
+       already ignores them while closed, but leaving old values sitting
+       there would make "Remove recipe" look like it didn't do anything if
+       the panel is reopened, and re-adding should start from a blank slate
+       rather than resurface a recipe someone just chose to drop. */
+    case 'close-recipe':{ syncCreate(); const c=ui.create;
+      c.recipeOpen=false; c.bean=''; c.machineBrand=''; c.machineModel='';
+      c.dose=''; c.yield=''; c.time=''; c.temp=''; renderOverlay(); break;}
     /* Remembered here rather than at submit time, so it sticks even if
        the sheet is abandoned — the choice was still made. */
     case 'cvis':{ syncCreate(); ui.create.visibility=el.dataset.v; state.lastVisibility=el.dataset.v; save(); renderOverlay(); break;}

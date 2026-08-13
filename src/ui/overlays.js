@@ -1042,7 +1042,8 @@ function overlayCreate(){
         <div class="field"><label>${t('Dose in')}</label><input id="c-dose" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.dose,'g'))}"></div>
         <div class="field"><label>${t('Yield out')}</label><input id="c-yield" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.yield,'g'))}"></div>
         <div class="field"><label>${t('Time')}</label><input id="c-time" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.time,'s'))}"></div>
-        <div class="field"><label>${t('Temp')}</label><input id="c-temp" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.temp,'°'))}"></div></div>`
+        <div class="field"><label>${t('Temp')}</label><input id="c-temp" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.temp,'°'))}"></div></div>
+      <button type="button" class="btn ghost sm" style="margin-top:8px" data-action="close-recipe">${t('Remove recipe')}</button>`
       : `<button type="button" class="btn ghost block" style="margin-top:4px" data-action="open-recipe">${t('+ Add recipe (bean, machine, dose…)')}</button>`)}
       <button class="btn block" style="margin-top:12px" data-action="submit-post">${editing?t('Save changes'):`${icon('bolt',18)} ${t('Post it')}`}</button>
       ${editing?`<button class="btn ghost block" style="margin-top:8px" data-action="close-ov">${t('Cancel')}</button>`:''}
