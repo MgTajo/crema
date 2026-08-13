@@ -20,7 +20,7 @@ const ASSETS = ['./manifest.webmanifest','./styles.css',
   './assets/l1.jpg','./assets/l2.jpg','./assets/l3.jpg','./assets/l4.jpg','./assets/l5.jpg',
   './assets/l6.jpg','./assets/l7.jpg','./assets/l8.jpg','./assets/l9.jpg',
   './assets/beans.jpg','./assets/esp.jpg','./assets/cold.jpg',
-  './icon-192.png','./icon-512.png'];
+  './icon-192.png','./icon-512.png','./icon-monochrome.png'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -90,7 +90,10 @@ self.addEventListener('push', e => {
   e.waitUntil(self.registration.showNotification(title, {
     body: d.body || 'Something new in Crema',
     icon: './icon-192.png',
-    badge: './icon-192.png',
+    /* Android masks `badge` to its alpha channel for the status-bar icon;
+       icon-192 is opaque, which renders as a filled rectangle, so this
+       needs a transparent silhouette instead. */
+    badge: './icon-monochrome.png',
     tag: d.tag || 'crema',
     renotify: true,
     data: { url: d.url || './' }
