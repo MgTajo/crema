@@ -631,6 +631,7 @@ export const DE = {
   'Your profile did not load. We will try again next time.':'Dein Profil wurde nicht geladen. Wir versuchen es beim nächsten Mal wieder.',
   'That did not save. Try again.':'Das wurde nicht gespeichert. Probier es nochmal.',
   'Photo added 📸':'Foto hinzugefügt 📸',
+  'Drag the photo to pick what stays in the square.':'Zieh das Foto, um zu wählen, was im Quadrat bleibt.',
   'Photo updated 📸':'Foto aktualisiert 📸',
   'Back to your initials':'Zurück zu deinen Initialen',
   'That file is not an image':'Diese Datei ist kein Bild',

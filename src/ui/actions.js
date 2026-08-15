@@ -18,6 +18,7 @@ import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, cur
 import { ensureProfile, pushProfile, pushName, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
          setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium } from '../data/profiles.js';
 import { codeValid, PREMIUM_MAIL } from '../domain/premium.js';
+import { cropSquare, objectPosition, isAdjustable, focusAfterDrag, pickFocus } from '../domain/framing.js';
 import { recapSVG, recapPNG, loadShotPhotos, loadStanding, weekStanding } from './recap.js';
 import { enablePush, disablePush, pushEnabled, syncPush, pushSupported, pushPermission } from '../data/push.js';
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
@@ -270,7 +271,7 @@ document.addEventListener('click',e=>{
        the sheet is abandoned — the choice was still made. */
     case 'cvis':{ syncCreate(); ui.create.visibility=el.dataset.v; state.lastVisibility=el.dataset.v; save(); renderOverlay(); break;}
     case 'submit-post': submitPost(); break;
-    case 'drop-photo':{ syncCreate(); ui.create.img=null; ui.create.uploadFailed=false; renderOverlay(); break;}
+    case 'drop-photo':{ syncCreate(); ui.create.img=null; ui.create.imgPreview=null; ui.create.imgAdjustable=false; ui.create.uploadFailed=false; renderOverlay(); break;}
 
     case 'set-theme': state.theme=el.dataset.t; save(); applyTheme(); renderOverlay(); break;
     /* Language is a whole-app repaint, not a patch: every screen, sheet
@@ -896,38 +897,132 @@ function choosePicked(v){
   popOv();
 }
 
+/* ---------- the photo on a new post ----------
+   Every surface that shows a coffee is square, so something has to
+   decide which square. A photo taken in the app was framed through
+   that square; one picked from the gallery was framed for something
+   else, and taking its middle is how the cup ends up outside the
+   picture. So the picked square is chosen by domain/framing.js and
+   then handed over: the preview is the *uncropped* photo under
+   object-fit:cover, which is the same crop the canvas bakes, so
+   dragging it is a live view of what will be posted.
+
+   The full-size pixels stay here rather than in `ui.create`: they are
+   not form state, they must never reach the store, and `owner` ties
+   them to one sheet — open a different post and this is dropped. */
+let photo=null;   // { owner, canvas }
+
+/* A 64px grayscale thumbnail for pickFocus(). Reading pixels is the
+   only part of the framing that needs a canvas, which is why it is
+   here and the arithmetic is in domain/. */
+function lumaOf(src){
+  const k=Math.min(1,64/Math.max(src.width,src.height));
+  const w=Math.max(2,Math.round(src.width*k)), h=Math.max(2,Math.round(src.height*k));
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const g=cv.getContext('2d',{willReadFrequently:true}); g.drawImage(src,0,0,w,h);
+  const d=g.getImageData(0,0,w,h).data, luma=new Uint8Array(w*h);
+  for(let i=0,p=0;i<luma.length;i++,p+=4) luma[i]=(d[p]*77+d[p+1]*150+d[p+2]*29)>>8;
+  return {luma,w,h};
+}
+
+/* Cut the chosen square out of the source and put it on its way: shown
+   locally at once — no wait on a network round trip to see your own
+   photo — then uploaded. If the upload fails the data: URL stays the
+   value, the post still goes out with the photo inline, and
+   ensureUploaded() retries at Post.
+
+   Called again on every reframe, so the previous object is now an
+   orphan and is deleted once its replacement has landed. */
+function bakeAndUpload(c, announce){
+  const p=(photo&&photo.owner===c)?photo:null; if(!p) return;
+  const {size,sx,sy}=cropSquare(p.canvas.width,p.canvas.height,c.imgFocus);
+  const cv=document.createElement('canvas'); cv.width=cv.height=size;
+  cv.getContext('2d').drawImage(p.canvas,sx,sy,size,size,0,0,size,size);
+  /* Only a key is worth deleting; a data: URL was never uploaded. */
+  const stale=(c.img&&!/^data:/.test(c.img))?c.img:null;
+  c.img=cv.toDataURL('image/jpeg',0.82); c.uploadFailed=false;
+  renderOverlay(); if(announce) toast(t('Photo added 📸'));
+  const u=currentUser(); if(!u) return;
+  c.uploading=true; renderOverlay();
+  cv.toBlob(blob=>{
+    if(!blob){ if(ui.create===c){c.uploading=false; renderOverlay();} return; }
+    uploadImage(blob,'image/jpeg').then(key=>{
+      if(ui.create!==c) return;   // sheet was closed/reset meanwhile
+      c.img=key; c.uploading=false; c.uploadFailed=false; renderOverlay();
+      /* Deleted only now, and only on the sheet that owns it: if the
+         post went out in the meantime it went out holding `stale`. */
+      if(stale) deleteImage(stale);
+    }).catch(err=>{
+      console.warn('upload failed',err);
+      if(ui.create===c){ c.uploading=false; c.uploadFailed=true; renderOverlay(); }
+      toast(t('That photo did not upload. Tap Post to retry.'));
+    });
+  },'image/jpeg',0.82);
+}
+
 function handleUpload(file){
   if(!file.type||!file.type.startsWith('image/')){toast(t('That file is not an image')); return;}
   const reader=new FileReader();
   reader.onload=ev=>{const img=new Image();
     img.onload=()=>{
-      const max=1080; let w=img.width,h=img.height; const s=Math.min(1,max/Math.max(w,h)); w=Math.round(w*s); h=Math.round(h*s);
-      const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+      /* Downscale on the SHORT side: what gets uploaded is the square,
+         and the square is min(w,h). The cap on the long side is only
+         there so a panorama cannot hold 40 MP of canvas in memory on a
+         phone to hand back a 1080px crop. */
+      let w=img.width,h=img.height;
+      const s=Math.min(1, 1080/Math.min(w,h), 3000/Math.max(w,h));
+      w=Math.max(1,Math.round(w*s)); h=Math.max(1,Math.round(h*s));
+      const src=document.createElement('canvas'); src.width=w; src.height=h;
+      src.getContext('2d').drawImage(img,0,0,w,h);
       syncCreate();
-      /* Show the local render immediately — no wait on a network round
-         trip to see your own photo. If the upload fails this stays the
-         final value: the post still goes out, with the photo inline. */
-      ui.create.img=cv.toDataURL('image/jpeg',0.82); ui.create.uploadFailed=false;
-      renderOverlay(); toast(t('Photo added 📸'));
-      const u=currentUser(); if(!u) return;
-      const target=ui.create;
-      ui.create.uploading=true; renderOverlay();
-      cv.toBlob(blob=>{
-        if(!blob){ if(ui.create===target){ui.create.uploading=false; renderOverlay();} return; }
-        uploadImage(blob,'image/jpeg').then(key=>{
-          if(ui.create!==target) return;   // sheet was closed/reset meanwhile
-          ui.create.img=key; ui.create.uploading=false; ui.create.uploadFailed=false; renderOverlay();
-        }).catch(err=>{
-          console.warn('upload failed',err);
-          if(ui.create===target){ ui.create.uploading=false; ui.create.uploadFailed=true; renderOverlay(); }
-          toast(t('That photo did not upload. Tap Post to retry.'));
-        });
-      },'image/jpeg',0.82);
+      const c=ui.create;
+      photo={owner:c, canvas:src};
+      c.imgW=w; c.imgH=h; c.imgAdjustable=isAdjustable(w,h);
+      let focus=0.5;
+      if(c.imgAdjustable){
+        try{ const l=lumaOf(src); focus=pickFocus(l.luma,l.w,l.h); }
+        catch(err){ console.warn('framing fell back to centre',err); }
+      }
+      c.imgFocus=focus;
+      /* The preview is the whole photo — the square is CSS, and CSS is
+         what makes the drag live. */
+      c.imgPreview=src.toDataURL('image/jpeg',0.82);
+      bakeAndUpload(c,true);
     };
     img.onerror=()=>toast(t('That image could not be read')); img.src=ev.target.result;};
   reader.onerror=()=>toast(t('That file could not be read'));
   reader.readAsDataURL(file);
 }
+
+/* ---------- reframing by hand ----------
+   The proposal from pickFocus() is a guess about where the coffee is,
+   and a guess owes the person an override. Dragging the preview moves
+   the crop under the finger; only the <img>'s object-position changes
+   during the drag, so this never repaints the sheet (which would
+   destroy the element mid-gesture). The bake and the re-upload wait
+   for the finger to come off. */
+let frameDrag=null;
+document.addEventListener('pointerdown',e=>{
+  const el=e.target.closest('.create-prev img.frameable'); if(!el) return;
+  const c=ui.create; if(!c||!c.imgAdjustable) return;
+  const r=el.getBoundingClientRect();
+  frameDrag={el,c,x:e.clientX,y:e.clientY,box:Math.min(r.width,r.height),start:c.imgFocus,moved:false};
+  if(el.setPointerCapture) try{ el.setPointerCapture(e.pointerId); }catch(err){}
+});
+document.addEventListener('pointermove',e=>{
+  const d=frameDrag; if(!d) return;
+  if(e.cancelable) e.preventDefault();
+  d.moved=true;
+  d.c.imgFocus=focusAfterDrag(d.c.imgW,d.c.imgH,d.start,e.clientX-d.x,e.clientY-d.y,d.box);
+  d.el.style.objectPosition=objectPosition(d.c.imgW,d.c.imgH,d.c.imgFocus);
+});
+function endFrameDrag(){
+  const d=frameDrag; if(!d) return; frameDrag=null;
+  if(!d.moved || Math.abs(d.c.imgFocus-d.start)<0.005 || ui.create!==d.c) return;
+  bakeAndUpload(d.c,false);
+}
+document.addEventListener('pointerup',endFrameDrag);
+document.addEventListener('pointercancel',endFrameDrag);
 
 /* ============================================================ PREMIUM */
 /* The offer sheet, opened by whatever was just reached for. `feature` is

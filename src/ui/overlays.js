@@ -15,6 +15,7 @@ import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, c
          beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned, weekRecap, RECAP_PICKS } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
 import { PREMIUM_MAIL } from '../domain/premium.js';
+import { objectPosition } from '../domain/framing.js';
 import { recapSVG, shotPhotos } from './recap.js';
 import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
@@ -991,6 +992,10 @@ function visibilityPicker(c){
    still one tap away in the row underneath. */
 function overlayCreate(){
   const c=ui.create||freshCreate(), isArt=!!DRINK_ART[c.drink], editing=!!c.editId;
+  /* A picked photo can be reframed while the sheet is open: only while
+     its pixels are still here (imgPreview), and only if it isn't
+     already square — a square has exactly one crop. */
+  const framing=!!c.imgPreview&&!!c.imgAdjustable;
   const pats=[['heart',t('Heart')],['rosetta',t('Rosetta')],['tulip',t('Tulip')],['swan',t('Swan')],['abstract',t('Abstract art')]];
   const mkList=(base,cur)=>{const l=base.slice(); if(cur&&!l.includes(cur))l.push(cur); return l;};
   const sel=(list,cur,ph,extra)=>`<option value=""${cur?'':' selected'}>${ph}</option>`+list.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')+(extra?`<option${cur===extra?' selected':''}>${extra}</option>`:'');
@@ -1001,7 +1006,13 @@ function overlayCreate(){
     <div class="ov-bar" style="border:0"><b>${editing?t('Edit coffee'):t('New coffee')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 16px">
       <div class="create-prev">
-        ${c.img?`<img class="photo" src="${imageUrl(c.img,'feed')}" alt="${t('your coffee photo')}">`:cupSVG(isArt&&c.pattern?c.pattern:'none',.85,999)}
+        ${c.img?(framing
+          /* The whole photo, squared by CSS rather than by pixels, so
+             the drag that moves the crop is the crop itself. What the
+             upload baked is already this square — see bakeAndUpload(). */
+          ?`<img class="photo frameable" src="${c.imgPreview}" style="object-position:${objectPosition(c.imgW,c.imgH,c.imgFocus)}" alt="${t('your coffee photo')}" draggable="false">`
+          :`<img class="photo" src="${imageUrl(c.img,'feed')}" alt="${t('your coffee photo')}">`)
+        :cupSVG(isArt&&c.pattern?c.pattern:'none',.85,999)}
         ${c.img?(c.uploading?`<span class="up-hint">${t('Uploading…')}</span>`:(c.uploadFailed?`<span class="up-hint" style="background:rgba(168,84,74,.9)">${t('Upload failed')}</span>`:''))
           :(editing?'':`<label class="up-hint tap" for="c-photo-cam">${icon('cam',15)} ${t('Add a photo')}</label>`)}
       </div>
@@ -1009,7 +1020,8 @@ function overlayCreate(){
         ${t('That photo could not reach the server. Tap Post to try again, or drop it and post without a photo.')}
         <button class="btn ghost sm" style="margin-top:8px" data-action="drop-photo">${t('Post without the photo')}</button></div>`:''}
       ${editing?`<div style="font-size:11.5px;color:var(--muted);margin:10px 2px 12px">${t('The photo stays as it was poured. Everything else is yours to fix.')}</div>`
-      :`<div class="photo-actions">
+      :`${framing?`<div class="frame-hint">${t('Drag the photo to pick what stays in the square.')}</div>`:''}
+      <div class="photo-actions">
         <label class="btn ghost sm"><input type="file" id="c-photo-cam" accept="image/*" capture="environment" hidden>${icon('cam',16)} ${c.img?t('Retake'):t('Take photo')}</label>
         <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>🖼️ ${c.img?t('Change'):t('Gallery')}</label>
       </div>`}

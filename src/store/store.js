@@ -419,6 +419,11 @@ export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
    stored. */
 export function freshCreate(){
   return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',drinkCustom:'',pattern:null,caption:'',img:null,source:'home',cafe:'',
+  /* The photo, before it is a square: `imgPreview` is the whole picture
+     as picked, `imgFocus` where the 1:1 crop sits along it (domain/framing.js),
+     `imgAdjustable` whether there is any choice to make. All three are
+     sheet-local — `img` is the only one that becomes a post. */
+  imgPreview:null,imgW:0,imgH:0,imgFocus:.5,imgAdjustable:false,
   /* Closed by default — most people posting a coffee are not tracking
      dose/yield/time/temp, and a form full of espresso-nerd fields reads
      as "this app is not for me". The bean/machine are still prefilled
