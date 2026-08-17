@@ -35,8 +35,8 @@ const COUNTS = 'likes(count),comments(count)';
 /* All three optional columns arrive with hand-run migrations (step-1.12,
    1.13, 1.15), so the select has to survive their absence — see
    optionalColumns() in data/supabase.js. */
-const opt = optionalColumns(['edited_at','avatar_key','visibility']);
-const select = has => `${COLS}${has('edited_at')?',edited_at':''}${has('visibility')?',visibility':''},${author(has)},${COUNTS}`;
+const opt = optionalColumns(['edited_at','avatar_key','visibility','hidden_at']);
+const select = has => `${COLS}${has('edited_at')?',edited_at':''}${has('visibility')?',visibility':''}${has('hidden_at')?',hidden_at':''},${author(has)},${COUNTS}`;
 const q = build => opt.run(has=>build(select(has), has));
 
 const countOf = agg => (Array.isArray(agg) && agg.length ? (agg[0].count|0) : 0);
@@ -63,6 +63,12 @@ export function postOf(row, myUid){
     /* 'public' or 'followers'. Absent means the column isn't there yet,
        and everything predating it was posted as public — see rowOf(). */
     visibility: row.visibility==='followers' ? 'followers' : 'public',
+    /* Hidden by a moderator (step-1.27). RLS means the only people who
+       ever receive such a row are its author and an admin, so this is
+       true on exactly the screens where saying so is the honest thing
+       to do — the author was told why in their inbox, and the pour
+       sitting there looking normal would contradict that. */
+    hidden: !!row.hidden_at,
     ago: agoFrom(row.created_at),
     likes: countOf(row.likes),
     commentN: countOf(row.comments),   // the full thread loads when the post opens

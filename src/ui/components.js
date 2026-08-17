@@ -208,13 +208,22 @@ export const editedMark = p => p.edited ? ` · <span class="edited">${t('edited'
 export const privateMark = p => p.visibility==='followers'
   ? ` · <span class="edited" title="${t('Only people who follow you can see this')}">🔒 ${t('followers')}</span>` : '';
 
+/* A pour a moderator has hidden. RLS hands the row to nobody but its
+   author and an admin, so this line is only ever read by someone who is
+   entitled to know — and the author has already been told why, in
+   words, in their inbox. Without it the pour would sit in their profile
+   looking exactly as it always did, which would make the notice they
+   received look like it did nothing. */
+export const hiddenMark = p => p.hidden
+  ? ` · <span class="edited" title="${t('Hidden after a report. Check your notifications.')}">🚫 ${t('hidden')}</span>` : '';
+
 export function postCard(p){
   const u=userOf(p.user), following=p.user==='me'||state.follows[p.user], r=p.recipe, top=p.comments[0];
   const rows=recipeRows(r), cn=commentCount(p);
   return `<div class="card" data-post="${p.id}">
     <div class="p-head">
       <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${p.cafe}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}</span></div></div>
+        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${p.cafe}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
       ${p.user==='me'?'':followMini(p.user)}
       <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">⋯</button></div>
     <div class="media" data-action="open-post" data-id="${p.id}">

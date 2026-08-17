@@ -24,11 +24,15 @@ import { enablePush, disablePush, pushEnabled, syncPush, pushSupported, pushPerm
 import { createPost, updatePost, deletePost, newPostId, fetchMine, fetchPost } from '../data/posts.js';
 import { uploadImage, deleteImage } from '../data/media.js';
 import * as social from '../data/social.js';
+/* A namespace, not named imports: data/posts.js already exports a
+   deletePost() of its own and the two must not be confusable. */
+import * as mod from '../data/moderation.js';
+import { logRecapExport } from '../data/recap.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
          feed, hydrateReactions, myMachines, myCoffees, togglePin, weekRecap, toggleRecapPick,
-         applyArrivals, dropArrivals } from '../store/store.js';
+         applyArrivals, dropArrivals, admin, loadQueue } from '../store/store.js';
 import { onLive } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
@@ -178,6 +182,11 @@ document.addEventListener('click',e=>{
     /* the logo is the way back to a clean slate */
     case 'reload': location.reload(); break;
     case 'open-settings': pushOv({type:'settings'}); break;
+    case 'open-admin': openAdmin(); break;
+    case 'mod-tab':{ if(admin.tab===el.dataset.t) break;
+      admin.tab=el.dataset.t; admin.loaded=false; admin.err=''; renderOverlay();
+      loadQueue().then(()=>renderOverlay()); break;}
+    case 'mod-act': modAct(el); break;
     case 'open-create': ui.create=freshCreate(); pushOv({type:'create'}); break;
     case 'close-ov': popOv(); break;
     case 'clear-search':{ ui.searchQ=''; renderView(); break;}
@@ -1233,15 +1242,23 @@ async function shareRecap(){
     const svg=recapSVG(r,state.me,photos,weekStanding(r));
     const blob=await recapPNG(svg);
     const file=new File([blob],name,{type:'image/png'});
+    /* Counted only where the card actually left — after the share
+       sheet resolved, and not at all when it was cancelled. An export
+       count that includes the ones nobody sent would be a worse number
+       than none, since the whole point of it is to say whether the loop
+       turns. Fire-and-forget: the card is already gone. */
+    const u=currentUser();
     if(navigator.canShare&&navigator.canShare({files:[file]})){
       try{ await navigator.share({files:[file],title:t('Your week in coffee')}); }
       catch(err){ if(err&&err.name==='AbortError') return; throw err; }
+      if(u) logRecapExport(u.id, r.key, 'share');
       return;
     }
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a'); a.href=url; a.download=name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2000);
+    if(u) logRecapExport(u.id, r.key, 'download');
     toast(t('Saved as a picture 📸'));
   }catch(err){
     console.warn('recap share failed',err);
@@ -1625,6 +1642,76 @@ async function sendReport(postId,reason){
   if(!u){ toast(t('Sign in to report a pour')); return; }
   try{ await social.report(u.id,{ postId, reason }); toast(t('Reported. Thanks for keeping Crema kind 🙏')); }
   catch(e){ console.warn('report failed',e); toast(t('That report did not send. Try again.')); }
+}
+
+/* ---------- moderation ----------
+   Opening the sheet always starts on Open and always refetches. A queue
+   is the one screen where a stale list is worse than a spinner: it is
+   read to decide what still needs doing. */
+function openAdmin(){
+  admin.tab='open'; admin.loaded=false; admin.err=''; admin.list=[]; admin.log=[];
+  pushOv({type:'admin'});
+  loadQueue().then(()=>renderOverlay());
+}
+
+/* One handler for every button on a report card.
+
+   The guard worth reading twice is the statement swap. The box is
+   prefilled with the sentence for *hiding*, because that is the action
+   a moderator reaches for most — so tapping Remove or Pause with the
+   box untouched would send somebody a notice saying their pour was
+   hidden when in fact it is gone, or their account paused with an
+   explanation about a single pour. When that happens the right draft is
+   swapped in and nothing is done yet: the moderator reads what they are
+   about to send and taps again. Two taps for the irreversible ones is
+   the correct number. */
+async function modAct(el){
+  const d=el.dataset, isComment=d.t==='comment';
+  const box=$('#mod-st-'+d.id);
+  const statement=((box&&box.value)||'').trim();
+  const reason=d.reason||'our content rules';
+  const filled=mod.statementFor(isComment?'hide_comment':'hide_post',{ reason });
+
+  if((d.k==='remove'||d.k==='suspend') && box && statement===filled.trim()){
+    box.value = d.k==='suspend'
+      ? mod.statementFor('suspend_user',{ reason, days:7 })
+      : mod.statementFor(isComment?'delete_comment':'delete_post',{ reason });
+    box.focus();
+    toast('That said “hidden”. Read the new wording, then tap again.');
+    return;
+  }
+  if(d.k!=='dismiss' && d.k!=='unhide' && !statement){
+    toast('Say why. That sentence is what they are sent.');
+    if(box) box.focus();
+    return;
+  }
+  if(d.k==='remove' && !confirm('Remove this for good? The row goes. The photo stays in R2 — the audit log keeps its key so you can delete the object.')) return;
+  if(d.k==='suspend' && !confirm('Pause this account for seven days? They can still read Crema; they cannot post or comment.')) return;
+
+  admin.busy=d.id;
+  try{
+    if(d.k==='hide')          await (isComment ? mod.hideComment(d.tid,reason,statement,d.id)
+                                               : mod.hidePost(d.tid,reason,statement,d.id));
+    else if(d.k==='unhide')   await (isComment ? mod.unhideComment(d.tid,'restored on review',null,d.id)
+                                               : mod.unhidePost(d.tid,'restored on review',null,d.id));
+    else if(d.k==='remove')   await (isComment ? mod.deleteComment(d.tid,reason,statement,d.id)
+                                               : mod.deletePost(d.tid,reason,statement,d.id));
+    else if(d.k==='suspend')  await mod.suspendUser(d.uid,7,reason,statement,d.id);
+    else if(d.k==='dismiss')  await mod.dismissReport(d.id,'no violation found');
+    toast(d.k==='dismiss' ? 'Left up, and recorded.' : 'Done, recorded, and they have been told.');
+
+    await loadQueue(); renderOverlay();
+    /* The feed on the screen behind still holds the pour that was just
+       hidden or removed. Refetched rather than patched: the server
+       decides what is visible now, and it is the only thing that knows. */
+    if(d.k!=='dismiss') loadFeed().then(()=>renderView()).catch(()=>{});
+  }catch(e){
+    console.warn('moderation action failed',e);
+    toast(e&&e.needsMigration ? 'That needs step-1.27.sql, which has not been run.'
+         : e&&e.notAdmin      ? 'This account is not an admin.'
+         : 'That did not go through. Nothing was changed.');
+  }
+  finally{ admin.busy=''; }
 }
 
 async function blockUser(uid){

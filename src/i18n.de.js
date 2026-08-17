@@ -300,6 +300,10 @@ export const DE = {
   'edited':'bearbeitet',
   'followers':'Follower',
   'Only people who follow you can see this':'Das sehen nur Leute, die dir folgen',
+  /* Moderation, as the author of a hidden pour sees it. The admin screen
+     itself stays English — one person reads it. */
+  'hidden':'ausgeblendet',
+  'Hidden after a report. Check your notifications.':'Nach einer Meldung ausgeblendet. Schau in deine Benachrichtigungen.',
   'Your own pour':'Dein eigener Kaffee',
   '(you)':'(du)',
   'Recipe':'Rezept',

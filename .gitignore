@@ -4,6 +4,14 @@
 .idea/
 node_modules/
 platform/supabase/.temp/
+# the same folder, created at the ROOT by running the Supabase CLI from here
+# instead of from platform/. Holds the project ref and organisation id, and the
+# root is the web root — so an untracked one would be published by `git add -A`.
+/supabase/
+
+# internal planning document. Untracked since it was written; this keeps it that
+# way, because the repo root is served at crema-app.com. Delete this line to publish it.
+STRATEGY.md
 
 # machine-local Claude Code hooks (absolute paths to this Mac's tooling)
 .claude/settings.json

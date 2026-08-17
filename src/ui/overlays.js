@@ -12,16 +12,18 @@ import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, MACHINE_BRAND
          beanBrands, beanCatalog, machineIndex, searchMachines, searchBeans, machineKnown, beanKnown, flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, challenges,
-         beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned, weekRecap, RECAP_PICKS } from '../store/store.js';
+         beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned, weekRecap, RECAP_PICKS,
+         admin } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
 import { PREMIUM_MAIL } from '../domain/premium.js';
+import { statementFor } from '../data/moderation.js';
 import { objectPosition } from '../domain/framing.js';
 import { recapSVG, shotPhotos } from './recap.js';
 import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
 import { art, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { t, tn } from '../i18n.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, followMini, followBtn, followState } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, hiddenMark, followMini, followBtn, followState } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { renderView, renderAppbar } from './views.js';
 import { arm } from './history.js';
@@ -75,6 +77,7 @@ export function renderOverlay(){
     T==='streak'?overlayStreak():
     T==='passport'?overlayPassport():
     T==='settings'?overlaySettings():
+    T==='admin'?overlayAdmin():
     T==='premium'?overlayPremium(top.feature):
     T==='recap'?overlayRecap():
     T==='onboard'?overlayOnboard():
@@ -135,7 +138,7 @@ function overlayPost(id){
       <div class="media" data-action="none">${art(imageUrl(p.img,'hero'),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">
         <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${esc(p.cafe)}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}</span></div></div>
+          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${esc(p.cafe)}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
         ${p.user==='me'?'':followMini(p.user)}
         <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">⋯</button></div>
       <div class="p-body"><div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
@@ -249,7 +252,11 @@ function overlayNotifs(){
   const rows=state.notifications.map((n,i)=>{
     /* Podium and challenge rows have no actor — nobody *did* this to you,
        the standing did — so they get a symbol where a face would go. */
-    const noFace=n.type==='challenge'?'🏆':n.type==='podium'?'🏅':'☕';
+    /* A moderation notice has no actor either — nobody did this to you,
+       a decision did — and it is the one row where the symbol carries
+       weight, so it gets its own rather than the default cup. */
+    const noFace=n.type==='challenge'?'🏆':n.type==='podium'?'🏅'
+                :n.type==='moderation'?'⚖️':n.type==='report_update'?'🚩':'☕';
     const av=n.u?avatar(n.u):`<div class="avatar" style="background:var(--crema)">${noFace}</div>`;
     /* A request is the one notification that is a question, so it keeps
        its buttons here too — the row above the feed is the prominent
@@ -638,9 +645,142 @@ function overlaySettings(){
       <div class="mrow" data-action="open-scoring"><div class="mi">⭐</div>${t('How levels work')}</div>
       <div class="mrow" data-action="open-streak"><div class="mi">⚡</div>${t('How streaks work')}</div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">${t('Signed in · your pours live in your account')}</div>
+      ${state.me.isAdmin?`<div class="rlabel" style="margin-top:18px">Moderation</div>
+      <div class="mrow" data-action="open-admin"><div class="mi">⚖️</div>Reports &amp; decisions</div>`:''}
       <div class="rlabel" style="margin-top:18px">${t('Legal')}</div>
       <a class="mrow" href="/impressum/" target="_blank" rel="noopener"><div class="mi">📄</div>Impressum</a>
       <a class="mrow" href="/privacy/" target="_blank" rel="noopener"><div class="mi">🔒</div>Datenschutz / Privacy Policy</a>
+    </div></div>`;
+}
+
+/* ============================================================
+   Moderation — the screen that makes the report sheet true
+
+   The report sheet promises every user that a person reads what they
+   send. Until this existed a person was *emailed*, and then had no tool
+   to do anything about it except open the SQL editor. This is the tool.
+
+   Three deliberate shapes:
+
+     * Hiding leads, removing follows. Hiding is reversible and a
+       reversible action is the one to reach for at 07:00 on a phone.
+     * The statement of reasons is a text box, not a dropdown, and it is
+       filled in before you decide rather than after. What is in that
+       box is what the person is sent and what the audit row keeps —
+       the same string, never a code that gets translated into an
+       explanation later by somebody guessing.
+     * Dismissing is a button with the same weight as the others,
+       because "we looked and left it up" is a decision and a queue
+       that cannot record it cannot tell reviewed from ignored.
+
+   Not translated, on purpose: one person sees this screen and the
+   German bundle exists for users. The statement itself is typed by
+   hand, in whatever language the person being written to reads.
+   ============================================================ */
+const modWhen = ts => { try{ return new Date(ts).toLocaleString(); }catch(e){ return ts||''; } };
+
+/* Anything on this screen came from somebody else's keyboard — the
+   caption that got reported, the comment, the handle, the reporter's
+   note. All of it goes through esc(), the same as everywhere else. */
+function modTarget(r){
+  const tg=r.target||{}, a=tg.author||{};
+  const who=`<span class="mod-who" data-action="open-user" data-id="${esc(a.id||'')}">@${esc(a.handle||'unknown')}</span>`;
+  const susp=a.suspended_until && new Date(a.suspended_until)>new Date()
+    ? `<span class="chip" style="background:var(--pm1)">paused until ${esc(modWhen(a.suspended_until))}</span>` : '';
+  const flags=`${tg.hidden?'<span class="chip">hidden</span>':''}${susp}`;
+
+  if(tg.kind==='post') return `<div class="mod-target">
+    <div class="mod-thumb">${tg.image_key
+      ? `<img src="${esc(imageUrl(tg.image_key,'thumb'))}" alt="" onerror="this.remove()">`
+      : '<span>☕</span>'}</div>
+    <div class="mod-tb">
+      <b>${esc(tg.drink||'pour')}</b> by ${who} ${flags}
+      <p>${esc(tg.caption||'(no caption)')}</p>
+      <span class="mod-meta">${esc(modWhen(tg.created_at))} ·
+        <a data-action="open-post" data-id="${esc(tg.id||'')}">open the pour</a></span>
+    </div></div>`;
+
+  if(tg.kind==='comment') return `<div class="mod-target">
+    <div class="mod-thumb"><span>💬</span></div>
+    <div class="mod-tb">
+      comment by ${who} ${flags}
+      <p>${esc(tg.body||'')}</p>
+      <span class="mod-meta">${esc(modWhen(tg.created_at))} ·
+        <a data-action="open-post" data-id="${esc(tg.post_id||'')}">open the pour it is under</a></span>
+    </div></div>`;
+
+  return `<div class="mod-target">
+    <div class="mod-thumb"><span>👤</span></div>
+    <div class="mod-tb">the account ${who} ${flags}
+      <p>Reported as a person rather than as one pour.</p></div></div>`;
+}
+
+function modCard(r){
+  const tg=r.target||{}, a=tg.author||{};
+  const kind=tg.kind||'user';
+  const id=esc(r.id);
+  /* Prefilled from the reason the reporter picked, then edited. The
+     default action a moderator reaches for is hiding, so that is the
+     statement the box starts with. */
+  const draft=statementFor(kind==='comment'?'hide_comment':'hide_post',{ reason:r.reason||'our content rules' });
+  const done=r.status!=='open';
+  const btn=(k,label,cls='')=>`<button class="btn sm ${cls}" data-action="mod-act" data-k="${k}"
+      data-id="${id}" data-t="${esc(kind)}" data-tid="${esc(tg.id||'')}" data-uid="${esc(a.id||'')}"
+      data-reason="${esc(r.reason||'')}">${label}</button>`;
+
+  return `<div class="mod-card${done?' done':''}">
+    <div class="mod-head">
+      <b>${esc(r.reason||'reported')}</b>
+      <span class="mod-meta">${esc(modWhen(r.created_at))} · from @${esc((r.reporter&&r.reporter.handle)||'someone')}</span>
+      ${done?`<span class="chip">${esc(r.status)}${r.resolution?' · '+esc(r.resolution):''}</span>`:''}
+    </div>
+    ${r.note?`<p class="mod-note">“${esc(r.note)}”</p>`:''}
+    ${modTarget(r)}
+    ${done?'':`
+    <label class="mod-label" for="mod-st-${id}">What this person will be told — sent to their inbox and kept on the record</label>
+    <textarea class="mod-statement" id="mod-st-${id}" rows="3">${esc(draft)}</textarea>
+    <div class="mod-acts">
+      ${tg.hidden?btn('unhide','Put it back','ghost'):btn('hide','Hide it')}
+      ${kind==='user'?'':btn('remove','Remove it','ghost')}
+      ${a.id?btn('suspend','Pause the account 7 days','ghost'):''}
+      ${btn('dismiss','Leave it up','ghost')}
+    </div>`}
+  </div>`;
+}
+
+function modLogRow(m){
+  const s=m.subject||{};
+  return `<div class="mod-card done">
+    <div class="mod-head"><b>${esc(m.action)}</b>
+      <span class="mod-meta">${esc(modWhen(m.created_at))} · @${esc(s.handle||'—')} · ${esc(m.reason||'')}</span></div>
+    ${m.statement?`<p class="mod-note">“${esc(m.statement)}”</p>`:''}
+    ${m.evidence&&m.evidence.image_key
+      ? `<span class="mod-meta">photo still in R2: <code>${esc(m.evidence.image_key)}</code></span>` : ''}
+  </div>`;
+}
+
+function overlayAdmin(){
+  const tabs=[['open','Open'],['all','All reports'],['log','Decisions']]
+    .map(x=>`<button class="${admin.tab===x[0]?'on':''}" data-action="mod-tab" data-t="${x[0]}">${x[1]}</button>`).join('');
+  const body = admin.err
+    ? `<div class="empty"><div class="big">⚠️</div>${esc(admin.err)}</div>`
+    : admin.loading && !admin.loaded
+      ? `<div class="empty"><div class="big">⚖️</div>Loading the queue…</div>`
+      : admin.tab==='log'
+        ? (admin.log.length ? admin.log.map(modLogRow).join('')
+           : `<div class="empty"><div class="big">📋</div>No decisions recorded yet.</div>`)
+        : (admin.list.length ? admin.list.map(modCard).join('')
+           : `<div class="empty"><div class="big">✅</div>${admin.tab==='open'?'Nothing waiting. The queue is empty.':'No reports.'}</div>`);
+
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Moderation">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>Moderation</b></div>
+    <div class="ov-body" style="padding:0 14px 20px">
+      <div class="seg" style="margin:12px 0">${tabs}</div>
+      <p class="mod-meta" style="display:block;margin:0 0 12px">
+        Every action here is recorded with what you wrote, and the person is told.
+        Hiding can be undone; removing cannot, and leaves the photo in R2 —
+        <code>metrics.sql</code> block I lists those.</p>
+      ${body}
     </div></div>`;
 }
 

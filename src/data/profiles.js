@@ -71,7 +71,17 @@ export function rowToMe(row){
     /* step-1.20.sql. Same undefined-means-not-run-yet contract, same
        default-true reasoning: nothing sends without the device having
        granted push in the first place. */
-    notifyMorning: row.notify_morning===undefined ? true : !!row.notify_morning
+    notifyMorning: row.notify_morning===undefined ? true : !!row.notify_morning,
+    /* step-1.27.sql. Read-only here in the strongest sense: meToRow
+       never writes either of them back, and a client PATCH that tried
+       would be reverted by profiles_guard_admin() in Postgres. This
+       flag decides whether Settings shows the moderation row — it is
+       not what decides whether moderation works, which every mod_*
+       function checks for itself. */
+    isAdmin: !!row.is_admin,
+    /* A timestamp, not a flag, so it expires without anyone
+       remembering to lift it. Null for almost everybody. */
+    suspendedUntil: row.suspended_until || null
   };
 }
 

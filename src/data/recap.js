@@ -28,6 +28,34 @@
    ============================================================ */
 import { rest } from './supabase.js';
 
+/* ---------- one row when a card actually leaves the device ----------
+   The weekly card is the growth loop, and until step-1.26.sql nothing
+   counted whether anyone ever exported one — which made the whole
+   weekly-versus-daily question unfalsifiable (brain/09-red-team.md,
+   risk 5). This is the counter, and it is the whole of it: who, which
+   week, and whether the file went to the share sheet or to disk.
+
+   `weekKey` is the Monday the card is about, in the user's own
+   timezone, because the browser already decided which seven days the
+   card covers and a server recomputing it from UTC would sooner or
+   later count a different week than the one printed on the card.
+
+   Never throws and never awaited by the caller: the card has already
+   been shared by the time this runs, and a counter that can break a
+   share is worse than no counter. An unrun migration answers 404 and
+   the app carries on knowing nothing, which is where it started. */
+export function logRecapExport(uid, weekKey, kind='share'){
+  if(!uid || !weekKey) return Promise.resolve();
+  return rest('recap_exports',{ method:'POST', body:{
+    /* Sent rather than inferred, because the row's policy is
+       `auth.uid() = user_id`: the id is checked against the token, so
+       naming somebody else here fails rather than mislabels. */
+    user_id: uid,
+    week_start: weekKey,
+    kind: kind==='download' ? 'download' : 'share'
+  }}).catch(()=>{});
+}
+
 export async function fetchWeekStanding(from, to){
   try{
     const rows=await rest('rpc/week_standing',{ method:'POST', body:{

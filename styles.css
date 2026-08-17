@@ -692,6 +692,32 @@
   .mrow .mi{width:38px; height:38px; border-radius:50%; background:var(--surface2); display:grid; place-items:center; font-size:16px; flex:none}
   .mrow.danger{color:var(--terra)}
 
+  /* ---------- the moderation sheet ----------
+     One person's screen, so it borrows the app's tokens and adds
+     nothing to the design language: a report is a card, the thing being
+     reported sits inside it next to its picture, and the sentence that
+     will be sent is a plain textarea rather than a styled control —
+     because it is going to be read as words by somebody having a bad
+     morning, and it should look like words while it is being written. */
+  .mod-card{border:1px solid var(--line); border-radius:var(--r); background:var(--surface); padding:12px; margin-bottom:12px}
+  .mod-card.done{opacity:.72}
+  .mod-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:8px}
+  .mod-head b{font-size:14.5px}
+  .mod-meta{font-size:11.5px; color:var(--muted)}
+  .mod-meta a{color:var(--crema); cursor:pointer; text-decoration:none; font-weight:600}
+  .mod-note{font-size:13px; color:var(--ink2); font-style:italic; margin:8px 0 0; line-height:1.5}
+  .mod-target{display:flex; gap:10px; margin:10px 0; padding:10px; border-radius:12px; background:var(--surface2)}
+  .mod-thumb{width:56px; height:56px; flex:none; border-radius:10px; overflow:hidden; background:var(--surface3); display:grid; place-items:center; font-size:22px}
+  .mod-thumb img{width:100%; height:100%; object-fit:cover}
+  .mod-tb{min-width:0; font-size:13px; color:var(--ink2)}
+  .mod-tb p{margin:4px 0; color:var(--ink); word-break:break-word}
+  .mod-who{color:var(--crema); font-weight:600; cursor:pointer}
+  .mod-label{display:block; font-size:11.5px; color:var(--muted); margin:4px 0 5px}
+  .mod-statement{width:100%; font:inherit; font-size:13px; line-height:1.5; color:var(--ink);
+    background:var(--surface2); border:1px solid var(--line2); border-radius:10px; padding:9px 10px; resize:vertical}
+  .mod-acts{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px}
+  .mod-acts .btn{margin:0}
+
   .create-prev{aspect-ratio:1/1; border-radius:var(--r); overflow:hidden; display:grid; place-items:center; margin:6px 0 14px; border:1px solid var(--line); position:relative;
     background:radial-gradient(120% 120% at 30% 20%,var(--mb1),var(--mb2) 70%,var(--mb3))}
   .create-prev svg{width:74%; height:74%; filter:drop-shadow(0 14px 18px rgba(40,22,8,.30))}

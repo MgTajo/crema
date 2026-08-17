@@ -23,6 +23,7 @@ import { fetchChallenges, fetchChallengeWins, fetchPodium } from '../data/challe
 import { fetchProfileCounts, fetchSuggestedProfiles } from '../data/profiles.js';
 import { fetchNotifications } from '../data/notifications.js';
 import { fetchReactions, noReactions } from '../data/reactions.js';
+import { fetchQueue, fetchLog as fetchModLog } from '../data/moderation.js';
 import { streakFrom, bestStreakFrom } from '../domain/streak.js';
 import { makePersistence } from './persistence.js';
 
@@ -155,6 +156,38 @@ export async function loadSaved(){
   finally{ saved.loading=false; }
 }
 export const followeeIds = () => Object.keys(state.follows||{}).filter(k=>state.follows[k]);
+
+/* ---------- the moderation queue ----------
+   Loaded only when the admin sheet is open, and never cached to
+   localStorage: it holds other people's reports and the content they
+   reported, which has no business surviving in a browser after the
+   sheet is closed. `err` is kept because the two ways this fails —
+   step-1.27.sql not run, or this account not being an admin — need
+   different sentences on screen.
+
+   Everything here is a convenience. The database checks is_admin() on
+   every one of these calls itself; hiding the sheet is not what makes
+   moderation safe. */
+export const admin={ tab:'open', list:[], log:[], loading:false, loaded:false, err:'', busy:'' };
+export async function loadQueue(){
+  if(!session||admin.loading) return false;
+  admin.loading=true; admin.err='';
+  try{
+    if(admin.tab==='log') admin.log=await fetchModLog(80);
+    else admin.list=await fetchQueue(admin.tab==='all'?'all':admin.tab, 80);
+    admin.loaded=true;
+    return true;
+  }catch(e){
+    console.warn('moderation queue failed',e);
+    admin.err = e && e.needsMigration
+      ? 'Moderation needs platform/supabase/step-1.27.sql — it has not been run yet.'
+      : e && e.notAdmin
+        ? 'This account is not an admin.'
+        : 'The queue would not load. Try again.';
+    return false;
+  }
+  finally{ admin.loading=false; }
+}
 
 /* The three live challenges with this user's progress already in them.
    Refetched rather than mutated after a pour: progress is decided by
