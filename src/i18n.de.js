@@ -170,6 +170,10 @@ export const DE = {
   'Already have one?':'Schon ein Konto?',
   '{n} follow request':'{n} Follower-Anfrage',
   '{n} follow requests':'{n} Follower-Anfragen',
+  /* The pill above the feed. "Kaffee" is what a pour is called
+     everywhere else in this file, so it is what it is called here. */
+  '{n} new pour':'{n} neuer Kaffee',
+  '{n} new pours':'{n} neue Kaffees',
   '{n} friend has already brewed today ☕':'{n} Freund:in hat heute schon Kaffee gemacht ☕',
   '{n} friends have already brewed today ☕':'{n} Freund:innen haben heute schon Kaffee gemacht ☕',
   'Accept':'Annehmen',

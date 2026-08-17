@@ -222,7 +222,7 @@ export function postCard(p){
       <div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
     <div class="p-act">
       ${likeButton(p)}
-      <button class="act" data-action="open-post" data-id="${p.id}" aria-label="${t('Comments')}">${icon('chat',22)} ${cn}</button>
+      <button class="act" data-action="open-post" data-id="${p.id}" aria-label="${t('Comments')}">${icon('chat',22)} <span class="cnt" data-cmtn="${p.id}">${cn}</span></button>
       <button class="act" data-action="share-post" data-id="${p.id}" aria-label="${t('Share')}">${icon('share',20)}</button>
       <div class="grow"></div>
       <button class="act save ${p.saved?'saved':''}" data-action="save" data-id="${p.id}" aria-label="${t('Save')}">${icon(p.saved?'saveF':'save',22)}</button></div>

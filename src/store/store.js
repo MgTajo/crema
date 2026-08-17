@@ -302,12 +302,90 @@ export async function loadFeed(){
   try{
     const list=await fetchFeed(feedArgs());
     state.posts=await markMine(list);
+    /* A full reload supersedes anything queued: these rows ARE the
+       arrivals now. Left alone, the pill would survive its own contents
+       and put a second copy of each pour on the feed when tapped. */
+    arrivals.list=[];
     feed.cursor=list.length?list[list.length-1].createdAt:null;
     feed.done=list.length<FEED_PAGE;
     feed.loaded=true;
     return true;
   }catch(e){ console.warn('feed load failed — keeping what we have',e); return false; }
   finally{ feed.loading=false; }
+}
+
+/* ---------- pours that landed while you were looking ----------
+   A post that arrives from store/live.js does NOT go straight into
+   `state.posts`. New pours arrive at the *top*, so splicing one in
+   shifts every card below it onto different content — under the thumb
+   of someone mid-scroll, which is the same failure refreshOnReturn()
+   in ui/actions.js already refuses to cause. They queue here instead,
+   the feed shows a count, and ui/ applies them when it is safe to: at
+   the top of the list, or on a tap.
+
+   Deliberately re-asking through fetchFeed() rather than trusting the
+   row Realtime handed us: feedArgs() is where "Today vs Following",
+   the block list and public-only live, and having two implementations
+   of that is how the two get to disagree. It also means the polling
+   fallback and the socket produce identical results. */
+export const arrivals={ list:[] };
+export const dropArrivals = () => { arrivals.list=[]; };
+
+/* Everything newer than the newest pour we already hold. Returns how
+   many things changed, so a caller knows whether to repaint at all. */
+export async function fetchArrivals(){
+  if(!feed.loaded || feed.loading) return 0;
+  /* An empty feed has no "newest", and nothing below it to shift — so
+     it is not an arrival, it is just the feed loading for the first
+     time with something in it. */
+  if(!state.posts.length && !arrivals.list.length) return (await loadFeed()) ? 1 : 0;
+
+  const held=[...arrivals.list, ...state.posts];
+  const known=new Set(held.map(p=>p.id));
+  const newest=held.reduce((a,p)=>(!a||p.createdAt>a)?p.createdAt:a, null);
+  try{
+    /* `since` is gte, so the newest post comes back with them; `known`
+       is what drops it again. Cheaper than an exclusive cursor, and
+       correct when two pours share a timestamp.
+
+       The honest limit: more than FEED_PAGE pours between two checks and
+       this only sees the newest page, so applying them would leave a gap
+       in the middle of the feed until the next full load. That needs
+       twelve pours inside sixty seconds — a scale this app does not have
+       and would notice arriving. */
+    const list=await fetchFeed({ ...feedArgs(), since:newest, limit:FEED_PAGE });
+    const fresh=list.filter(p=>!known.has(p.id));
+    if(!fresh.length) return 0;
+    await markMine(fresh);
+    cachePosts(fresh);
+    arrivals.list=[...fresh, ...arrivals.list]
+      .sort((a,b)=>a.createdAt<b.createdAt?1:a.createdAt>b.createdAt?-1:0);
+    return fresh.length;
+  }catch(e){ console.warn('arrivals failed',e); return 0; }
+}
+
+export function applyArrivals(){
+  if(!arrivals.list.length) return 0;
+  /* Belt and braces against a reload landing between the fetch and the
+     tap: a pour that is already on the feed must not arrive on it twice. */
+  const here=new Set(state.posts.map(p=>p.id));
+  const add=arrivals.list.filter(p=>!here.has(p.id));
+  arrivals.list=[];
+  if(!add.length) return 0;
+  state.posts=[...add, ...state.posts];
+  return add.length;
+}
+
+/* A pour that was deleted anywhere it might be showing. The postCache
+   is private to this module, which is why this lives here rather than
+   in the caller. */
+export function forgetPost(id){
+  let gone=false;
+  const drop=list=>{ const i=(list||[]).findIndex(p=>p.id===id); if(i>=0){ list.splice(i,1); gone=true; } };
+  drop(state.posts); drop(arrivals.list); drop(mine.list); drop(saved.list);
+  drop(state.myGallery); drop(PODIUM);
+  if(postCache.delete(id)) gone=true;
+  return gone;
 }
 
 export async function loadMoreFeed(){
@@ -358,6 +436,7 @@ export async function useSession(next){
   mine.list=[]; mine.loaded=false;
   saved.list=[]; saved.loaded=false;
   friendsToday.list=[]; friendsToday.loaded=false;
+  arrivals.list=[];
   /* Following is a signed-in tab, so a sign-out has to leave it — or the
      segment would sit on a tab the guest feed can't be. */
   if(!next) ui.filter='today';

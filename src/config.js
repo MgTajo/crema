@@ -36,6 +36,18 @@ export const REFERENCE_TTL_MS = 15 * 60 * 1000;
 /* Feed page size for the paginated post feed. */
 export const FEED_PAGE = 12;
 
+/* How often store/live.js asks whether anything changed, when the
+   Realtime socket is not carrying that answer for us — a blocked
+   WebSocket, or platform/supabase/step-1.25.sql not yet run. Only ever
+   while the tab is on screen, and two small requests per tick.
+
+   A minute is the honest floor for a poll: short enough that a pour
+   posted across the table shows up while you are still holding the cup,
+   long enough that a morning open in the background costs nothing worth
+   naming. Realtime, when it is up, makes this moot — the socket answers
+   in well under a second. */
+export const LIVE_POLL_MS = 60 * 1000;
+
 /* VAPID public key for Web Push (roadmap step 1.16). Public by design:
    it identifies Crema to the browser's push service and is handed to
    PushManager.subscribe() in client code, so it belongs here next to the

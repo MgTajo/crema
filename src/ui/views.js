@@ -11,7 +11,7 @@ import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
          myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts, coffeeStats, friendsToday,
-         weekRecap } from '../store/store.js';
+         weekRecap, arrivals } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
@@ -65,9 +65,25 @@ export function renderHome(){
       <button class="${ui.filter==='today'?'on':''}" data-action="filter" data-f="today">${t('Today')}</button>
       <button class="${ui.filter==='following'?'on':''}" data-action="filter" data-f="following">${t('Following')}</button>
     </div>
+    ${arrivalsPill()}
     ${list.length?list.map(postCard).join(''):empty}
     ${guestPitch()}
   </div>`;
+}
+
+/* Pours that landed while this screen was open, waiting to be let in.
+   It only ever appears when ui/actions.js decided it was not safe to
+   splice them in — which means the reader is somewhere below the top of
+   the feed, and shifting the card under their thumb would cost them
+   their place. See `arrivals` in store/store.js.
+
+   A count rather than a dot: "3 new pours" is worth a tap on a morning
+   when the feed is otherwise the same six it was an hour ago, and a
+   bare dot isn't. */
+function arrivalsPill(){
+  const n=arrivals.list.length; if(!n) return '';
+  return `<button class="newpours" data-action="show-arrivals">
+    <i>${icon('back',13)}</i>${tn(n,'{n} new pour','{n} new pours')}</button>`;
 }
 
 /* The one thing on a guest's screen that asks for anything, and it sits

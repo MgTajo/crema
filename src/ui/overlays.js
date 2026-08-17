@@ -143,7 +143,7 @@ function overlayPost(id){
       ${reactionBar(p)}
       ${rows.length?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0">${recipePanel(r)}
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ ${t('Brew this recipe')}</button></div></div></div>`:''}
-      <div style="padding:14px 14px 4px;font-weight:700;font-family:var(--serif);font-size:16px">${commentCount(p)} ${t('comments')}</div>
+      <div id="cmt-head" style="padding:14px 14px 4px;font-weight:700;font-family:var(--serif);font-size:16px">${commentCount(p)} ${t('comments')}</div>
       <div id="cmt-list">${p.comments.length?p.comments.map((c,i)=>commentRow(c,p.id,i)).join(''):
         (commentCount(p)?`<div class="empty" style="padding:24px">${t('Loading comments…')}</div>`
           :`<div class="empty" style="padding:24px">${session?t('Be the first to comment.'):t('No comments yet.')}</div>`)}</div>

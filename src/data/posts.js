@@ -100,6 +100,26 @@ function baseRow(p, uid, cafe){
   };
 }
 
+/* A live UPDATE (data/realtime.js) carries the `posts` row and nothing
+   embedded with it — no author, no counts. Those haven't changed, and
+   the post on screen already has them, so an edit is applied field by
+   field rather than by rebuilding the post through postOf() and losing
+   half of it. Exactly the columns EDITABLE (below) lets a PATCH touch,
+   plus the `edited_at` the database stamps in response. */
+export function applyRowEdit(post, row){
+  if(!post || !row) return post;
+  post.drink=row.drink;
+  post.art=!!row.art;
+  post.pattern=row.pattern||null;
+  post.caption=row.caption||'';
+  post.recipe=row.recipe||null;
+  const cafe=row.cafe_id ? CAFES.find(c=>c.id===row.cafe_id) : null;
+  post.cafe=cafe?cafe.name:undefined;
+  if('visibility' in row) post.visibility = row.visibility==='followers'?'followers':'public';
+  if('edited_at' in row) post.edited=!!row.edited_at;
+  return post;
+}
+
 export const newPostId = () =>
   (crypto.randomUUID ? crypto.randomUUID()
     : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{

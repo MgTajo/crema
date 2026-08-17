@@ -27,7 +27,9 @@ import * as social from '../data/social.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
-         feed, hydrateReactions, myMachines, myCoffees, togglePin, weekRecap, toggleRecapPick } from '../store/store.js';
+         feed, hydrateReactions, myMachines, myCoffees, togglePin, weekRecap, toggleRecapPick,
+         applyArrivals, dropArrivals } from '../store/store.js';
+import { onLive } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
@@ -91,7 +93,7 @@ initHistory({ depth: () => ui.ovStack.length + ui.navStack.length + (ui.gate?1:0
    Premium is the same wrong order as the language switch. Redeeming a
    code is NOT here — Premium lives on a profile row, so it needs one. */
 const GUEST_READS=new Set(['open-post','recipe','share-post','close-ov','reload','toast','none',
-                           'guest-signin','guest-back','set-lang',
+                           'guest-signin','guest-back','set-lang','show-arrivals',
                            'premium-mail','copy-premium-mail']);
 
 /* Which line the sheet should lead with, per intent. */
@@ -137,11 +139,16 @@ document.addEventListener('click',e=>{
          when you look at your own profile rather than only after posting */
       if(ui.route==='profile') refreshScore();
       break;}
-    case 'filter':{ if(ui.filter===el.dataset.f) break; ui.filter=el.dataset.f; feed.cursor=null; feed.done=false; renderView();
+    case 'filter':{ if(ui.filter===el.dataset.f) break; ui.filter=el.dataset.f; feed.cursor=null; feed.done=false;
+      /* Arrivals were fetched against the tab that queued them, so they
+         belong to it — three public pours from strangers are not what
+         the Following tab is for. The reload below refills them. */
+      dropArrivals(); renderView();
       /* signed in the Following tab is a different server query, not a
          client-side filter over one page */
       if(currentUser()) loadFeed().then(()=>renderView());
       break;}
+    case 'show-arrivals': showArrivals(); break;
     case 'open-post': openPost(id); break;
     case 'open-cafe': pushOv({type:'cafe',id}); break;
     case 'open-bean':{ if(BEANS.find(b=>b.n===id)) pushOv({type:'bean',id}); else toast(t('No details for that bean yet')); break;}
@@ -470,12 +477,88 @@ document.addEventListener('input',e=>{
   },{passive:true});
 })();
 
+/* ---------- staying current while the app is open ----------
+   store/live.js says what changed — over a socket when Realtime is up,
+   over a 60s poll when it isn't. This decides what that is allowed to
+   move on screen, and the rule is the same one refreshOnReturn() below
+   follows: never repaint something the reader's thumb is on.
+
+     'feed'    new pours are queued. Splice them in only at the very top
+               of the feed with no sheet open; otherwise paint the pill
+               and let them tap it.
+     'bell'    the appbar, which is one icon and moves nothing.
+     'post'    a like or a reaction moved — patched in place by the same
+               two painters the optimistic writes use, so the photo does
+               not blink and no input is rebuilt.
+     'thread'  a comment landed. Only refreshes an open sheet, and only
+               the list inside it, because renderOverlay() would take the
+               half-typed comment in the composer with it.
+
+   The feed pill goes to the top of the list when tapped, since that is
+   where the new pours are and the tap said "show me". */
+function showArrivals(){
+  if(!applyArrivals()) return;
+  renderView();
+  const v=$('#view'); if(v) v.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* Same test refreshOnReturn() uses, and for the same reason. */
+const onFeedScreen = () => currentUser() ? ui.route==='home' : !ui.gate;
+const feedIsSteady = () => {
+  if(ui.ovStack.length || !onFeedScreen()) return false;
+  const v=$('#view');
+  return !!v && v.scrollTop<8;
+};
+
+async function refreshOpenThread(postId){
+  const top=ui.ovStack[ui.ovStack.length-1];
+  if(!top || top.type!=='post') return;
+  if(postId && top.id!==postId) return;
+  const p=findPost(top.id); if(!p) return;
+  const u=currentUser();
+  try{
+    const rows=await social.fetchComments(top.id);
+    /* Still the same sheet? fetchComments() is a round trip. */
+    const now=ui.ovStack[ui.ovStack.length-1];
+    if(!now || now.type!=='post' || now.id!==top.id) return;
+    const fresh=rows.map(r=>social.commentOf(r,u?u.id:null));
+    if(u){
+      const mineLikes=new Set(await social.fetchMyCommentLikes(rows.map(r=>r.id)));
+      fresh.forEach(c=>{ c.likedByMe=mineLikes.has(c.id); });
+    }
+    /* A comment of your own that hasn't come back from the server yet
+       has no id. Carrying it across means someone else's comment
+       arriving mid-post doesn't make yours flicker out of the thread. */
+    const pending=p.comments.filter(c=>!c.id);
+    const next=fresh.concat(pending);
+    if(next.length===p.comments.length && next.every((c,i)=>c.id===p.comments[i].id)) return;
+    p.comments=next; p.commentN=next.length;
+    const list=$('#cmt-list');
+    if(!list){ renderOverlay(); return; }
+    list.innerHTML=next.map((c,i)=>commentRow(c,p.id,i)).join('');
+    const head=$('#cmt-head'); if(head) head.textContent=`${next.length} ${t('comments')}`;
+    if(await resolveHandles(mentionedHandles(next))) list.innerHTML=next.map((c,i)=>commentRow(c,p.id,i)).join('');
+  }catch(e){ console.warn('live thread refresh failed',e); }
+}
+
+onLive((what,arg)=>{
+  if(what==='bell'){ renderAppbar(); return; }
+  if(what==='thread'){ refreshOpenThread(arg); return; }
+  if(what==='post'){ const p=findPost(arg); if(p){ paintLike(p); paintReactions(p); paintCommentCount(p); } return; }
+  if(what==='feed'){
+    if(feedIsSteady()) applyArrivals();
+    /* Repaint either way: with the new cards in, or with the pill that
+       says they are waiting. A deleted pour has already left the list. */
+    if(onFeedScreen()) renderView();
+  }
+});
+
 /* ---------- coming back to the app ----------
-   Crema has no realtime channel: the feed, the bell and the challenges
-   are fetched when something asks for them and are otherwise as old as
-   the last fetch. Sitting on a backgrounded tab all morning and finding
-   the same six pours is the moment that reads as broken, so returning to
-   the app is treated as a reason to re-ask.
+   The socket above covers the app while it is on screen. This covers
+   the gap it cannot: a tab left in the background for an hour comes
+   back to a feed whose Today has rolled over, and no number of new
+   pours fixes a list that starts yesterday. So returning is still a
+   reason to re-ask for the whole thing.
 
    Only on the way IN. `visibilitychange` fires on hide too, and
    refreshing something nobody is looking at spends a request to move
@@ -1265,6 +1348,13 @@ function toggleLike(id){
    feed and the open post sheet can both be showing this pour. */
 function paintReactions(p){
   $$('[data-reacts="'+p.id+'"]').forEach(el=>el.outerHTML=reactionBar(p));
+}
+/* Same idea for the number beside the speech bubble, which the feed and
+   the open sheet can both be showing. The sheet's own heading is patched
+   by refreshOpenThread(), because only it knows the thread is loaded. */
+function paintCommentCount(p){
+  const n=p.commentN!=null?p.commentN:p.comments.length;
+  $$('[data-cmtn="'+p.id+'"]').forEach(el=>{ el.textContent=n; });
 }
 function toggleReaction(id,kind){
   const p=findPost(id); if(!p||!kind) return;

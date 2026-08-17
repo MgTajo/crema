@@ -22,6 +22,7 @@ import { initAuth, getSession } from './data/supabase.js';
 import { loadReferenceData } from './data/remote.js';
 import { fetchPost } from './data/posts.js';
 import { useSession, applyMe, findPost, cachePosts, state, ui } from './store/store.js';
+import { startLive } from './store/live.js';
 import { render } from './ui/views.js';
 import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
@@ -58,6 +59,11 @@ applyMe(); applyTheme(); tick();
 if(auth.error && !auth.session){ authState().error = auth.error; ui.gate=true; }
 render();
 setInterval(tick,10000);
+/* After the first paint, never before it: the socket and the poller both
+   only ever *change* what is on screen, and there is nothing to change
+   until the feed that just loaded is showing. Guests too — the live
+   feed is the most persuasive thing on their screen. */
+startLive();
 if(auth.error && auth.session) toast(auth.error);
 
 /* Open a pour by id, fetching it when it isn't already on screen.
