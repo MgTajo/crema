@@ -27,6 +27,16 @@ language sql stable as $$
   select nullif(current_setting('test.uid', true), '')::uuid;
 $$;
 
+-- Supabase grants this and the stub did not, which hid a gap for a long
+-- time: an RLS *policy* expression is evaluated with the table owner's
+-- rights, so `auth.uid()` inside a policy worked here regardless. A
+-- SECURITY INVOKER function that calls it does not — it fails with
+-- "permission denied for schema auth". step-1.29 added the first such
+-- function and found it. Without this line the harness would have
+-- passed a migration that works and failed one that also works, which
+-- is the worst thing a test environment can do.
+grant usage on schema auth to anon, authenticated, service_role;
+
 -- pg_cron stand-in: record the schedule, run nothing.
 create table if not exists cron.job (
   jobid   bigserial primary key,

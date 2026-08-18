@@ -32,7 +32,8 @@ import { logRecapExport } from '../data/recap.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
-         feed, hydrateReactions, myMachines, myCoffees, togglePin, setGearNote, weekRecap, toggleRecapPick,
+         feed, hydrateReactions, myMachines, myCoffees, togglePin, setGearNote, rememberOwn,
+         weekRecap, toggleRecapPick,
          applyArrivals, dropArrivals, admin, loadQueue } from '../store/store.js';
 import { onLive } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
@@ -284,14 +285,13 @@ document.addEventListener('click',e=>{
        coffee or not logging at all. */
     case 'pick-new':{ const q=($('#pk-q')?$('#pk-q').value:(ui.picker&&ui.picker.q)||'').trim();
       if(!q) break;
-      if(ui.picker.kind==='bean'){
-        if(!BEANS.some(b=>b.n===q)&&!state.customBeans.includes(q)) state.customBeans.push(q);
-      }else{
-        /* Machines used to be remembered only by posting with one, so
-           adding your grandmother's moka pot and then closing the sheet
-           lost it. Both shelves keep what you add now. */
-        if(!machineKnown(q)&&!state.customMachines.includes(q)) state.customMachines.push(q);
-      }
+      /* Machines used to be remembered only by posting with one, so
+         adding your grandmother's moka pot and then closing the sheet
+         lost it. Both shelves keep what you add now — and since
+         step-1.29 both keep it on the server, so it is still there on
+         the next device. */
+      if(ui.picker.kind==='bean'){ if(!BEANS.some(b=>b.n===q)) rememberOwn('bean',q); }
+      else { if(!machineKnown(q)) rememberOwn('machine',q); }
       choosePicked(q); break;}
     case 'pin':{
       const kind=el.dataset.kind, v=el.dataset.v||'';
@@ -2057,7 +2057,7 @@ async function ensureUploaded(c){
 function composeFromSheet(c){
   const T=v=>(v||'').trim();
   let drink=c.drink===ADD_DRINK?(state.me.premium?T(c.drinkCustom):''):T(c.drink);
-  if(c.drink===ADD_DRINK && state.me.premium && drink && !DRINKS.includes(drink) && !state.customDrinks.includes(drink)) state.customDrinks.push(drink);
+  if(c.drink===ADD_DRINK && state.me.premium && drink && !DRINKS.includes(drink)) rememberOwn('drink',drink);
   if(!drink) drink='Cappuccino';
   /* A milk drink can take latte art, but only counts as art if the user
      actually tagged a pattern — otherwise it is just a cappuccino. */
@@ -2080,7 +2080,7 @@ function composeFromSheet(c){
          drank — it is kept, and kept on their own list so the picker offers
          it back tomorrow. Free: see the note in data/catalog.js. */
       const bean=T(c.bean);
-      if(bean && !BEANS.some(b=>b.n===bean) && !state.customBeans.includes(bean)) state.customBeans.push(bean);
+      if(bean && !BEANS.some(b=>b.n===bean)) rememberOwn('bean',bean);
       if(bean) recipe.bean=bean;
       /* A bag of coffee outlasts a single pour, so the next create sheet
          opens on this one already chosen (freshCreate). Only pours you

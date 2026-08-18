@@ -24,6 +24,7 @@ import { fetchProfileCounts, fetchSuggestedProfiles } from '../data/profiles.js'
 import { fetchNotifications } from '../data/notifications.js';
 import { fetchReactions, noReactions } from '../data/reactions.js';
 import { fetchQueue, fetchLog as fetchModLog } from '../data/moderation.js';
+import { fetchGear, rememberGear, noteGear, favGear } from '../data/gear.js';
 import { streakFrom, bestStreakFrom } from '../domain/streak.js';
 import { makePersistence } from './persistence.js';
 
@@ -91,6 +92,11 @@ export function freshState(){
          beans:    name → {roaster,origin,roast,notes,note}
          machines: name → {kind,note}                                */
     gear:{beans:{},machines:{}},
+    /* Whether this browser's shelf has ever met the server (step-1.29).
+       False on a browser whose shelf predates the table, and the one
+       thing that lets hydrateGear() tell "you have nothing" apart from
+       "you have nothing HERE yet". */
+    gearSynced:false,
     /* The pours held up as this week's standouts on the recap card,
        keyed by the week's Monday — see toggleRecapPick(). */
     recapPicks:{},
@@ -268,6 +274,9 @@ export async function hydrateSocial(){
     mine.list=await fetchMine(uid,{ limit:200, myUid:uid });
     mine.loaded=true; cachePosts(mine.list);
   }catch(e){ console.warn('your pours failed',e); }
+
+  try{ await hydrateGear(uid); }
+  catch(e){ console.warn('gear failed',e); }
 
   try{ social.counts=await fetchProfileCounts(uid); }
   catch(e){ console.warn('profile counts failed',e); }
@@ -622,9 +631,117 @@ export function isPinned(kind,name){
 export function togglePin(kind,name){
   if(!state.pins) state.pins={machines:[],beans:[]};
   const k=kind==='machine'?'machines':'beans', l=state.pins[k], i=l.indexOf(name);
+  const on=i<0;
   if(i>=0) l.splice(i,1); else l.unshift(name);
   save();
-  return i<0;
+  push(favGear(kind,name,on));
+  return on;
+}
+
+/* ---------- the shelf, on the server ----------
+   `state` is still the shape every view reads, and it is still written
+   to localStorage — that is what makes the app paint instantly and work
+   offline. What changed in step-1.29 is that localStorage is now the
+   *cache* and `user_gear` is the truth, the same relationship
+   state.follows has had with the follows table all along.
+
+   Writes are fire-and-forget: the store has already changed and the UI
+   has already repainted, so a failed sync warns rather than blocking
+   somebody from naming their coffee. It costs the entry on this device
+   until the next successful write of the same thing, which is the same
+   bargain every optimistic write in this app makes. */
+const push = p => Promise.resolve(p).catch(err=>console.warn('shelf sync failed',err));
+
+/* Something they added that the catalogue does not have. Called from
+   both places a name can be invented — the picker's "Add", and posting
+   with a coffee nobody has heard of. */
+export function rememberOwn(kind,name){
+  const n=(name||'').trim(); if(!n) return;
+  const list = kind==='machine' ? (state.customMachines||(state.customMachines=[]))
+             : kind==='drink'   ? (state.customDrinks||(state.customDrinks=[]))
+             :                    (state.customBeans||(state.customBeans=[]));
+  if(!list.includes(n)){ list.push(n); save(); }
+  push(rememberGear(kind,n));
+}
+
+/* Rebuild `state` from the rows, rather than merging into it: a
+   favourite removed on your phone has to disappear here, and a merge
+   would keep resurrecting it. Same rule, and the same reason, as
+   hydrateSocial() rebuilding state.follows.
+
+   The one exception is the first load after step-1.29 shipped, when the
+   server has nothing and this browser has a shelf somebody spent months
+   building. That gets pushed up instead of thrown away — once, guarded
+   by a flag, so a genuine "I deleted all of it" is not undone by an old
+   device syncing later. */
+export async function hydrateGear(uid){
+  if(!uid) return;
+  /* First contact for THIS browser, and it has a shelf: push it up
+     before reading anything back. Deliberately regardless of what the
+     server already holds, so the two are unioned rather than one
+     replacing the other — otherwise a phone that synced first would
+     silently delete the coffees somebody added on their laptop while
+     it was still local-only. Both shelves are real; neither is a stale
+     copy of the other, because until now they were never copies.
+
+     Guarded by a one-way flag, so this happens once per browser and
+     the server is the truth from then on. The cost is one narrow case
+     in the future: once deleting a custom coffee exists, an old
+     never-synced device could resurrect one it still remembers. There
+     is no delete today, and when there is, the fix is a tombstone
+     rather than dropping this union. */
+  if(!state.gearSynced && localShelfSize()){
+    await seedShelf();
+    state.gearSynced=true; save();
+  }
+  applyGearRows(await fetchGear(uid));
+}
+
+/* The rebuild, kept separate from the fetch so it can be exercised
+   without a network. One row becomes up to three different things —
+   an entry on your shelf, a favourite, and a note — and a catalogue
+   coffee you merely starred must NOT come back as one of your own. */
+export function applyGearRows(rows){
+  const beans=[], machines=[], drinks=[], favB=[], favM=[];
+  const gear={beans:{},machines:{}};
+  (rows||[]).forEach(r=>{
+    if(!r||!r.name) return;
+    if(r.kind==='drink'){ if(r.own) drinks.push(r.name); return; }
+    const isM=r.kind==='machine';
+    if(r.own) (isM?machines:beans).push(r.name);
+    if(r.fav) (isM?favM:favB).push(r.name);          // already newest-first
+    if(r.info) gear[isM?'machines':'beans'][r.name]=r.info;
+  });
+  state.customBeans=beans; state.customMachines=machines; state.customDrinks=drinks;
+  state.pins={machines:favM,beans:favB};
+  state.gear=gear;
+  state.gearSynced=true;
+  save();
+}
+
+const localShelfSize = () =>
+  (state.customBeans||[]).length + (state.customMachines||[]).length + (state.customDrinks||[]).length
+  + ((state.pins&&state.pins.beans)||[]).length + ((state.pins&&state.pins.machines)||[]).length
+  + Object.keys((state.gear&&state.gear.beans)||{}).length
+  + Object.keys((state.gear&&state.gear.machines)||{}).length;
+
+/* The one-time lift of a shelf that predates the table. Sequential and
+   awaited: it happens once per account, it is small, and a half-pushed
+   shelf that then reports itself synced would lose the rest. */
+async function seedShelf(){
+  const jobs=[];
+  (state.customBeans||[]).forEach(n=>jobs.push(()=>rememberGear('bean',n)));
+  (state.customMachines||[]).forEach(n=>jobs.push(()=>rememberGear('machine',n)));
+  (state.customDrinks||[]).forEach(n=>jobs.push(()=>rememberGear('drink',n)));
+  /* Oldest first, so fav_at ends up in the order the local array had —
+     it was unshifted, so its head is the newest. */
+  (((state.pins||{}).beans)||[]).slice().reverse().forEach(n=>jobs.push(()=>favGear('bean',n,true)));
+  (((state.pins||{}).machines)||[]).slice().reverse().forEach(n=>jobs.push(()=>favGear('machine',n,true)));
+  Object.entries((state.gear&&state.gear.beans)||{}).forEach(([n,i])=>jobs.push(()=>noteGear('bean',n,i)));
+  Object.entries((state.gear&&state.gear.machines)||{}).forEach(([n,i])=>jobs.push(()=>noteGear('machine',n,i)));
+  for(const job of jobs){
+    try{ await job(); }catch(e){ console.warn('shelf seed failed',e); }
+  }
 }
 
 /* ---------- what you wrote down yourself ----------
@@ -646,6 +763,7 @@ export function setGearNote(kind,name,patch){
   const empty=Object.keys(next).every(x=>!(''+(next[x]||'')).trim());
   if(empty) delete state.gear[k][n]; else state.gear[k][n]=next;
   save();
+  push(noteGear(kind,n,empty?null:next));
   return empty?null:next;
 }
 
