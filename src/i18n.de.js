@@ -870,6 +870,160 @@ export const DE = {
   'No matches for “{q}”.':'Keine Treffer für „{q}“.',
   'Try a name, a bean, a café or a drink.':'Probier einen Namen, eine Bohne, ein Café oder ein Getränk.',
 
+
+  /* ---------- beans & machines: the detail sheets, the passports
+                and the picker (2026-08-18) ----------
+     Machine and bean NAMES stay English, as always — they are values
+     written to the database. What is translated is everything Crema
+     says *about* them. */
+  'Type':'Art',
+  'Brand':'Marke',
+  'How it brews':'Wie sie brüht',
+  'Roaster':'Rösterei',
+  'Note':'Notiz',
+  'Not sure':'Weiß ich nicht',
+  'as the roaster describes it':'wie die Rösterei ihn beschreibt',
+  'True of every {brand} of this kind. Crema does not hold specs for individual models.':
+    'Gilt für jede {brand} dieser Art. Crema speichert keine Daten zu einzelnen Modellen.',
+  'The catalogue has no details for this coffee yet.':'Zu diesem Kaffee hat der Katalog noch keine Details.',
+  'The catalogue has no details for this machine yet.':'Zu dieser Maschine hat der Katalog noch keine Details.',
+  'Nothing written down about this coffee yet — it is yours, so nobody else can fill it in.':
+    'Zu diesem Kaffee steht noch nichts — er gehört dir, also kann das niemand sonst ausfüllen.',
+  'Nothing written down about this brewer yet — it is yours, so nobody else can fill it in.':
+    'Zu dieser Maschine steht noch nichts — sie gehört dir, also kann das niemand sonst ausfüllen.',
+  'You brew it on':'Du brühst ihn auf',
+  'You brew with':'Du brühst damit',
+  'Your pours with this coffee':'Deine Kaffees mit dieser Bohne',
+  'Your pours on this machine':'Deine Kaffees auf dieser Maschine',
+  'No pours logged on this machine yet.':'Auf dieser Maschine ist noch kein Kaffee eingetragen.',
+  'Your own machine':'Deine eigene Maschine',
+
+  /* what a machine is — MACHINE_KINDS in data/catalog.js */
+  'Espresso machine':'Espressomaschine',
+  'Bean-to-cup':'Kaffeevollautomat',
+  'Lever espresso machine':'Handhebelmaschine',
+  'Manual espresso press':'Handpresse',
+  'Portable espresso maker':'Espresso für unterwegs',
+  'Moka pot':'Espressokocher',
+  'Pour-over dripper':'Handfilter',
+  'French press':'French Press',
+  'Filter coffee brewer':'Filterkaffeemaschine',
+  'Immersion brewer':'Immersionsbrüher',
+  'Pump pressure, around 9 bar':'Pumpendruck, etwa 9 bar',
+  'Grinds, doses and brews at a button':'Mahlt, dosiert und brüht auf Knopfdruck',
+  'Pressure by hand, on a piston':'Druck von Hand, über einen Kolben',
+  'Pressure by hand, no electricity':'Druck von Hand, ganz ohne Strom',
+  'Hand-pumped, made to travel':'Von Hand gepumpt, für unterwegs',
+  'Steam pressure, on the stove':'Dampfdruck, auf dem Herd',
+  'Gravity, poured by hand':'Schwerkraft, von Hand aufgegossen',
+  'Full immersion, then pressed':'Alles zieht mit, dann gepresst',
+  'Gravity, poured for you':'Schwerkraft, der Aufguss läuft automatisch',
+  'Steeped, then pushed through a filter':'Ziehen lassen, dann durch den Filter drücken',
+  'Steam wand':'Dampflanze',
+  'Built in, varies by model':'Eingebaut, je nach Modell',
+  'None':'Keine',
+
+  /* roast levels — 'Light' and 'Dark' are already above, for the theme,
+     and read correctly here too */
+  'Medium':'Mittel',
+  'Light-medium':'Hell bis mittel',
+  'Medium-dark':'Mittel bis dunkel',
+
+  /* more of the countries in data/catalog.js, now that a machine names
+     where its brand is from */
+  'Australia':'Australien','Japan':'Japan','USA':'USA','Netherlands':'Niederlande',
+  'Canada':'Kanada','Switzerland':'Schweiz','Spain':'Spanien','Hong Kong':'Hongkong',
+  'China':'China','Sweden':'Schweden','Finland':'Finnland','Portugal':'Portugal',
+  'Belgium':'Belgien','India':'Indien','Vietnam':'Vietnam','Turkey':'Türkei',
+  'Peru':'Peru','Guatemala':'Guatemala','Costa Rica':'Costa Rica','France':'Frankreich',
+
+  /* ---------- the machine passport ---------- */
+  'Machine passport':'Maschinenpass',
+  '{n} brewer':'{n} Maschine',
+  '{n} brewers':'{n} Maschinen',
+  '{n} kind':'{n} Art',
+  '{n} kinds':'{n} Arten',
+  'No brewers yet.':'Noch keine Maschinen.',
+  'Name the machine you used when you log a pour and it lands here.':
+    'Trag beim Posten die Maschine ein, dann landet sie hier.',
+  'Every brewer you have logged, most-poured first.':
+    'Jede Maschine, die du eingetragen hast — die meistgenutzte zuerst.',
+  'Most of your coffee comes off the {name}.':'Der meiste Kaffee kommt aus der {name}.',
+  'espresso machine':'Espressomaschine',
+
+  /* ---------- your own details (Premium) ---------- */
+  'Your own bean and machine details':'Eigene Angaben zu Bohnen und Maschinen',
+  'Details for your own coffee':'Details zu deinem eigenen Kaffee',
+  'Details for your own machine':'Details zu deiner eigenen Maschine',
+  'Your private note':'Deine private Notiz',
+  'Your note':'Deine Notiz',
+  '＋ Add details':'＋ Details ergänzen',
+  '＋ Add a private note':'＋ Private Notiz',
+  'Edit these details':'Details bearbeiten',
+  'This one is yours. What you write here stays on your device and shows up on this page and in your passport — nobody else sees it, and nobody else can pick this entry.':
+    'Der Eintrag gehört dir. Was du hier schreibst, bleibt auf deinem Gerät und steht auf dieser Seite und in deinem Pass — niemand sonst sieht es, und niemand sonst kann diesen Eintrag auswählen.',
+  'This coffee or machine is in the catalogue, so its facts stay as they are. Your note is yours alone.':
+    'Dieser Kaffee bzw. diese Maschine steht im Katalog, die Angaben bleiben also, wie sie sind. Deine Notiz gehört nur dir.',
+  'Who roasted it':'Wer sie geröstet hat',
+  'e.g. Ethiopia · Sidama, or Blend':'z. B. Äthiopien · Sidama, oder Blend',
+  'Chocolate, red berry, caramel':'Schokolade, rote Beere, Karamell',
+  'Grind setting, what it likes, what it hates…':'Mahlgrad, was sie mag, was sie nicht mag…',
+  'Where you bought it, what it cost, how you dial it in…':
+    'Wo du sie gekauft hast, was sie gekostet hat, wie du sie einstellst…',
+  'Saved ✓':'Gespeichert ✓',
+
+  /* ---------- the picker ---------- */
+  'Favourites':'Favoriten',
+  'Three photos on a pour':'Drei Fotos pro Kaffee',
+  'The shot and the cup, not one or the other':'Der Shot und die Tasse, nicht nur eins davon',
+  'Your own bean & machine details':'Eigene Angaben zu Bohnen & Maschinen',
+  'Fill in the coffees and gear you added yourself':'Ergänze die Kaffees und Maschinen, die du selbst eingetragen hast',
+  'Also yours':'Auch deine',
+  'Add to favourites':'Zu den Favoriten',
+  'Remove from favourites':'Aus den Favoriten',
+  'Added to favourites ★':'Zu den Favoriten ★',
+  'Removed from favourites':'Aus den Favoriten entfernt',
+  'Star the ones you use most to hold them at the top. That is Premium, <u>free right now, with a code</u>.':
+    'Markier die, die du am meisten nutzt — die bleiben oben. Das ist Premium, <u>gerade kostenlos, mit einem Code</u>.',
+  'Search all {n} machines & brewers':'Alle {n} Maschinen & Brüher durchsuchen',
+  'Search all {n} coffees':'Alle {n} Kaffees durchsuchen',
+  'By brand, model or kind — “moka”, “silvia”, “bean-to-cup”. Not there? Add your own.':
+    'Nach Marke, Modell oder Art — „moka“, „silvia“, „Vollautomat“. Nicht dabei? Trag deine eigene ein.',
+  /* The examples are deliberately NOT translated word for word: origins
+     and tasting notes are English strings in the catalogue itself, so
+     „fruchtig“ would find nothing and teach the wrong lesson about the
+     search. Brand and name work in every language, so the German hint
+     leads with those. */
+  'By name, roaster, origin or taste — “lidl”, “ethiopia”, “fruity”. Not there? Add your own.':
+    'Nach Name, Rösterei oder Herkunft — „lidl“, „jacobs“, „espresso“. Nicht dabei? Trag deinen eigenen ein.',
+
+  /* ---------- more than one photo (Premium) ---------- */
+  'Up to three photos on a pour':'Bis zu drei Fotos pro Kaffee',
+  'Up to three photos on a pour is Premium — <u>free right now, with a code</u>.':
+    'Bis zu drei Fotos pro Kaffee ist Premium — <u>gerade kostenlos, mit einem Code</u>.',
+  'Add up to three. The first stays the cover.':'Bis zu drei. Das erste bleibt das Titelbild.',
+  'The first photo is the cover — it is the one the feed, your grid and the link preview show.':
+    'Das erste Foto ist das Titelbild — es steht im Feed, in deinem Raster und in der Linkvorschau.',
+  'Cover':'Titel',
+  'Photo {n}':'Foto {n}',
+  'Add another photo':'Noch ein Foto',
+  'Remove this photo':'Dieses Foto entfernen',
+  'Three photos is the most a pour can carry':'Mehr als drei Fotos gehen nicht',
+  'A photo still will not upload. Remove it to post without it.':
+    'Ein Foto lädt immer noch nicht hoch. Nimm es raus, dann geht der Post ohne.',
+  'The photos stay as they were poured. Everything else is yours to fix.':
+    'Die Fotos bleiben, wie sie waren. Alles andere kannst du ändern.',
+
+  /* ---------- add to the Home Screen (iOS) ---------- */
+  'Add Crema to your Home Screen':'Crema zum Home-Bildschirm hinzufügen',
+  'Put Crema on your Home Screen':'Crema auf den Home-Bildschirm',
+  'It opens full screen, with its own icon — and on an iPhone it is the only way Crema can remind you about your streak.':
+    'Dann öffnet es sich im Vollbild, mit eigenem Icon — und auf dem iPhone ist das der einzige Weg, wie Crema dich an deinen Streak erinnern kann.',
+  'Tap <b>Share</b> at the bottom of Safari':'Unten in Safari auf <b>Teilen</b> tippen',
+  'Scroll down and tap <b>Add to Home Screen</b>':'Runterscrollen und auf <b>Zum Home-Bildschirm</b> tippen',
+  'Tap <b>Add</b>. That is it.':'Auf <b>Hinzufügen</b> tippen. Das war\'s.',
+  'Maybe later':'Später vielleicht',
+
   /* ---------- misc ---------- */
   'Challenge complete: {title} · +{n} 🎯':'Challenge geschafft: {title} · +{n} 🎯',
   '{n} challenges complete 🎯':'{n} Challenges geschafft 🎯',

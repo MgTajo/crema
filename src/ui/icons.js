@@ -56,7 +56,12 @@ export const I={
   cam:'<path d="M4 8.5h3L8.5 6h7L17 8.5h3v10.5H4z"/><circle cx="12" cy="13.5" r="3.5"/>',
   /* milk — the pitcher, not a glass. Not in §06, drawn in its language:
      same 24 grid, same weight, same rounded joins. */
-  milk:'<path d="M6 8.5h8V17a4 4 0 0 1-4 4h0a4 4 0 0 1-4-4z"/><path d="M6 8.5V6h8v2.5"/><path d="M14 10.5l4-2.4v5.8l-4-2.4z"/>'
+  milk:'<path d="M6 8.5h8V17a4 4 0 0 1-4 4h0a4 4 0 0 1-4-4z"/><path d="M6 8.5V6h8v2.5"/><path d="M14 10.5l4-2.4v5.8l-4-2.4z"/>',
+  /* info — the way into a bean or machine sheet from a row that is
+     already doing something else when you tap it. Same 24 grid and
+     weight as the rest; the dot is a 1px stroke rather than a fill so
+     it holds up at 16px, which is the only size it is ever drawn at. */
+  info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.6v.6"/>'
 };
 export const icon=(n,w=24)=>`<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
 export const pin=color=>`<svg viewBox="0 0 24 30" aria-hidden="true"><path d="M12 0C6 0 2 4.2 2 10c0 7 10 20 10 20s10-13 10-20C22 4.2 18 0 12 0z" fill="${color}"/><circle cx="12" cy="10" r="4.4" fill="#FFFDF9"/></svg>`;

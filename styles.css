@@ -364,6 +364,13 @@
   .recipe-bean b,.recipe-mach b{font-family:var(--sans); font-size:14px; font-weight:600}
   .recipe-bean{background:var(--surface2)!important; grid-column:1/3; display:flex; align-items:center; gap:9px}
   .recipe-mach{grid-column:1/3}
+  /* The two recipe rows with a page behind them. A chevron rather than a
+     colour: the grid is a table of facts and one row turning crema would
+     read as a warning, not as a link. */
+  .recipe-bean.click,.recipe-mach.click{cursor:pointer; position:relative}
+  .recipe-bean.click:after,.recipe-mach.click:after{content:'›'; position:absolute; right:13px; top:50%;
+    transform:translateY(-50%); color:var(--muted); font-size:17px; line-height:1}
+  @media(hover:hover){ .recipe-bean.click:hover,.recipe-mach.click:hover{background:var(--crema-soft)!important} }
   .cmt-preview{margin-top:12px; font-size:13.5px; color:var(--ink2)}
   .cmt-preview .more{color:var(--muted); cursor:pointer; font-weight:600}
   .cmt-preview .one{margin-top:5px}
@@ -496,9 +503,23 @@
   .react.own{cursor:default; opacity:.65}
   @media(hover:hover){ .react:not(.own):hover{border-color:var(--line2); color:var(--ink)} .react.on:hover{border-color:var(--crema)} }
 
-  /* bean passport rows */
+  /* bean & machine passport rows */
   .bean-fl{width:34px; height:34px; border-radius:10px; background:var(--surface2); border:1px solid var(--line);
-           display:grid; place-items:center; font-size:17px; flex:none}
+           display:grid; place-items:center; font-size:17px; flex:none; color:var(--crema)}
+
+  /* Roast said as a position on the scale the catalogue's `roast` column
+     already is — five steps, no more, because inventing a sixth would be
+     claiming a precision the data does not have. */
+  .roastbar{display:flex; gap:4px; margin:10px 2px 0}
+  .roastbar i{flex:1; height:6px; border-radius:3px; background:var(--surface2); border:1px solid var(--line)}
+  .roastbar i.on{background:linear-gradient(90deg,var(--crema),var(--roast)); border-color:transparent}
+
+  /* What someone wrote about their own bag or brewer. Set apart from the
+     catalogue rows above it, because the whole point is that this half
+     is theirs and the other half isn't. */
+  .ownnote{margin-top:14px; padding:12px 14px; border-radius:var(--r-sm); background:var(--surface2); border:1px solid var(--line)}
+  .ownnote b{display:block; font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); font-weight:500; margin-bottom:5px}
+  .ownnote p{margin:0; font-size:13.5px; line-height:1.55; color:var(--ink2); white-space:pre-wrap}
 
   /* level progress on the profile */
   .lvlbar{margin:14px 0 2px}
@@ -639,6 +660,12 @@
   .sheet.bottom{top:auto; height:auto; max-height:94%; border-radius:var(--r-lg) var(--r-lg) 0 0; box-shadow:0 -24px 60px rgba(36,23,15,.26); animation:slideup2 .32s cubic-bezier(.2,.7,.3,1)}
   @keyframes slideup{from{transform:translateY(14px); opacity:0} to{transform:none; opacity:1}}
   @keyframes slideup2{from{transform:translateY(100%)} to{transform:none}}
+  /* A sheet animates when it ARRIVES, never when it repaints in place.
+     Its HTML is replaced whenever the data behind it lands — a profile
+     being fetched, a photo finishing its upload — and a fresh element
+     would replay `slideup` from opacity 0, which looked like the screen
+     blanking out and coming back. See renderOverlay() in ui/overlays.js. */
+  .overlay.again .sheet{animation:none}
   .ov-bar{flex:none; min-height:54px; display:flex; align-items:center; gap:10px; padding:0 12px; border-bottom:1px solid var(--line); background:var(--cream)}
   .ov-bar b{font-family:var(--serif); font-size:20px; font-weight:400; letter-spacing:-.015em; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .ov-body{flex:1; overflow-y:auto; scrollbar-width:none}
@@ -731,6 +758,52 @@
   .uploader{cursor:pointer}
   .photo-actions{display:flex; gap:8px; margin:-4px 0 14px}
   .photo-actions label{flex:1; cursor:pointer}
+
+  /* ----- the photo strip on the create sheet (step-1.28) ----- */
+  .prev-x{position:absolute; top:9px; right:9px; z-index:2; width:30px; height:30px; border-radius:999px; border:0;
+    background:rgba(20,12,6,.55); backdrop-filter:blur(6px); color:#fff; display:grid; place-items:center; cursor:pointer}
+  .pstrip{display:flex; gap:8px; margin:-8px 0 8px}
+  .pstrip-i,.pstrip-add{position:relative; width:58px; height:58px; flex:none; border-radius:12px; overflow:hidden;
+    border:1px solid var(--line2); background:var(--surface2); padding:0; cursor:pointer}
+  .pstrip-i img{width:100%; height:100%; object-fit:cover; display:block}
+  .pstrip-i.on{border-color:var(--crema); box-shadow:0 0 0 2px var(--crema-soft)}
+  .pstrip-first{position:absolute; left:0; right:0; bottom:0; font-size:9px; font-weight:700; letter-spacing:.06em;
+    text-transform:uppercase; color:#fff; background:rgba(20,12,6,.55); padding:2px 0}
+  .pstrip-up{position:absolute; inset:0; background:rgba(20,12,6,.45)}
+  .pstrip-up:after{content:''; position:absolute; inset:0; margin:auto; width:16px; height:16px; border-radius:999px;
+    border:2px solid rgba(255,255,255,.35); border-top-color:#fff; animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .pstrip-bad{position:absolute; inset:0; display:grid; place-items:center; font-style:normal; font-weight:800;
+    color:#fff; background:rgba(168,84,74,.72)}
+  .pstrip-add{display:grid; place-items:center; font-size:22px; color:var(--crema-deep); border-style:dashed}
+  .pstrip-add.locked{color:var(--muted)}
+  .pstrip-add i{position:absolute; right:4px; bottom:3px; font-style:normal; font-size:10px}
+  .pstrip-n{font-size:11.5px; color:var(--muted); line-height:1.5; margin:0 2px 12px}
+  .pstrip-n u{text-decoration-color:var(--crema)}
+
+  /* ----- add to Home Screen, on iOS ----- */
+  .iossteps{text-align:left; max-width:320px; margin:0 auto}
+  .iosstep{display:flex; gap:11px; align-items:flex-start; padding:11px 13px; border-radius:var(--r-sm);
+    background:var(--surface2); border:1px solid var(--line); margin-bottom:8px}
+  .iosstep i{flex:none; width:22px; height:22px; border-radius:999px; background:var(--crema); color:var(--on-crema);
+    font-style:normal; font-weight:700; font-size:12px; display:grid; place-items:center}
+  .iosstep span{font-size:13.5px; line-height:1.5; color:var(--ink2)}
+  .iosstep b{color:var(--ink); font-weight:600}
+  .iosicon{display:inline-grid; place-items:center; vertical-align:-3px; color:var(--crema-deep)}
+
+  /* ----- more than one photo, in the feed and the open sheet -----
+     A scroll-snap rail: the browser does the swiping, the momentum and
+     the snapping, so a gallery costs no JavaScript and no state. The
+     dots are decoration — the rail scrolls whether or not they move,
+     and a card that carries one photo never renders either. */
+  .shots{position:absolute; inset:0; display:flex; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory;
+    scrollbar-width:none; -ms-overflow-style:none; scroll-behavior:smooth}
+  .shots::-webkit-scrollbar{display:none}
+  .shots img.photo{position:relative; flex:0 0 100%; width:100%; height:100%; object-fit:cover; scroll-snap-align:center}
+  .shots-n{position:absolute; top:12px; right:12px; z-index:2; pointer-events:none; min-width:26px; height:22px;
+    padding:0 8px; border-radius:999px; background:#00000066; backdrop-filter:blur(4px); color:#fff;
+    font-size:11.5px; font-weight:700; display:grid; place-items:center; letter-spacing:.02em}
+  .shots-n:before{content:'⧉'; margin-right:4px; font-weight:400}
   /* "Add a photo" is the only hint that is also a control: it is a
      <label for="c-photo-cam">, so tapping it opens the camera exactly
      like the Take photo button below it. The others are status. */
@@ -769,11 +842,13 @@
   .pk-t b{display:block; font-size:14.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .pk-t span{display:block; font-size:12px; color:var(--muted); margin-top:1px}
   .pk-on{flex:none; color:var(--crema); font-weight:700}
-  .pk-pin{flex:none; background:none; border:0; cursor:pointer; font-size:14px; padding:6px; opacity:.28; filter:grayscale(1); transition:opacity .15s, filter .15s}
-  .pk-pin.on{opacity:1; filter:none}
-  .pk-brands{display:flex; flex-wrap:wrap; gap:7px; padding:2px 16px 12px}
-  .pk-brands .chip{cursor:pointer; border:1px solid var(--line2); background:var(--surface); font-size:12.5px}
-  @media(hover:hover){ .pk-brands .chip:hover{background:var(--surface2)} }
+  /* The star is a favourite, the ⓘ is the page behind the row. Both sit
+     inside a row that picks when tapped, so both are real buttons — the
+     click dispatcher takes the closest [data-action] and they win. */
+  .pk-pin{flex:none; background:none; border:0; cursor:pointer; font-size:15px; padding:6px; color:var(--muted); opacity:.4; transition:opacity .15s, color .15s}
+  .pk-pin.on{opacity:1; color:var(--gold)}
+  .pk-info{flex:none; background:none; border:0; cursor:pointer; padding:6px; color:var(--muted); opacity:.5; display:grid; place-items:center; transition:opacity .15s}
+  @media(hover:hover){ .pk-info:hover,.pk-pin:hover{opacity:1} }
   .pk-add{display:flex; align-items:center; gap:11px; margin:12px 14px 4px; padding:13px 14px; border:1px dashed var(--line2); border-radius:var(--r-sm); background:var(--surface); cursor:pointer}
   .pk-add .pk-i{color:var(--crema-deep); font-size:18px}
   .pk-add b{font-size:14.5px}

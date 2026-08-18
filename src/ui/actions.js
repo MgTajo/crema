@@ -11,13 +11,14 @@
    view-model methods; the store calls it makes stay the same.
    ============================================================ */
 import { $, $$, esc, fmt, withUnit } from '../core/util.js';
-import { DRINKS, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, beanCatalog, combineMachine, splitMachine } from '../data/catalog.js';
+import { DRINKS, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, beanCatalog, combineMachine, splitMachine,
+         machineKnown } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf, handleToUid } from '../data/world.js';
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
 import { ensureProfile, pushProfile, pushName, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
          setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium } from '../data/profiles.js';
-import { codeValid, PREMIUM_MAIL } from '../domain/premium.js';
+import { codeValid, PREMIUM_MAIL, photoLimit } from '../domain/premium.js';
 import { cropSquare, objectPosition, isAdjustable, focusAfterDrag, pickFocus } from '../domain/framing.js';
 import { recapSVG, recapPNG, loadShotPhotos, loadStanding, weekStanding } from './recap.js';
 import { enablePush, disablePush, pushEnabled, syncPush, pushSupported, pushPermission } from '../data/push.js';
@@ -31,7 +32,7 @@ import { logRecapExport } from '../data/recap.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
-         feed, hydrateReactions, myMachines, myCoffees, togglePin, weekRecap, toggleRecapPick,
+         feed, hydrateReactions, myMachines, myCoffees, togglePin, setGearNote, weekRecap, toggleRecapPick,
          applyArrivals, dropArrivals, admin, loadQueue } from '../store/store.js';
 import { onLive } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
@@ -98,7 +99,11 @@ initHistory({ depth: () => ui.ovStack.length + ui.navStack.length + (ui.gate?1:0
    code is NOT here — Premium lives on a profile row, so it needs one. */
 const GUEST_READS=new Set(['open-post','recipe','share-post','close-ov','reload','toast','none',
                            'guest-signin','guest-back','set-lang','show-arrivals',
-                           'premium-mail','copy-premium-mail']);
+                           'premium-mail','copy-premium-mail',
+                           /* A bean or machine page is reference material with
+                              nothing of anyone's on it — the same reading a
+                              guest already gets of a pour and its recipe. */
+                           'open-bean','open-machine','gear-info']);
 
 /* Which line the sheet should lead with, per intent. */
 const GUEST_ASK={
@@ -109,9 +114,10 @@ const GUEST_ASK={
   'open-user':'people', 'open-tag':'explore', 'open-challenge':'explore', 'open-challenges':'explore',
   'open-cafe':'cafe', 'follow-cafe':'cafe', directions:'cafe',
   'open-notifs':'notifs',
-  'open-settings':'profile', 'open-passport':'profile', 'open-scoring':'profile',
+  'open-settings':'profile', 'open-passport':'profile', 'open-gearpass':'profile',
+  'gear-edit':'premium', 'gear-save':'premium', 'open-scoring':'profile',
   'open-streak':'profile', ptab:'profile',
-  'open-premium':'premium', 'redeem-premium':'premium', 'premium-off':'premium',
+  'open-premium':'premium', 'redeem-premium':'premium', 'premium-off':'premium', pin:'premium',
   'open-recap':'premium', 'share-recap':'premium', 'pick-standout':'premium',
   'open-menu':'general', 'menu-report':'general', 'menu-block':'general'
 };
@@ -155,7 +161,23 @@ document.addEventListener('click',e=>{
     case 'show-arrivals': showArrivals(); break;
     case 'open-post': openPost(id); break;
     case 'open-cafe': pushOv({type:'cafe',id}); break;
-    case 'open-bean':{ if(BEANS.find(b=>b.n===id)) pushOv({type:'bean',id}); else toast(t('No details for that bean yet')); break;}
+    /* Every coffee and every brewer has a page now, including the ones
+       people typed in themselves — that used to be the one row in the
+       passport that answered a tap with a toast, and it was the bag
+       they know best. An entry with nothing behind it opens on the
+       offer to write it down rather than on a dead end. */
+    case 'open-bean':{ if(id) pushOv({type:'bean',id}); break;}
+    case 'open-machine':{ if(id) pushOv({type:'machine',id}); break;}
+    case 'open-gearpass': pushOv({type:'gearpass'}); break;
+    /* The ⓘ on a picker row: read about it without choosing it. The row
+       around it picks, so this button has to be the inner target — it
+       is, because the dispatcher takes the closest [data-action]. */
+    case 'gear-info':{ const v=el.dataset.v||''; if(!v) break;
+      pushOv({type:el.dataset.kind==='machine'?'machine':'bean',id:v}); break;}
+    case 'gear-edit':{ const v=el.dataset.v||''; if(!v) break;
+      if(!state.me.premium){ openPremium(t('Your own bean and machine details')); break; }
+      pushOv({type:'gearedit',kind:el.dataset.kind,id:v}); break;}
+    case 'gear-save': saveGear(el.dataset.kind,el.dataset.v||''); break;
     case 'open-user':{ if(!id)break; if(id==='me') navTo('profile'); else openUser(id); break;}
     case 'open-notifs':{ const had=state.notifications.some(n=>!n.read); state.notifications.forEach(n=>n.read=true); if(had){save(); renderAppbar();} pushOv({type:'notifs'});
       const u=currentUser(); if(u&&had) markAllRead(u.id).catch(err=>console.warn('mark read failed',err));
@@ -187,7 +209,7 @@ document.addEventListener('click',e=>{
       admin.tab=el.dataset.t; admin.loaded=false; admin.err=''; renderOverlay();
       loadQueue().then(()=>renderOverlay()); break;}
     case 'mod-act': modAct(el); break;
-    case 'open-create': ui.create=freshCreate(); pushOv({type:'create'}); break;
+    case 'open-create': setCreate(freshCreate()); pushOv({type:'create'}); break;
     case 'close-ov': popOv(); break;
     case 'clear-search':{ ui.searchQ=''; renderView(); break;}
 
@@ -262,14 +284,21 @@ document.addEventListener('click',e=>{
        coffee or not logging at all. */
     case 'pick-new':{ const q=($('#pk-q')?$('#pk-q').value:(ui.picker&&ui.picker.q)||'').trim();
       if(!q) break;
-      if(ui.picker.kind==='bean'&&!BEANS.some(b=>b.n===q)&&!state.customBeans.includes(q)) state.customBeans.push(q);
+      if(ui.picker.kind==='bean'){
+        if(!BEANS.some(b=>b.n===q)&&!state.customBeans.includes(q)) state.customBeans.push(q);
+      }else{
+        /* Machines used to be remembered only by posting with one, so
+           adding your grandmother's moka pot and then closing the sheet
+           lost it. Both shelves keep what you add now. */
+        if(!machineKnown(q)&&!state.customMachines.includes(q)) state.customMachines.push(q);
+      }
       choosePicked(q); break;}
     case 'pin':{
       const kind=el.dataset.kind, v=el.dataset.v||'';
       /* The sheet rather than a toast: a toast cannot hold the code
          field, so the old one could only point at Settings and hope. */
-      if(!state.me.premium){ openPremium(t('Pinning your gear')); break; }
-      toast(togglePin(kind,v)?t('Pinned to the top 📌'):t('Unpinned'));
+      if(!state.me.premium){ openPremium(t('Favourites')); break; }
+      toast(togglePin(kind,v)?t('Added to favourites ★'):t('Removed from favourites'));
       paintPicker(); break;}
 
     case 'cpat':{ syncCreate(); ui.create.pattern=(ui.create.pattern===el.dataset.p)?null:el.dataset.p; renderOverlay(); break;}
@@ -287,7 +316,16 @@ document.addEventListener('click',e=>{
        the sheet is abandoned — the choice was still made. */
     case 'cvis':{ syncCreate(); ui.create.visibility=el.dataset.v; state.lastVisibility=el.dataset.v; save(); renderOverlay(); break;}
     case 'submit-post': submitPost(); break;
-    case 'drop-photo':{ syncCreate(); ui.create.img=null; ui.create.imgPreview=null; ui.create.imgAdjustable=false; ui.create.uploadFailed=false; renderOverlay(); break;}
+    /* "Post without the photo" after an upload failed: drop only the
+       ones that failed, and keep the ones that made it. */
+    case 'drop-photo':{ syncCreate(); const c=ui.create;
+      c.photos=shots(c).filter(x=>!x.failed);
+      c.photoI=Math.max(0,Math.min(c.photoI,c.photos.length-1)); renderOverlay(); break;}
+    case 'photo-remove': removeShot(+el.dataset.i); break;
+    case 'photo-pick':{ syncCreate(); ui.create.photoI=+el.dataset.i; renderOverlay(); break;}
+    /* The ＋ tile on a free account: the one place the photo limit is
+       met, so the offer names it rather than saying "Premium". */
+    case 'photo-premium': openPremium(t('Up to three photos on a pour')); break;
 
     case 'set-theme': state.theme=el.dataset.t; save(); applyTheme(); renderOverlay(); break;
     /* Language is a whole-app repaint, not a patch: every screen, sheet
@@ -462,7 +500,11 @@ function paintSearch(){
 }
 document.addEventListener('change',e=>{
   const id=e.target.id;
-  if(id==='c-photo-cam'||id==='c-photo-lib'){ if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0]); return; }
+  if(id==='c-photo-cam'||id==='c-photo-lib'||id==='c-photo-add'){
+    if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0], id==='c-photo-add'?'add':'replace');
+    /* Cleared so choosing the SAME file twice still fires a change —
+       otherwise re-picking the photo you just removed does nothing. */
+    e.target.value=''; return; }
   if(id==='sp-avatar'){ if(e.target.files&&e.target.files[0]) uploadAvatar(e.target.files[0]); return; }
   if(id==='c-drink'||id==='c-cafe'){ syncCreate(); renderOverlay(); return; }
   if(id==='c-milk'){ syncCreate(); return; }
@@ -989,7 +1031,78 @@ function choosePicked(v){
   popOv();
 }
 
-/* ---------- the photo on a new post ----------
+/* ---------- double tap a photo to like it ----------
+   The gesture everyone already has in their thumbs, and the one place
+   in Crema where a tap has to wait to find out what it meant.
+
+   A single tap on a feed photo opens the pour, so the two gestures
+   start identically and only the second tap tells them apart. The open
+   is therefore held for one window — long enough for a deliberate
+   double tap, short enough that a single tap still feels like it
+   answered. Nothing else on the card is delayed: the caption, the
+   comment count and the recipe all open the pour instantly, so the
+   fast path out of the feed is still there for anyone who wants it.
+
+   Handled in the CAPTURE phase so the event never reaches the delegated
+   click dispatcher below — the photo's own data-action is what this
+   decides whether to run, and running it twice would be the bug.
+
+   Double tapping a pour you already liked does NOT unlike it. The
+   gesture means "yes, this one", never "take it back": a stray second
+   tap should not quietly remove a heart, and unliking has a button
+   that says what it does. */
+const DOUBLE_MS=260;
+let lastTap=null;
+document.addEventListener('click',e=>{
+  const el=e.target.closest('.media[data-media]'); if(!el) return;
+  e.stopPropagation();
+  const id=el.dataset.media, act=el.dataset.action;
+  if(lastTap&&lastTap.id===id){ clearTimeout(lastTap.timer); lastTap=null; doubleTapLike(id,el); return; }
+  if(lastTap) clearTimeout(lastTap.timer);
+  lastTap={ id, timer:setTimeout(()=>{
+    lastTap=null;
+    /* Whatever the photo would have done on its own. In the open post
+       sheet that is nothing, which is why the sheet's photo can take
+       the gesture with no delay to pay for. */
+    if(act&&act!=='none'&&!guestWall(act,el)&&act==='open-post') openPost(id);
+  }, DOUBLE_MS) };
+},true);
+
+function doubleTapLike(id,el){
+  if(guestWall('like',el)) return;
+  const p=findPost(id); if(!p) return;
+  if(p.user==='me'){ toast(t('You cannot like your own pour')); return; }
+  /* Already liked: the heart still answers the tap, because a gesture
+     that does nothing visible reads as one that didn't register. */
+  if(p.likedByMe){ popHeart(id); return; }
+  toggleLike(id);
+}
+
+/* ---------- what you wrote down about your own gear ----------
+   Premium, and private by construction: this never leaves the device,
+   which is exactly why someone may write the price they paid or what
+   they think of the roaster in it. An emptied form deletes the entry
+   rather than storing a row of blanks (setGearNote).
+
+   Only the fields the sheet actually rendered are read. A catalogue
+   coffee's sheet has no roaster input — passing undefined for it would
+   wipe a value that sheet never offered to change. */
+function saveGear(kind,name){
+  if(!name) return;
+  if(!state.me.premium){ openPremium(t('Your own bean and machine details')); return; }
+  const g=i=>{ const el=$('#'+i); return el?el.value.trim():undefined; };
+  const patch={};
+  ['roaster','origin','roast','notes','note','kind'].forEach(f=>{
+    const v=g('ge-'+(f==='kind'?'kind':f)); if(v!==undefined) patch[f]=v;
+  });
+  setGearNote(kind,name,patch);
+  /* popOv() repaints the sheet underneath, which is the bean or machine
+     page these details belong on — so the change is on it immediately. */
+  popOv();
+  toast(t('Saved ✓'));
+}
+
+/* ---------- the photos on a new post ----------
    Every surface that shows a coffee is square, so something has to
    decide which square. A photo taken in the app was framed through
    that square; one picked from the gallery was framed for something
@@ -999,10 +1112,37 @@ function choosePicked(v){
    object-fit:cover, which is the same crop the canvas bakes, so
    dragging it is a live view of what will be posted.
 
-   The full-size pixels stay here rather than in `ui.create`: they are
-   not form state, they must never reach the store, and `owner` ties
-   them to one sheet — open a different post and this is dropped. */
-let photo=null;   // { owner, canvas }
+   A pour can carry up to three of them (step-1.28), which is Premium.
+   The rule that keeps it simple: the camera and gallery buttons always
+   REPLACE the photo you are looking at, and the ＋ tile is the only
+   thing that adds one. So a free account with its single photo behaves
+   exactly as it always did — Retake still retakes — and the Premium
+   difference is one tile that either adds a second photo or explains
+   how to get one.
+
+   The full-size pixels stay out of `ui.create`: they are not form
+   state, and `owner` ties them to one sheet — open a different post and
+   they are dropped. Keyed by `sid` rather than by index, because the
+   index of a photo changes the moment one before it is removed. */
+let sources=new Map();   // sid → { owner, canvas }
+let sidN=0;
+
+/* All module-private: the create sheet reads `c.photos` directly when it
+   paints, and nothing outside this file needs the derivations. */
+const shots     = c => (c&&c.photos)||[];
+const shotAt    = c => shots(c)[c.photoI]||null;
+const shotsBusy = c => shots(c).some(s=>s.uploading);
+/* The keys, first one first. This IS the post's photo list — `img` is
+   simply the first of them, which is what every older reader expects. */
+const shotKeys  = c => shots(c).map(s=>s.img).filter(Boolean);
+/* Every place that starts or replaces the create sheet goes through
+   here, so the full-res canvases of the draft being dropped go with it
+   rather than sitting in memory until the tab is closed. */
+function setCreate(c){
+  [...sources.entries()].forEach(([sid,v])=>{ if(!c||v.owner!==c) sources.delete(sid); });
+  ui.create=c;
+  return c;
+}
 
 /* A 64px grayscale thumbnail for pickFocus(). Reading pixels is the
    only part of the framing that needs a canvas, which is why it is
@@ -1025,35 +1165,45 @@ function lumaOf(src){
 
    Called again on every reframe, so the previous object is now an
    orphan and is deleted once its replacement has landed. */
-function bakeAndUpload(c, announce){
-  const p=(photo&&photo.owner===c)?photo:null; if(!p) return;
-  const {size,sx,sy}=cropSquare(p.canvas.width,p.canvas.height,c.imgFocus);
+function bakeAndUpload(c, sh, announce){
+  const p=sources.get(sh.sid); if(!p||p.owner!==c) return;
+  const {size,sx,sy}=cropSquare(p.canvas.width,p.canvas.height,sh.focus);
   const cv=document.createElement('canvas'); cv.width=cv.height=size;
   cv.getContext('2d').drawImage(p.canvas,sx,sy,size,size,0,0,size,size);
   /* Only a key is worth deleting; a data: URL was never uploaded. */
-  const stale=(c.img&&!/^data:/.test(c.img))?c.img:null;
-  c.img=cv.toDataURL('image/jpeg',0.82); c.uploadFailed=false;
+  const stale=(sh.img&&!/^data:/.test(sh.img))?sh.img:null;
+  sh.img=cv.toDataURL('image/jpeg',0.82); sh.failed=false;
   renderOverlay(); if(announce) toast(t('Photo added 📸'));
   const u=currentUser(); if(!u) return;
-  c.uploading=true; renderOverlay();
+  sh.uploading=true; renderOverlay();
   cv.toBlob(blob=>{
-    if(!blob){ if(ui.create===c){c.uploading=false; renderOverlay();} return; }
+    if(!blob){ if(ui.create===c){sh.uploading=false; renderOverlay();} return; }
     uploadImage(blob,'image/jpeg').then(key=>{
       if(ui.create!==c) return;   // sheet was closed/reset meanwhile
-      c.img=key; c.uploading=false; c.uploadFailed=false; renderOverlay();
+      sh.img=key; sh.uploading=false; sh.failed=false; renderOverlay();
       /* Deleted only now, and only on the sheet that owns it: if the
          post went out in the meantime it went out holding `stale`. */
       if(stale) deleteImage(stale);
     }).catch(err=>{
       console.warn('upload failed',err);
-      if(ui.create===c){ c.uploading=false; c.uploadFailed=true; renderOverlay(); }
+      if(ui.create===c){ sh.uploading=false; sh.failed=true; renderOverlay(); }
       toast(t('That photo did not upload. Tap Post to retry.'));
     });
   },'image/jpeg',0.82);
 }
 
-function handleUpload(file){
+/* `mode` is 'replace' (the camera and gallery buttons, which act on the
+   photo currently shown) or 'add' (the ＋ tile). */
+function handleUpload(file, mode){
   if(!file.type||!file.type.startsWith('image/')){toast(t('That file is not an image')); return;}
+  syncCreate();
+  const c=ui.create;
+  if(mode==='add'){
+    if(shots(c).length>=photoLimit(state.me.premium)){
+      if(!state.me.premium){ openPremium(t('Up to three photos on a pour')); return; }
+      toast(t('Three photos is the most a pour can carry')); return;
+    }
+  }
   const reader=new FileReader();
   reader.onload=ev=>{const img=new Image();
     img.onload=()=>{
@@ -1066,24 +1216,42 @@ function handleUpload(file){
       w=Math.max(1,Math.round(w*s)); h=Math.max(1,Math.round(h*s));
       const src=document.createElement('canvas'); src.width=w; src.height=h;
       src.getContext('2d').drawImage(img,0,0,w,h);
-      syncCreate();
-      const c=ui.create;
-      photo={owner:c, canvas:src};
-      c.imgW=w; c.imgH=h; c.imgAdjustable=isAdjustable(w,h);
+      /* The sheet may have been closed, or reset, between choosing the
+         file and the browser handing over its bytes. */
+      if(ui.create!==c) return;
+      const adjustable=isAdjustable(w,h);
       let focus=0.5;
-      if(c.imgAdjustable){
+      if(adjustable){
         try{ const l=lumaOf(src); focus=pickFocus(l.luma,l.w,l.h); }
         catch(err){ console.warn('framing fell back to centre',err); }
       }
-      c.imgFocus=focus;
+      let sh=mode==='replace'?shotAt(c):null;
+      if(sh){ sources.delete(sh.sid); }
+      else { sh={sid:0,img:null,preview:'',uploading:false,failed:false}; c.photos.push(sh); c.photoI=c.photos.length-1; }
+      sh.sid=++sidN; sh.w=w; sh.h=h; sh.focus=focus; sh.adjustable=adjustable;
       /* The preview is the whole photo — the square is CSS, and CSS is
          what makes the drag live. */
-      c.imgPreview=src.toDataURL('image/jpeg',0.82);
-      bakeAndUpload(c,true);
+      sh.preview=src.toDataURL('image/jpeg',0.82);
+      sources.set(sh.sid,{owner:c,canvas:src});
+      bakeAndUpload(c,sh,true);
     };
     img.onerror=()=>toast(t('That image could not be read')); img.src=ev.target.result;};
   reader.onerror=()=>toast(t('That file could not be read'));
   reader.readAsDataURL(file);
+}
+
+/* Taking one back out. The R2 object is deleted only if it landed —
+   an upload still in flight is left alone rather than raced, and the
+   orphan it may leave behind is cheaper than deleting a key the
+   in-flight PUT is about to write. */
+function removeShot(i){
+  syncCreate();
+  const c=ui.create, sh=shots(c)[i]; if(!sh) return;
+  c.photos.splice(i,1);
+  if(c.photoI>=c.photos.length) c.photoI=Math.max(0,c.photos.length-1);
+  sources.delete(sh.sid);
+  if(sh.img&&!/^data:/.test(sh.img)&&!sh.uploading) deleteImage(sh.img);
+  renderOverlay();
 }
 
 /* ---------- reframing by hand ----------
@@ -1096,22 +1264,22 @@ function handleUpload(file){
 let frameDrag=null;
 document.addEventListener('pointerdown',e=>{
   const el=e.target.closest('.create-prev img.frameable'); if(!el) return;
-  const c=ui.create; if(!c||!c.imgAdjustable) return;
+  const c=ui.create, sh=c&&shotAt(c); if(!sh||!sh.adjustable) return;
   const r=el.getBoundingClientRect();
-  frameDrag={el,c,x:e.clientX,y:e.clientY,box:Math.min(r.width,r.height),start:c.imgFocus,moved:false};
+  frameDrag={el,c,sh,x:e.clientX,y:e.clientY,box:Math.min(r.width,r.height),start:sh.focus,moved:false};
   if(el.setPointerCapture) try{ el.setPointerCapture(e.pointerId); }catch(err){}
 });
 document.addEventListener('pointermove',e=>{
   const d=frameDrag; if(!d) return;
   if(e.cancelable) e.preventDefault();
   d.moved=true;
-  d.c.imgFocus=focusAfterDrag(d.c.imgW,d.c.imgH,d.start,e.clientX-d.x,e.clientY-d.y,d.box);
-  d.el.style.objectPosition=objectPosition(d.c.imgW,d.c.imgH,d.c.imgFocus);
+  d.sh.focus=focusAfterDrag(d.sh.w,d.sh.h,d.start,e.clientX-d.x,e.clientY-d.y,d.box);
+  d.el.style.objectPosition=objectPosition(d.sh.w,d.sh.h,d.sh.focus);
 });
 function endFrameDrag(){
   const d=frameDrag; if(!d) return; frameDrag=null;
-  if(!d.moved || Math.abs(d.c.imgFocus-d.start)<0.005 || ui.create!==d.c) return;
-  bakeAndUpload(d.c,false);
+  if(!d.moved || Math.abs(d.sh.focus-d.start)<0.005 || ui.create!==d.c) return;
+  bakeAndUpload(d.c,d.sh,false);
 }
 document.addEventListener('pointerup',endFrameDrag);
 document.addEventListener('pointercancel',endFrameDrag);
@@ -1342,6 +1510,13 @@ async function dropAvatar(){
 function paintLike(p){
   $$('[data-action="like"][data-id="'+p.id+'"]').forEach(b=>{b.classList.toggle('liked',p.likedByMe); b.innerHTML=icon(p.likedByMe?'heartF':'heart',22)+' <span class="cnt">'+fmt(p.likes)+'</span>';});
 }
+/* The heart that blooms over the photo. Every copy on screen gets it:
+   the feed card and the open post sheet can both be showing this pour,
+   and they used to share one `id`, so the animation was as likely to
+   play on the hidden one as on the one being looked at. */
+function popHeart(id){
+  $$('[data-hp="'+id+'"]').forEach(hp=>{ hp.classList.remove('go'); void hp.offsetWidth; hp.classList.add('go'); });
+}
 function toggleLike(id){
   const p=findPost(id); if(!p) return;
   /* Liking your own pour is refused by RLS (step-1.10.sql); the button
@@ -1349,7 +1524,7 @@ function toggleLike(id){
   if(p.user==='me'){ toast(t('You cannot like your own pour')); return; }
   p.likedByMe=!p.likedByMe; p.likes+=p.likedByMe?1:-1; save();
   paintLike(p);
-  if(p.likedByMe){const hp=$('#hp-'+id); if(hp){hp.classList.remove('go'); void hp.offsetWidth; hp.classList.add('go');}}
+  if(p.likedByMe) popHeart(id);
   const u=currentUser(); if(!u) return;
   const want=p.likedByMe;
   (want?social.like(u.id,id):social.unlike(u.id,id)).catch(err=>{
@@ -1768,7 +1943,12 @@ function editMyPost(id){
   const r=p.recipe||{}, c=freshCreate();
   const cafe=p.cafe?CAFES.find(x=>x.name===p.cafe):null;
   Object.assign(c,{
-    editId:p.id, img:p.img,
+    /* The photos ride along read-only: an edit rewrites what the author
+       said, never what they shot (see EDITABLE in data/posts.js), so the
+       sheet shows them and offers no way to change them. */
+    editId:p.id, photos:(p.imgs&&p.imgs.length?p.imgs:(p.img?[p.img]:[]))
+      .map(k=>({sid:0,img:k,preview:'',w:0,h:0,focus:.5,adjustable:false,uploading:false,failed:false})),
+    photoI:0,
     /* the pour's own audience, not the remembered default */
     visibility:p.visibility==='followers'?'followers':'public',
     drink:p.drink||c.drink, pattern:p.art?(p.pattern||null):null,
@@ -1783,7 +1963,7 @@ function editMyPost(id){
     recipeOpen:!!(r.bean||r.machine||r.dose||r.yield||r.time||r.temp)
   });
   if(r.machine&&!cafe){ const m=splitMachine(r.machine); c.machineBrand=m.brand; c.machineModel=m.model; }
-  ui.create=c; ui.ovStack=[]; pushOv({type:'create'});
+  setCreate(c); ui.ovStack=[]; pushOv({type:'create'});
 }
 
 /* Optimistic like every other write here: the change is on screen before
@@ -1797,7 +1977,7 @@ async function saveEdit(c){
   const before=copies.map(x=>{ const o={}; KEYS.forEach(k=>o[k]=x[k]); return o; });
   const next={ ...composeFromSheet(c), edited:true };
   copies.forEach(x=>Object.assign(x,next));
-  ui.create=null; ui.ovStack=[]; save(); render(); toast(t('Changes saved'));
+  setCreate(null); ui.ovStack=[]; save(); render(); toast(t('Changes saved'));
 
   if(!currentUser()) return;
   /* An edit can move the score now: filling in dose and yield earns the
@@ -1813,7 +1993,7 @@ async function saveEdit(c){
 
 function brewAgain(id){
   const p=findPost(id); if(!p) return; const r=p.recipe||{};
-  ui.create=freshCreate();
+  setCreate(freshCreate());
   Object.assign(ui.create,{drink:p.drink||ui.create.drink, pattern:p.pattern||ui.create.pattern,
     bean:r.bean||'', milk:r.milk||ui.create.milk,
     dose:r.dose||'', yield:r.yield||'', time:r.time||'', temp:r.temp||'',
@@ -1844,20 +2024,31 @@ function fallbackCopy(text,done){
    background upload didn't land, retry it here and say so if it fails —
    rather than posting something the database will refuse. */
 async function ensureUploaded(c){
-  if(!c.img || !/^data:/.test(c.img)) return true;
+  const pending=shots(c).filter(sh=>sh.img&&/^data:/.test(sh.img));
+  if(!pending.length) return true;
   if(!currentUser()) return true;
-  c.uploading=true; c.uploadFailed=false; renderOverlay();
-  try{
-    const blob=await (await fetch(c.img)).blob();
-    const key=await uploadImage(blob, blob.type||'image/jpeg');
-    if(ui.create===c){ c.img=key; c.uploading=false; renderOverlay(); }
-    return true;
-  }catch(e){
-    console.warn('upload retry failed',e);
-    if(ui.create===c){ c.uploading=false; c.uploadFailed=true; renderOverlay(); }
-    toast(t('The photo still will not upload. Remove it to post without one.'));
-    return false;
+  pending.forEach(sh=>{ sh.uploading=true; sh.failed=false; }); renderOverlay();
+  /* Sequential, not Promise.all: three presigned PUTs at once from a
+     phone on a bad morning connection is how all three time out
+     together. One failure stops the run — the post is not going out
+     either way, and the ones already up are still up. */
+  for(const sh of pending){
+    try{
+      const blob=await (await fetch(sh.img)).blob();
+      const key=await uploadImage(blob, blob.type||'image/jpeg');
+      sh.img=key; sh.uploading=false;
+      if(ui.create===c) renderOverlay();
+    }catch(e){
+      console.warn('upload retry failed',e);
+      pending.forEach(x=>{ if(x.uploading){ x.uploading=false; } });
+      sh.failed=true;
+      if(ui.create===c) renderOverlay();
+      toast(tn(pending.length,'The photo still will not upload. Remove it to post without one.',
+                               'A photo still will not upload. Remove it to post without it.'));
+      return false;
+    }
   }
+  return true;
 }
 
 /* What the sheet's fields mean, in one place, because the create and the
@@ -1915,22 +2106,23 @@ function composeFromSheet(c){
 async function submitPost(){
   syncCreate(); const c=ui.create;
   if(c.editId){ saveEdit(c); return; }
-  if(c.uploading){ toast(t('The photo is still uploading. One moment.')); return; }
+  if(shotsBusy(c)){ toast(t('The photo is still uploading. One moment.')); return; }
   if(!(await ensureUploaded(c))) return;
   /* The id is minted client-side so it never changes under us — the
      generated cup art is seeded from it, and so is the share link. */
   const u=currentUser();
+  const keys=shotKeys(c);
   const np={ id:newPostId(), user:'me', ...composeFromSheet(c),
     /* No art score: nothing here can judge a pour, so nothing claims to.
        quality stays null and the generated cup art uses its own default. */
-    quality:null, img:c.img, ago:'now',
+    quality:null, img:keys[0]||null, imgs:keys, ago:'now',
     createdAt:new Date().toISOString(),
     likes:0, likedByMe:false, saved:false, comments:[], commentN:0 };
   state.posts.unshift(np); mine.list.unshift(np); save();
   /* Land on the tab that will actually contain what you just posted: a
      followers-only pour never appears in Today. */
   ui.ovStack=[]; ui.route='home'; ui.filter=np.visibility==='followers'?'following':'today'; render();
-  setTimeout(()=>toast(c.img?t('Posted. Streak kept 🔥'):t('Posted ☕ · add a photo next time')),120);
+  setTimeout(()=>toast(keys.length?t('Posted. Streak kept 🔥'):t('Posted ☕ · add a photo next time')),120);
 
   /* Optimistic: the post is already on screen. Reconcile on failure. */
   if(u) createPost(np,u.id).then(()=>{

@@ -27,6 +27,7 @@ import { render } from './ui/views.js';
 import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap } from './ui/actions.js';
+import { canInstallOnIOS } from './data/push.js';
 import { applyLang } from './i18n.js';
 /* Side effect only: measures the window and keeps --app-h in step with it
    for the rest of the session. Module evaluation happens before anything
@@ -143,6 +144,22 @@ if(auth.session){
 }else{
   openFromHash(takeHash());
 }
+
+/* ---------- the iPhone-in-a-tab prompt ----------
+   Raised once per app open, and only when there is nothing else on
+   screen to interrupt: not over onboarding, not over a pour somebody
+   followed a link to, not over the sign-in sheet. A short delay so it
+   arrives after the feed rather than instead of it — the first thing a
+   visitor should see is coffee, not a request.
+
+   Nothing is remembered between opens, so this returns every time the
+   app is opened in a tab. That is deliberate, and it is also the whole
+   cost of it: it stops the moment they install, because
+   canInstallOnIOS() is false from a Home Screen launch. */
+if(canInstallOnIOS()) setTimeout(()=>{
+  if(ui.ovStack.length||ui.gate) return;
+  pushOv({type:'ios'});
+}, 2200);
 
 if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname))){
   let _reloading=false;

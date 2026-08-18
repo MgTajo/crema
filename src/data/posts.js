@@ -35,11 +35,22 @@ const COUNTS = 'likes(count),comments(count)';
 /* All three optional columns arrive with hand-run migrations (step-1.12,
    1.13, 1.15), so the select has to survive their absence — see
    optionalColumns() in data/supabase.js. */
-const opt = optionalColumns(['edited_at','avatar_key','visibility','hidden_at']);
-const select = has => `${COLS}${has('edited_at')?',edited_at':''}${has('visibility')?',visibility':''}${has('hidden_at')?',hidden_at':''},${author(has)},${COUNTS}`;
+const opt = optionalColumns(['edited_at','avatar_key','visibility','hidden_at','image_keys']);
+const select = has => `${COLS}${has('edited_at')?',edited_at':''}${has('visibility')?',visibility':''}${has('hidden_at')?',hidden_at':''}${has('image_keys')?',image_keys':''},${author(has)},${COUNTS}`;
 const q = build => opt.run(has=>build(select(has), has));
 
 const countOf = agg => (Array.isArray(agg) && agg.length ? (agg[0].count|0) : 0);
+
+/* One list of photos out of two columns that can disagree. `image_keys`
+   is authoritative when it is there; before the migration it simply
+   isn't, and the single key stands in. Capped at three here as well as
+   in Postgres, because a row written by something other than this app
+   is still a row this app has to render. */
+function imagesOf(row){
+  const arr = Array.isArray(row.image_keys) ? row.image_keys.filter(Boolean) : [];
+  if(arr.length) return arr.slice(0,3);
+  return row.image_key ? [row.image_key] : [];
+}
 
 /* ---------- row → the app's post shape ---------- */
 export function postOf(row, myUid){
@@ -55,6 +66,13 @@ export function postOf(row, myUid){
     pattern: row.pattern || null,
     quality: row.quality==null ? null : Number(row.quality),
     img: row.image_key || null,        // becomes a CDN URL in step 1.6
+    /* Up to three photos (step-1.28), oldest column first. `image_key`
+       is still the first of them and is never retired: the OG card, the
+       week recap and every client older than the migration read it, and
+       a pour that only they can see half of is worse than one photo.
+       So `imgs` is always the whole set INCLUDING the first, and `img`
+       is always imgs[0] — no caller has to remember which is which. */
+    imgs: imagesOf(row),
     caption: row.caption || '',
     cafe: cafe ? cafe.name : undefined,
     recipe: row.recipe || null,
@@ -86,10 +104,12 @@ export function postOf(row, myUid){
    column would be rejected outright, and a post that can't be written is
    worse than a post that is public when the app has no way to store
    anything else. */
-export function rowOf(p, uid, withVisibility=true){
+export function rowOf(p, uid, withVisibility=true, withImages=true){
   const cafe = p.cafe ? CAFES.find(c=>c.name===p.cafe) : null;
-  if(withVisibility) return { ...baseRow(p,uid,cafe), visibility: p.visibility==='followers' ? 'followers' : 'public' };
-  return baseRow(p,uid,cafe);
+  const row = baseRow(p,uid,cafe);
+  if(withVisibility) row.visibility = p.visibility==='followers' ? 'followers' : 'public';
+  if(withImages) row.image_keys = keysOf(p);
+  return row;
 }
 function baseRow(p, uid, cafe){
   return {
@@ -105,6 +125,13 @@ function baseRow(p, uid, cafe){
     recipe: p.recipe || null
   };
 }
+/* The photo list, only when the column exists — see step-1.28. Written
+   as null rather than an empty array for a pour with no photo, so the
+   column means "not applicable" rather than "an empty gallery". */
+const keysOf = p => {
+  const l=(p.imgs&&p.imgs.length?p.imgs:(p.img?[p.img]:[])).filter(Boolean).slice(0,3);
+  return l.length?l:null;
+};
 
 /* A live UPDATE (data/realtime.js) carries the `posts` row and nothing
    embedded with it — no author, no counts. Those haven't changed, and
@@ -121,6 +148,7 @@ export function applyRowEdit(post, row){
   post.recipe=row.recipe||null;
   const cafe=row.cafe_id ? CAFES.find(c=>c.id===row.cafe_id) : null;
   post.cafe=cafe?cafe.name:undefined;
+  if('image_keys' in row){ post.imgs=imagesOf(row); post.img=post.imgs[0]||post.img||null; }
   if('visibility' in row) post.visibility = row.visibility==='followers'?'followers':'public';
   if('edited_at' in row) post.edited=!!row.edited_at;
   return post;
@@ -182,7 +210,7 @@ export async function fetchPost(id, myUid=null){
 /* ---------- writes ---------- */
 export async function createPost(p, uid){
   const rows = await opt.run(has=>({ path:'posts', method:'POST',
-    prefer:'return=representation', body:rowOf(p,uid,has('visibility')) }));
+    prefer:'return=representation', body:rowOf(p,uid,has('visibility'),has('image_keys')) }));
   return rows && rows.length ? postOf(rows[0],uid) : null;
 }
 
@@ -199,7 +227,7 @@ export async function createPost(p, uid){
 const EDITABLE = ['drink','art','pattern','cafe_id','caption','recipe','visibility'];
 export async function updatePost(id, p){
   return opt.run(has=>{
-    const full = rowOf(p, null, has('visibility'));
+    const full = rowOf(p, null, has('visibility'), has('image_keys'));
     const patch = {};
     EDITABLE.forEach(k=>{ if(k in full) patch[k] = full[k]; });
     return { path:`posts?id=eq.${id}`, method:'PATCH', body:patch };

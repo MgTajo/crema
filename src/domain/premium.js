@@ -25,6 +25,17 @@ export const PREMIUM_MAIL='hello@crema-app.com';
    printed. "first pour", "First-Pour" and "FIRSTPOUR" are the same
    code, and rejecting one of them for a space is a support mail
    neither side wanted. */
+/* How many photos a pour may carry, and where the line falls.
+   Everyone gets one — the log is never what Premium buys — and Premium
+   raises it to three. Enforced three times over, deliberately: here for
+   the sheet, by a check constraint on `posts.image_keys`, and by the
+   `posts_photo_cap` trigger that trims a free account's extras
+   server-side (platform/supabase/step-1.28.sql). The client is the
+   message; the trigger is the lock. Change them together. */
+export const PHOTOS_FREE=1;
+export const PHOTOS_PREMIUM=3;
+export const photoLimit = premium => premium ? PHOTOS_PREMIUM : PHOTOS_FREE;
+
 export const PREMIUM_CODE='FIRSTPOUR';
 export const normalizeCode = s => (''+(s==null?'':s)).toUpperCase().replace(/[^A-Z0-9]/g,'');
 export const codeValid = s => { const c=normalizeCode(s); return !!c && c===PREMIUM_CODE; };

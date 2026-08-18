@@ -8,19 +8,21 @@
 import { $, esc, fmt, cap, initials, seedOf, withUnit, daysAgo } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
-import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, MACHINE_BRANDS, POPULAR_MACHINES, popularBeans,
-         beanBrands, beanCatalog, machineIndex, searchMachines, searchBeans, machineKnown, beanKnown, flag } from '../data/catalog.js';
+import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, POPULAR_MACHINES, popularBeans,
+         beanCatalog, beanInfo, roastStep, machineInfo, MACHINE_KINDS, ROAST_MAX,
+         machineIndex, norm, searchMachines, searchBeans, searchOwn, machineKnown, beanKnown,
+         flag } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, challenges,
-         beanPassport, canEdit, streakInfo, myMachines, myCoffees, isPinned, weekRecap, RECAP_PICKS,
-         admin } from '../store/store.js';
+         beanPassport, machinePassport, canEdit, streakInfo, myMachines, myCoffees, isPinned,
+         gearNote, weekRecap, RECAP_PICKS, admin } from '../store/store.js';
 import { REST_AFTER } from '../domain/streak.js';
-import { PREMIUM_MAIL } from '../domain/premium.js';
+import { PREMIUM_MAIL, PHOTOS_PREMIUM } from '../domain/premium.js';
 import { statementFor } from '../data/moderation.js';
 import { objectPosition } from '../domain/framing.js';
 import { recapSVG, shotPhotos } from './recap.js';
 import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
-import { art, cupSVG } from '../domain/art.js';
+import { art, artSet, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { t, tn } from '../i18n.js';
 import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, hiddenMark, followMini, followBtn, followState } from './components.js';
@@ -58,13 +60,29 @@ export function renderOverlay(){
   const live=new Set(ui.ovStack.map(ovKey));
   [...scrolls.keys()].forEach(k=>{ if(!live.has(k)) scrolls.delete(k); });
   const keep=scrolls.get(key)||0;
+  /* Is this the same sheet painting again, or a different one arriving?
+     It decides whether the entrance animation is allowed to run, and
+     that distinction is the whole fix for the flash people saw when
+     they opened someone's profile: the sheet is pushed, painted, and
+     then painted a SECOND time when their profile and pours land. A
+     fresh .sheet element restarts `slideup`, which begins at opacity 0
+     — so the sheet that was already on screen faded out to the pale
+     backdrop and slid back in, a blink that reads as the page breaking.
+
+     Every repaint-in-place has it: the upload progress on the create
+     sheet, the follower lists, the moderation tabs. So the rule lives
+     here rather than at any one call site — a sheet animates when it
+     arrives, and never again while it stays. */
+  const again=painted===key;
   painted=key;
-  ov.className='overlay show';
+  ov.className='overlay show'+(again?' again':'');
   const T=top.type;
   ov.innerHTML =
     T==='post'?overlayPost(top.id):
     T==='cafe'?overlayCafe(top.id):
     T==='bean'?overlayBean(top.id):
+    T==='machine'?overlayMachine(top.id):
+    T==='gearedit'?overlayGearEdit(top):
     T==='user'?overlayUser(top.id):
     T==='notifs'?overlayNotifs():
     T==='menu'?overlayMenu(top.id):
@@ -76,6 +94,7 @@ export function renderOverlay(){
     T==='scoring'?overlayScoring():
     T==='streak'?overlayStreak():
     T==='passport'?overlayPassport():
+    T==='gearpass'?overlayGearPassport():
     T==='settings'?overlaySettings():
     T==='admin'?overlayAdmin():
     T==='premium'?overlayPremium(top.feature):
@@ -83,6 +102,7 @@ export function renderOverlay(){
     T==='onboard'?overlayOnboard():
     T==='password'?overlayPassword():
     T==='signin'?overlaySignin(top.why):
+    T==='ios'?overlayIosInstall():
     T==='picker'?overlayPicker():
     T==='create'?overlayCreate():'';
   if(keep){ const next=ov.querySelector('.ov-body'); if(next) next.scrollTop=keep; }
@@ -127,6 +147,41 @@ function overlaySignin(why){
     </div></div>`;
 }
 
+/* ---------- add Crema to the Home Screen (iOS) ----------
+   A large part of Crema's audience reads it in a Safari tab on an
+   iPhone, and that tab is the worst version of the app: no icon to come
+   back to, browser chrome eating the top of every screen, and — because
+   Apple ships no Web Push outside an installed PWA — not one
+   notification, ever. The fix is two taps and nobody finds it on their
+   own, because "Add to Home Screen" is inside a share menu that most
+   people only ever use to send a link to somebody.
+
+   So Crema asks, and it says what it gets you rather than what it is:
+   an icon, a full screen, and the reminders that are otherwise
+   impossible on this device. Shown only where the steps below are
+   literally true — Safari, on iOS, in a tab (canInstallOnIOS) — and
+   never once the app is running from the Home Screen, which is the
+   whole point of asking.
+
+   Raised once per app open, from app.js, and only when nothing else
+   already has the screen. */
+function overlayIosInstall(){
+  const step=(n,txt)=>`<div class="iosstep"><i>${n}</i><span>${txt}</span></div>`;
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Add Crema to your Home Screen')}">
+    <div class="grab"></div>
+    <div class="ov-body" style="padding:8px 20px 22px;text-align:center">
+      ${logoMark(46)}
+      <h2 style="font-family:var(--serif);font-weight:400;font-size:24px;letter-spacing:-.02em;margin:12px 0 6px">${t('Put Crema on your Home Screen')}</h2>
+      <p style="color:var(--ink2);font-size:13.5px;line-height:1.55;margin:0 auto 18px;max-width:300px">${t('It opens full screen, with its own icon — and on an iPhone it is the only way Crema can remind you about your streak.')}</p>
+      <div class="iossteps">
+        ${step(1,t('Tap <b>Share</b> at the bottom of Safari')+' <span class="iosicon">'+icon('share',15)+'</span>')}
+        ${step(2,t('Scroll down and tap <b>Add to Home Screen</b>'))}
+        ${step(3,t('Tap <b>Add</b>. That is it.'))}
+      </div>
+      <button class="btn ghost block" style="margin-top:16px" data-action="close-ov">${t('Maybe later')}</button>
+    </div></div>`;
+}
+
 function overlayPost(id){
   const p=findPost(id); if(!p) return '';
   const u=userOf(p.user), r=p.recipe, rows=recipeRows(r);
@@ -135,7 +190,7 @@ function overlayPost(id){
       <button class="act" data-action="share-post" data-id="${p.id}" aria-label="${t('Share')}">${icon('send',20)}</button>
       ${likeButton(p)}</div>
     <div class="ov-body">
-      <div class="media" data-action="none">${art(imageUrl(p.img,'hero'),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
+      <div class="media" data-action="none" data-media="${p.id}">${artSet((p.imgs&&p.imgs.length?p.imgs:[p.img]).map(k=>imageUrl(k,'hero')),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" data-hp="${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">
         <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
           <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${esc(p.cafe)}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
@@ -181,23 +236,191 @@ function overlayCafe(id){
     </div></div>`;
 }
 
+/* ---------- the bean and machine sheets ----------
+   Every coffee and every brewer in Crema now has a page, and the page
+   answers the same shape of question for both: what is this, what does
+   it do, and what have *I* done with it.
+
+   The facts come from the catalogue and are shown as the catalogue's,
+   never restated as ours: tasting notes are what the roaster claims,
+   and a machine's row says what kind of machine it is rather than
+   pretending to know one model's boiler. Anything the catalogue is
+   silent about is simply absent — an empty row is a better answer than
+   a confident guess.
+
+   A coffee or a machine somebody typed in themselves has no catalogue
+   row at all, so the page is whatever they wrote down (Premium, and
+   theirs alone — see gearNote in store/store.js) and an invitation to
+   write it if they haven't. That is the whole of the Premium line
+   here: everyone can log any coffee and read every page; Premium is
+   the one that lets you fill in the blanks on your own bag. */
+
+/* Rows the detail sheets share, so a bean page and a machine page can
+   never drift into two different-looking things. */
+const detailRows=rows=>{
+  const live=rows.filter(r=>r[1]&&(''+r[1]).trim());
+  return live.length?`<div class="recipe-panel open" style="margin:0"><div class="recipe-grid">${
+    live.map(r=>`<div><span>${esc(r[0])}</span><b>${esc(r[1])}</b></div>`).join('')}</div></div>`:'';
+};
+/* Roast said as a position rather than only as a word. Five steps
+   because that is how many the catalogue's `roast` column has — this
+   draws the value, it does not invent a finer one. */
+const roastScale=step=>!step?'':`<div class="roastbar" aria-hidden="true">${
+  Array.from({length:ROAST_MAX},(_,i)=>`<i class="${i<step?'on':''}"></i>`).join('')}</div>`;
+const noteChips=list=>(list||[]).filter(Boolean).length
+  ? `<div class="chips">${list.filter(Boolean).map(x=>`<span class="chip tag">${esc(x)}</span>`).join('')}</div>` : '';
+
+/* Your own pours with this thing, and — for a coffee — what you brewed
+   it on. Both are counted off your own rows, so they are the only
+   numbers on either page that are measured rather than catalogued. */
+function gearPours(kind,name){
+  const n=norm(name);
+  return myPosts().filter(p=>{
+    const v=p.recipe&&(kind==='machine'?p.recipe.machine:p.recipe.bean);
+    return v&&norm(v)===n;
+  });
+}
+function alsoUsed(posts,key){
+  const m=new Map();
+  posts.forEach(p=>{ const v=p.recipe&&p.recipe[key]; if(v) m.set(v,(m.get(v)||0)+1); });
+  return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]);
+}
+
+/* The block a Premium user writes and everyone else is offered. `own`
+   is true for something they added themselves, which is the only case
+   where the full card is theirs to fill — a catalogue coffee takes a
+   private note and keeps its roaster's facts. */
+function gearOwnBlock(kind,name,own){
+  const g=gearNote(kind,name);
+  const has=g&&Object.keys(g).some(k=>(''+(g[k]||'')).trim());
+  const what=own?(kind==='machine'?t('Details for your own machine'):t('Details for your own coffee'))
+                :t('Your private note');
+  if(!state.me.premium) return has?'':premiumNote(what);
+  return `<button class="btn ghost block" style="margin-top:12px" data-action="gear-edit" data-kind="${kind}" data-v="${esc(name)}">
+    ${has?t('Edit these details'):(own?t('＋ Add details'):t('＋ Add a private note'))}</button>`;
+}
+
 function overlayBean(name){
-  const b=BEANS.find(x=>x.n===name); if(!b) return '';
-  const matches=myPosts().filter(p=>{const rb=p.recipe&&p.recipe.bean; return rb&&(rb===b.n||rb.indexOf(b.n)===0||b.n.indexOf(rb)===0);});
-  const rows=[[t('Origin'),b.origin],[t('Roast level'),b.roast],[t('Availability'),b.loc==='INT'?t('Sold in Germany'):t('Roasted in Germany')]];
-  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(b.n)}">
-    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${b.n}</b></div>
+  const b=beanInfo(name);
+  const own=!b;
+  const g=gearNote('bean',name)||{};
+  const posts=gearPours('bean',name);
+  const machines=alsoUsed(posts,'machine');
+  const roaster=b?b.roaster:(g.roaster||'');
+  const origin=b?b.origin:(g.origin||'');
+  const roast=b?b.roast:(g.roast||'');
+  const notes=b?b.notes:(g.notes||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const step=b?b.step:roastStep(roast);
+  const country=b?b.c:'';
+  /* Four facts, so the two-column grid comes out square. Blend vs single
+     origin is deliberately NOT a fifth: it is a reading of the origin
+     line sitting directly above it, and a row that repeats its
+     neighbour in fewer words is noise. */
+  const rows=[
+    [t('Roaster'),roaster],
+    [t('Origin'),origin],
+    [t('Roast level'),roast?t(roast):''],
+    b?[t('Availability'),b.loc==='INT'?t('Sold in Germany'):t('Roasted in Germany')]:null
+  ].filter(Boolean);
+  const heroSub=[roaster,origin].filter(Boolean).join(' · ')||(own?t('Your own coffee'):'');
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(name)}">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${esc(name)}</b></div>
     <div class="ov-body">
-      <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t"><span class="fl">${flag[b.c]||'🫘'}</span><div><b>${b.n}</b><span>${esc(b.origin||'')}</span></div></div></div>
+      <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t"><span class="fl">${flag[country]||'🫘'}</span>
+        <div><b>${esc(name)}</b><span>${esc(heroSub)}</span></div></div></div>
       <div style="padding:16px">
-        <div class="section-h" style="margin:2px 0 10px"><h2>${t('Tasting notes')}</h2></div>
-        <div class="chips">${b.notes.map(x=>`<span class="chip tag">${x}</span>`).join('')}</div>
-        <div class="section-h" style="margin:18px 0 10px"><h2>${t('Details')}</h2></div>
-        <div class="recipe-panel open" style="margin:0"><div class="recipe-grid">${rows.map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>
-        <div class="section-h" style="margin:18px 0 10px"><h2>${t('Your pours with this bean')}</h2></div>
-        ${matches.length?`<div class="grid">${matches.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty" style="padding:22px 0">${t('No pours logged with this bean yet.')}</div>`}
+        ${notes.length?`<div class="section-h" style="margin:2px 0 10px"><h2>${t('Tasting notes')}</h2>
+          ${b?`<span style="font-size:11.5px;color:var(--muted)">${t('as the roaster describes it')}</span>`:''}</div>
+          ${noteChips(notes)}`:''}
+        ${rows.some(r=>r[1])?`<div class="section-h" style="margin:18px 0 10px"><h2>${t('Details')}</h2></div>
+          ${detailRows(rows)}${roastScale(step)}`
+        :`<div class="empty" style="padding:18px 0">${own
+            ? t('Nothing written down about this coffee yet — it is yours, so nobody else can fill it in.')
+            : t('The catalogue has no details for this coffee yet.')}</div>`}
+        ${g.note?`<div class="ownnote"><b>${t('Your note')}</b><p>${esc(g.note)}</p></div>`:''}
+        ${gearOwnBlock('bean',name,own)}
+        ${machines.length?`<div class="section-h" style="margin:18px 0 10px"><h2>${t('You brew it on')}</h2></div>
+          <div class="chips">${machines.map(m=>`<span class="chip tag" data-action="open-machine" data-id="${esc(m)}">${icon('mach',12)} ${esc(m)}</span>`).join('')}</div>`:''}
+        <div class="section-h" style="margin:18px 0 10px"><h2>${t('Your pours with this coffee')}</h2></div>
+        ${posts.length?`<div class="grid">${posts.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`
+          :`<div class="empty" style="padding:22px 0">${t('No pours logged with this bean yet.')}</div>`}
         <div style="height:8px"></div>
       </div></div></div>`;
+}
+
+function overlayMachine(name){
+  const i=machineInfo(name);
+  const own=!i;
+  const g=gearNote('machine',name)||{};
+  const ownKind=g.kind&&MACHINE_KINDS[g.kind];
+  const posts=gearPours('machine',name);
+  const beans=alsoUsed(posts,'bean');
+  const kind=i||ownKind||null;
+  /* Four facts, so the two-column grid comes out square. The brand and
+     where it is from are one row rather than two: nobody wants one
+     without the other, and split across a grid they read as unrelated. */
+  const rows=[
+    [t('Type'),kind?t(kind.label):''],
+    [t('How it brews'),kind?t(kind.method):''],
+    [t('Milk'),kind?t(kind.milk):''],
+    [t('Brand'),i?i.brand+' · '+t(i.country):'']
+  ];
+  const heroSub=kind?t(kind.label):(own?t('Your own machine'):'');
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(name)}">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${esc(name)}</b></div>
+    <div class="ov-body">
+      <div class="bean-hero"><img src="${S.esp}" alt=""><div class="bean-hero-t"><span class="fl">${icon('mach',30)}</span>
+        <div><b>${esc(name)}</b><span>${esc(heroSub)}</span></div></div></div>
+      <div style="padding:16px">
+        ${rows.some(r=>r[1])?`<div class="section-h" style="margin:2px 0 10px"><h2>${t('Details')}</h2></div>${detailRows(rows)}
+          ${i?`<div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin:8px 2px 0">${t('True of every {brand} of this kind. Crema does not hold specs for individual models.',{brand:esc(i.brand)})}</div>`:''}`
+        :`<div class="empty" style="padding:18px 0">${own
+            ? t('Nothing written down about this brewer yet — it is yours, so nobody else can fill it in.')
+            : t('The catalogue has no details for this machine yet.')}</div>`}
+        ${g.note?`<div class="ownnote"><b>${t('Your note')}</b><p>${esc(g.note)}</p></div>`:''}
+        ${gearOwnBlock('machine',name,own)}
+        ${beans.length?`<div class="section-h" style="margin:18px 0 10px"><h2>${t('You brew with')}</h2></div>
+          <div class="chips">${beans.map(b=>`<span class="chip tag" data-action="open-bean" data-id="${esc(b)}">${icon('bean',12)} ${esc(b)}</span>`).join('')}</div>`:''}
+        <div class="section-h" style="margin:18px 0 10px"><h2>${t('Your pours on this machine')}</h2></div>
+        ${posts.length?`<div class="grid">${posts.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`
+          :`<div class="empty" style="padding:22px 0">${t('No pours logged on this machine yet.')}</div>`}
+        <div style="height:8px"></div>
+      </div></div></div>`;
+}
+
+/* The editor behind both. One sheet, two shapes: your own entry gets
+   the fields a catalogue row would have had, a catalogue entry gets the
+   note and nothing else — its roaster's facts are not yours to rewrite,
+   and a private edit of a shared name would be a fact that disagrees
+   with everyone else's copy of the same bag. */
+function overlayGearEdit(o){
+  const kind=o.kind, name=o.id||'', isM=kind==='machine';
+  const g=gearNote(kind,name)||{};
+  const own=isM?!machineInfo(name):!beanInfo(name);
+  const fields=!own?'' : isM
+    ? `<div class="field sel"><label>${t('Type')}</label><select id="ge-kind">
+        <option value=""${g.kind?'':' selected'}>${t('Not sure')}</option>
+        ${Object.keys(MACHINE_KINDS).map(k=>`<option value="${k}"${g.kind===k?' selected':''}>${t(MACHINE_KINDS[k].label)}</option>`).join('')}
+      </select></div>`
+    : `<div class="field"><label>${t('Roaster')}</label><input id="ge-roaster" placeholder="${t('Who roasted it')}" value="${esc(g.roaster||'')}"></div>
+       <div class="field"><label>${t('Origin')}</label><input id="ge-origin" placeholder="${t('e.g. Ethiopia · Sidama, or Blend')}" value="${esc(g.origin||'')}"></div>
+       <div class="field sel"><label>${t('Roast level')}</label><select id="ge-roast">
+         <option value=""${g.roast?'':' selected'}>${t('Not sure')}</option>
+         ${['Light','Light-medium','Medium','Medium-dark','Dark'].map(r=>`<option value="${r}"${g.roast===r?' selected':''}>${t(r)}</option>`).join('')}
+       </select></div>
+       <div class="field"><label>${t('Tasting notes')}</label><input id="ge-notes" placeholder="${t('Chocolate, red berry, caramel')}" value="${esc(g.notes||'')}"></div>`;
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Details')}">
+    <div class="grab"></div>
+    <div class="ov-bar" style="border:0"><b>${esc(name)}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
+    <div class="ov-body" style="padding:0 16px 16px">
+      <p style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin:0 0 14px">${own
+        ? t('This one is yours. What you write here stays on your device and shows up on this page and in your passport — nobody else sees it, and nobody else can pick this entry.')
+        : t('This coffee or machine is in the catalogue, so its facts stay as they are. Your note is yours alone.')}</p>
+      ${fields}
+      <div class="field"><label>${t('Note')}</label><textarea id="ge-note" placeholder="${isM?t('Grind setting, what it likes, what it hates…'):t('Where you bought it, what it cost, how you dial it in…')}">${esc(g.note||'')}</textarea></div>
+      <button class="btn block" style="margin-top:6px" data-action="gear-save" data-kind="${kind}" data-v="${esc(name)}">${t('Save')}</button>
+      <div style="height:8px"></div>
+    </div></div>`;
 }
 
 /* Their pours, loaded when the sheet opens (ui/actions openUser). Falls
@@ -590,10 +813,15 @@ function overlayPassport(){
   const beans=beanPassport();
   const origins=[...new Set(beans.map(b=>b.cat&&b.cat.c).filter(Boolean))];
   const totalPours=beans.reduce((n,b)=>n+b.pours,0);
+  /* Every row opens now, catalogue or not. It used to be that a coffee
+     you added yourself was the one row that did nothing when tapped —
+     the bag you know best, and the only dead end on the page. It has a
+     sheet of its own to go to, empty until you fill it in. */
   const row=b=>{
-    const known=!!b.cat;
-    const sub=[b.cat&&b.cat.origin, b.cat&&b.cat.roast].filter(Boolean).join(' · ');
-    return `<div class="rlist-row ${known?'click':''}"${known?` data-action="open-bean" data-id="${esc(b.name)}"`:''}>
+    const own=gearNote('bean',b.name)||{};
+    const sub=[b.cat&&b.cat.roaster, b.cat&&b.cat.origin, b.cat&&b.cat.roast].filter(Boolean).join(' · ')
+      || [own.roaster,own.origin,own.roast].filter(Boolean).join(' · ');
+    return `<div class="rlist-row click" data-action="open-bean" data-id="${esc(b.name)}">
       <div class="bean-fl">${(b.cat&&flag[b.cat.c])||'🫘'}</div>
       <div class="who" style="flex:1;min-width:0"><b>${esc(b.name)}</b>
         <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sub?esc(sub):t('Your own coffee')}</span></div>
@@ -601,7 +829,8 @@ function overlayPassport(){
     </div>`;
   };
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${t('Bean passport')}">
-    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${t('Bean passport')}</b></div>
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${t('Bean passport')}</b>
+      <button class="act" style="margin-left:auto" data-action="open-gearpass">${icon('mach',20)}</button></div>
     <div class="ov-body">
       <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t">
         <span class="fl">🛂</span><div><b>${tn(beans.length,'{n} bean tried','{n} beans tried')}</b>
@@ -613,6 +842,62 @@ function overlayPassport(){
              <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">${t('Every coffee you have logged, most-poured first.')}</div>`
           : `<div class="empty"><div class="big">🫘</div>${t('No beans yet.')}<br>${t('Add the coffee you used when you log a pour and it lands here.')}<br><br>
              <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`}
+        <button class="btn ghost block" style="margin-top:16px" data-action="open-gearpass">${icon('mach',17)} ${t('Machine passport')}</button>
+        <div style="height:8px"></div>
+      </div></div></div>`;
+}
+
+/* ---------- the machine passport ----------
+   The bean passport's twin, and it earns the pairing rather than just
+   mirroring it. A bean passport is a list of things you tried once; a
+   machine passport is a list of things you *own*, so the interesting
+   number is not how long it is but how the pours split across it —
+   which brewer is actually the morning one, and which came out for a
+   weekend and never went back in the cupboard.
+
+   Same rows, same sort, same source: your own pours. Gear you have
+   named but never poured on sits at the bottom at zero rather than
+   being hidden, because "not logged yet" is a truer thing to say about
+   the AeroPress in the drawer than nothing at all. */
+function overlayGearPassport(){
+  const list=machinePassport();
+  const kinds=[...new Set(list.map(m=>m.info&&m.info.label).filter(Boolean))];
+  const totalPours=list.reduce((n,m)=>n+m.pours,0);
+  const most=list.length&&list[0].pours?list[0]:null;
+  const row=m=>{
+    const own=gearNote('machine',m.name)||{};
+    const ownKind=own.kind&&MACHINE_KINDS[own.kind];
+    const sub=m.info?[t(m.info.label),t(m.info.country)].filter(Boolean).join(' · ')
+                    :(ownKind?t(ownKind.label):t('Your own machine'));
+    /* The share of your pours, not a second raw count: with one machine
+       it says 100% and stops being interesting, which is exactly right —
+       the bar only has something to say once there are two. */
+    const pct=totalPours?Math.round(m.pours/totalPours*100):0;
+    return `<div class="rlist-row click" data-action="open-machine" data-id="${esc(m.name)}">
+      <div class="bean-fl">${icon('mach',20)}</div>
+      <div class="who" style="flex:1;min-width:0"><b>${esc(m.name)}</b>
+        <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sub)}</span></div>
+      <div class="rlist-val">${m.pours?`${m.pours} <small>${tn(m.pours,'pour','pours')}</small>${list.length>1?`<br><span style="font-size:11px;font-weight:600;color:var(--muted)">${pct}%</span>`:''}`
+        :`<small>${t('not logged yet')}</small>`}</div>
+    </div>`;
+  };
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${t('Machine passport')}">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${t('Machine passport')}</b>
+      <button class="act" style="margin-left:auto" data-action="open-passport">${icon('bean',20)}</button></div>
+    <div class="ov-body">
+      <div class="bean-hero"><img src="${S.esp}" alt=""><div class="bean-hero-t">
+        <span class="fl">🛠️</span><div><b>${tn(list.length,'{n} brewer','{n} brewers')}</b>
+        <span>${tn(totalPours,'{n} pour','{n} pours')}${kinds.length>1?' · '+tn(kinds.length,'{n} kind','{n} kinds'):''}</span></div></div></div>
+      <div style="padding:16px">
+        ${kinds.length?`<div class="chips" style="margin:0 0 14px">${kinds.map(k=>`<span class="chip">${icon('mach',12)} ${esc(t(k))}</span>`).join('')}</div>`:''}
+        ${list.length
+          ? `<div class="rlist">${list.map(row).join('')}</div>
+             <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">${most&&list.length>1
+                ? t('Most of your coffee comes off the {name}.',{name:esc(most.name)})
+                : t('Every brewer you have logged, most-poured first.')}</div>`
+          : `<div class="empty"><div class="big">🛠️</div>${t('No brewers yet.')}<br>${t('Name the machine you used when you log a pour and it lands here.')}<br><br>
+             <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`}
+        <button class="btn ghost block" style="margin-top:16px" data-action="open-passport">${icon('bean',17)} ${t('Bean passport')}</button>
         <div style="height:8px"></div>
       </div></div></div>`;
 }
@@ -804,8 +1089,10 @@ export const PERKS=()=>[
   ['📊',t('Your stats'),t('What you actually brew, when, and at what ratio')],
   ['◍',t('The gold ring'),t('Your avatar wears it everywhere you appear')],
   ['🚫',t('Always ad-free'),t('Whatever Crema does later, not to you')],
-  ['📌',t('Pin your gear & coffees'),t('Hold the ones you use at the top of every picker')],
-  ['🥤',t('Name your own drink types'),t('Ristretto, Bombón, whatever you actually order')]
+  ['★',t('Favourites'),t('Hold the ones you use at the top of every picker')],
+  ['🥤',t('Name your own drink types'),t('Ristretto, Bombón, whatever you actually order')],
+  ['📷',t('Three photos on a pour'),t('The shot and the cup, not one or the other')],
+  ['✎',t('Your own bean & machine details'),t('Fill in the coffees and gear you added yourself')]
 ];
 const perkList=()=>PERKS().map(p=>
   `<div class="pm-perk"><span>${p[0]}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('');
@@ -1018,75 +1305,116 @@ function overlayOnboard(){
    them to retype it into a text input below is the moment they give up
    and log the wrong coffee.
    ============================================================ */
+/* ---------- the machine / coffee picker ----------
+   Two lists and a search box, and that is the whole sheet.
+
+   It used to be four: your shelf, a dozen common ones, forty-five brand
+   chips to browse by, and the search. The brand wall was the mistake —
+   it looked like the main way in, so people scanned forty names for
+   theirs instead of typing three letters, and the two rows that would
+   have answered them in one tap sat above it unread. Browsing a
+   catalogue nobody can finish writing is a worse tool than searching it,
+   so the chips are gone and the search says how much is behind it.
+
+   What is left is ordered by how likely it is to be the answer: what
+   you poured yesterday, then the handful of machines and bags that are
+   in most kitchens, then everything else through the field at the top.
+   Both lists are short on purpose — a shortlist that scrolls is a
+   dropdown wearing a hat. */
+const SHELF_N=5;     // your own, most recent first
+const COMMON_N=6;    // the fixed shortlist everyone sees
+
 function pickerRow(kind,value,sub,cur,pinnable){
   const on=value===cur;
   return `<div class="pk-row${on?' on':''}" data-action="pick" data-kind="${kind}" data-v="${esc(value)}">
     <span class="pk-i">${icon(kind==='machine'?'mach':'bean',17)}</span>
     <span class="pk-t"><b>${esc(value)}</b>${sub?`<span>${esc(sub)}</span>`:''}</span>
+    <button class="pk-info" data-action="gear-info" data-kind="${kind}" data-v="${esc(value)}"
+      aria-label="${t('Details')}">${icon('info',16)}</button>
     ${pinnable?`<button class="pk-pin${isPinned(kind,value)?' on':''}" data-action="pin" data-kind="${kind}" data-v="${esc(value)}"
-       aria-label="${isPinned(kind,value)?t('Unpin'):t('Pin to the top')}">📌</button>`:''}
+       aria-label="${isPinned(kind,value)?t('Remove from favourites'):t('Add to favourites')}">★</button>`:''}
     ${on?`<span class="pk-on">✓</span>`:''}</div>`;
 }
 const pkSection=(title,body,note)=>body?`<div class="pk-sec"><div class="pk-h">${title}${note?`<span>${note}</span>`:''}</div>${body}</div>`:'';
 
+/* One line under a row: what the thing is, in the words the detail
+   sheet would use. A coffee shows its roaster, a machine what kind of
+   brewer it is — the two facts that tell a Silvia from a Silvano
+   without opening anything. */
+function pickerSub(kind,v){
+  if(kind==='machine'){
+    const i=machineInfo(v); if(i) return t(i.label);
+    const own=gearNote('machine',v);
+    return own&&own.kind&&MACHINE_KINDS[own.kind] ? t(MACHINE_KINDS[own.kind].label) : t('Your own machine');
+  }
+  const c=beanCatalog(v); if(c) return c.roaster;
+  const own=gearNote('bean',v);
+  return (own&&(own.roaster||'').trim()) || t('Your own coffee');
+}
+
 export function pickerList(){
   const p=ui.picker; if(!p) return '';
   const isM=p.kind==='machine', q=(p.q||'').trim(), cur=p.current||'';
-  const sub=v=>{ if(isM) return ''; const c=beanCatalog(v); return c?c.roaster:t('Your own coffee'); };
+  const sub=v=>pickerSub(p.kind,v);
+  const mine=isM?myMachines():myCoffees();
   let h='';
 
   if(q){
+    /* Your own shelf is searched first and separately. A search that
+       reaches the whole catalogue but not the bag you typed in
+       yesterday is not a search, and yours is the likelier answer —
+       so it goes above the catalogue rather than into it. */
+    const own=searchOwn(mine,q).filter(v=>isM?!machineKnown(v):!beanKnown(v));
+    h+=pkSection(t('Yours'), own.map(v=>pickerRow(p.kind,v,sub(v),cur,false)).join(''));
     const hits=isM?searchMachines(q):searchBeans(q);
     h+=pkSection(tn(hits.length,'{n} match','{n} matches'),
-      hits.map(x=>pickerRow(p.kind,isM?x.label:x.name,x.sub,cur,false)).join(''));
+      hits.map(x=>pickerRow(p.kind,isM?x.label:x.name,sub(isM?x.label:x.name),cur,false)).join(''));
     /* Nothing found, or rows that aren't what they meant — either way
        the way out is the same, and it is never a dead end. The line
        under it has to match what is on screen: telling someone their
        coffee is "not in the list" directly below three matching rows
        reads as the search being broken, not as an offer. */
-    const exact=isM?machineKnown(q):beanKnown(q);
+    const exact=(isM?machineKnown(q):beanKnown(q)) || own.some(v=>v.toLowerCase()===q.toLowerCase());
     if(!exact) h+=`<div class="pk-add" data-action="pick-new" data-kind="${p.kind}">
       <span class="pk-i">＋</span>
-      <span class="pk-t"><b>${t('Add “{q}”',{q:esc(q)})}</b><span>${hits.length
+      <span class="pk-t"><b>${t('Add “{q}”',{q:esc(q)})}</b><span>${(hits.length||own.length)
         ? (isM?t('None of these? Save it as your own machine'):t('None of these? Save it as your own coffee'))
         : (isM?t('Not in the list. Save it as your own machine'):t('Not in the list. Save it as your own coffee'))}</span></span></div>`;
-    if(!hits.length) h+=`<div class="pk-empty">${isM
+    if(!hits.length&&!own.length) h+=`<div class="pk-empty">${isM
       ? t('Nothing in the catalogue matches that. Yours works just as well: it lands on your gear and is there next time.')
       : t('Nothing in the catalogue matches that. Yours works just as well: it lands on your shelf and is there next time.')}</div>`;
     return h;
   }
 
-  const yours=isM?myMachines():myCoffees();
-  /* Nothing to pin when there is one of something — the affordance would
-     only ever say no. It appears with the second entry, which is also
-     the first moment the order of this list matters. */
-  const canPin=yours.length>1;
-  h+=pkSection(t('Yours'), yours.map(v=>pickerRow(p.kind,v,sub(v),cur,canPin)).join(''),
-    canPin?t('most recent first'):'');
+  /* Favourites are the one list you arranged yourself, so they sit above
+     the one the app arranged for you. They only exist once there are two
+     of something to order — with one entry the star could only ever say
+     yes — and that is also the first morning the order matters. */
+  const favs=mine.filter(v=>isPinned(p.kind,v));
+  const rest=mine.filter(v=>!isPinned(p.kind,v));
+  const canPin=mine.length>1;
+  h+=pkSection('★ '+t('Favourites'), favs.map(v=>pickerRow(p.kind,v,sub(v),cur,canPin)).join(''));
+  h+=pkSection(favs.length?t('Also yours'):t('Yours'),
+    rest.slice(0,SHELF_N).map(v=>pickerRow(p.kind,v,sub(v),cur,canPin)).join(''),
+    rest.length?t('most recent first'):'');
   if(!state.me.premium&&canPin)
-    h+=`<div class="pk-note" data-action="open-premium" data-f="${t('Pinning your gear')}"><span>📌</span>
-      <span>${t('Pin the ones you use most to hold them at the top. That is Premium, <u>free right now, with a code</u>.')}</span></div>`;
+    h+=`<div class="pk-note" data-action="open-premium" data-f="${t('Favourites')}"><span>★</span>
+      <span>${t('Star the ones you use most to hold them at the top. That is Premium, <u>free right now, with a code</u>.')}</span></div>`;
 
-  const pop=isM
-    ? POPULAR_MACHINES.map(([b,m])=>({v:b+' '+m,s:b}))
-    : popularBeans().map(n=>({v:n,s:sub(n)}));
-  h+=pkSection(yours.length?t('Common ones'):t('Popular'),
-    pop.filter(x=>!yours.includes(x.v)).map(x=>pickerRow(p.kind,x.v,x.s,cur,false)).join(''));
+  const pop=(isM
+    ? POPULAR_MACHINES.map(([b,m])=>b+' '+m)
+    : popularBeans()).filter(v=>!mine.includes(v)).slice(0,COMMON_N);
+  h+=pkSection(mine.length?t('Common ones'):t('Popular'),
+    pop.map(v=>pickerRow(p.kind,v,sub(v),cur,false)).join(''));
 
-  /* Browsing is a search someone hasn't typed yet, so a brand doesn't
-     open a sub-list — it fills the box and the results are already
-     there, one screen, one mental model.
-
-     Alphabetical, not catalogue order: this is the one list you scan
-     rather than search, and scanning forty names for a brand you
-     already know only works if you know where to look for it. */
-  const brands=(isM?MACHINE_BRANDS.filter(b=>b!=='Other'):beanBrands().map(b=>b.name))
-    .slice().sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
-  h+=pkSection(isM?t('Browse by brand'):t('Browse by roaster'),
-    `<div class="pk-brands">${brands.map(b=>`<button class="chip" data-action="pk-brand" data-b="${esc(b)}">${esc(b)}</button>`).join('')}</div>`);
-
-  h+=`<div class="pk-add" data-action="pk-focus"><span class="pk-i">＋</span>
-    <span class="pk-t"><b>${t('Not on the list?')}</b><span>${t('Type it above and add it as your own')}</span></span></div>`;
+  /* The way to everything else is one sentence naming the size of what
+     is behind the field, because "search" as a bare word reads as a
+     filter over the six rows already on screen. */
+  const n=isM?machineIndex().length:BEANS.length;
+  h+=`<div class="pk-add" data-action="pk-focus"><span class="pk-i">${icon('search',18)}</span>
+    <span class="pk-t"><b>${isM?t('Search all {n} machines & brewers',{n}):t('Search all {n} coffees',{n})}</b>
+    <span>${isM?t('By brand, model or kind — “moka”, “silvia”, “bean-to-cup”. Not there? Add your own.')
+                :t('By name, roaster, origin or taste — “lidl”, “ethiopia”, “fruity”. Not there? Add your own.')}</span></span></div>`;
   if(cur) h+=`<div class="pk-clear" data-action="pick" data-kind="${p.kind}" data-v="">${t('Clear this field')}</div>`;
   return h;
 }
@@ -1120,6 +1448,36 @@ function visibilityPicker(c){
       : t('Only the followers you have accepted can see it, and it never appears in Today.')}</div>`;
 }
 
+/* ---------- the photo strip ----------
+   Only there once there is a photo, because until then the big preview
+   is the whole story and a row of empty tiles under it would be the app
+   explaining a feature to someone who has not used the first one yet.
+
+   The ＋ tile is where the Premium line actually falls, and it is the
+   only place it does: everything above it — taking a photo, reframing
+   it, retaking it — is the same for everyone. On a free account the
+   tile is still there and still tappable; it says what it would do and
+   how to get it, rather than being hidden so the possibility is never
+   discovered. */
+function photoStrip(c,pics,n,editing){
+  if(!n||editing) return '';
+  const cell=(sh,i)=>`<button class="pstrip-i${i===c.photoI?' on':''}" data-action="photo-pick" data-i="${i}" aria-label="${t('Photo {n}',{n:i+1})}">
+    <img src="${esc(sh.preview||imageUrl(sh.img,'thumb'))}" alt="">
+    ${sh.uploading?`<i class="pstrip-up"></i>`:''}${sh.failed?`<i class="pstrip-bad">!</i>`:''}
+    ${i===0&&n>1?`<span class="pstrip-first">${t('Cover')}</span>`:''}</button>`;
+  const room=n<PHOTOS_PREMIUM;
+  const add=!room ? '' : state.me.premium
+    ? `<label class="pstrip-add" title="${t('Add another photo')}"><input type="file" id="c-photo-add" accept="image/*" hidden>＋</label>`
+    : `<button class="pstrip-add locked" data-action="photo-premium" title="${t('Up to three photos on a pour')}">＋<i>🔒</i></button>`;
+  const note=n>1
+    ? t('The first photo is the cover — it is the one the feed, your grid and the link preview show.')
+    : state.me.premium
+      ? t('Add up to three. The first stays the cover.')
+      : t('Up to three photos on a pour is Premium — <u>free right now, with a code</u>.');
+  return `<div class="pstrip">${pics.map(cell).join('')}${add}</div>
+    <div class="pstrip-n"${state.me.premium||n>1?'':` data-action="photo-premium" style="cursor:pointer"`}>${note}</div>`;
+}
+
 /* The same sheet does double duty: with `editId` set it edits that pour
    instead of starting a new one. Everything except the photo is the same
    form, so an edit looks and behaves exactly like the post did — the
@@ -1132,10 +1490,12 @@ function visibilityPicker(c){
    still one tap away in the row underneath. */
 function overlayCreate(){
   const c=ui.create||freshCreate(), isArt=!!DRINK_ART[c.drink], editing=!!c.editId;
+  const pics=c.photos||[], sh=pics[c.photoI]||null, n=pics.length;
   /* A picked photo can be reframed while the sheet is open: only while
-     its pixels are still here (imgPreview), and only if it isn't
-     already square — a square has exactly one crop. */
-  const framing=!!c.imgPreview&&!!c.imgAdjustable;
+     its pixels are still here (preview), and only if it isn't already
+     square — a square has exactly one crop. */
+  const framing=!!(sh&&sh.preview&&sh.adjustable);
+  const anyFailed=pics.some(x=>x.failed);
   const pats=[['heart',t('Heart')],['rosetta',t('Rosetta')],['tulip',t('Tulip')],['swan',t('Swan')],['abstract',t('Abstract art')]];
   const mkList=(base,cur)=>{const l=base.slice(); if(cur&&!l.includes(cur))l.push(cur); return l;};
   const sel=(list,cur,ph,extra)=>`<option value=""${cur?'':' selected'}>${ph}</option>`+list.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')+(extra?`<option${cur===extra?' selected':''}>${extra}</option>`:'');
@@ -1146,24 +1506,26 @@ function overlayCreate(){
     <div class="ov-bar" style="border:0"><b>${editing?t('Edit coffee'):t('New coffee')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 16px">
       <div class="create-prev">
-        ${c.img?(framing
+        ${sh?(framing
           /* The whole photo, squared by CSS rather than by pixels, so
              the drag that moves the crop is the crop itself. What the
              upload baked is already this square — see bakeAndUpload(). */
-          ?`<img class="photo frameable" src="${c.imgPreview}" style="object-position:${objectPosition(c.imgW,c.imgH,c.imgFocus)}" alt="${t('your coffee photo')}" draggable="false">`
-          :`<img class="photo" src="${imageUrl(c.img,'feed')}" alt="${t('your coffee photo')}">`)
+          ?`<img class="photo frameable" src="${sh.preview}" style="object-position:${objectPosition(sh.w,sh.h,sh.focus)}" alt="${t('your coffee photo')}" draggable="false">`
+          :`<img class="photo" src="${esc(imageUrl(sh.img,'feed'))}" alt="${t('your coffee photo')}">`)
         :cupSVG(isArt&&c.pattern?c.pattern:'none',.85,999)}
-        ${c.img?(c.uploading?`<span class="up-hint">${t('Uploading…')}</span>`:(c.uploadFailed?`<span class="up-hint" style="background:rgba(168,84,74,.9)">${t('Upload failed')}</span>`:''))
+        ${sh?(sh.uploading?`<span class="up-hint">${t('Uploading…')}</span>`:(sh.failed?`<span class="up-hint" style="background:rgba(168,84,74,.9)">${t('Upload failed')}</span>`:''))
           :(editing?'':`<label class="up-hint tap" for="c-photo-cam">${icon('cam',15)} ${t('Add a photo')}</label>`)}
+        ${sh&&!editing?`<button class="prev-x" data-action="photo-remove" data-i="${c.photoI}" aria-label="${t('Remove this photo')}">${icon('x',15)}</button>`:''}
       </div>
-      ${!editing&&c.uploadFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
+      ${photoStrip(c,pics,n,editing)}
+      ${!editing&&anyFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
         ${t('That photo could not reach the server. Tap Post to try again, or drop it and post without a photo.')}
         <button class="btn ghost sm" style="margin-top:8px" data-action="drop-photo">${t('Post without the photo')}</button></div>`:''}
-      ${editing?`<div style="font-size:11.5px;color:var(--muted);margin:10px 2px 12px">${t('The photo stays as it was poured. Everything else is yours to fix.')}</div>`
+      ${editing?`<div style="font-size:11.5px;color:var(--muted);margin:10px 2px 12px">${tn(n,'The photo stays as it was poured. Everything else is yours to fix.','The photos stay as they were poured. Everything else is yours to fix.')}</div>`
       :`${framing?`<div class="frame-hint">${t('Drag the photo to pick what stays in the square.')}</div>`:''}
       <div class="photo-actions">
-        <label class="btn ghost sm"><input type="file" id="c-photo-cam" accept="image/*" capture="environment" hidden>${icon('cam',16)} ${c.img?t('Retake'):t('Take photo')}</label>
-        <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>🖼️ ${c.img?t('Change'):t('Gallery')}</label>
+        <label class="btn ghost sm"><input type="file" id="c-photo-cam" accept="image/*" capture="environment" hidden>${icon('cam',16)} ${n?t('Retake'):t('Take photo')}</label>
+        <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>🖼️ ${n?t('Change'):t('Gallery')}</label>
       </div>`}
       <div class="field sel"><label>${t('Drink')}</label><select id="c-drink">${drinkOptions(c.drink)}</select></div>
       ${c.drink===ADD_DRINK?`<div class="field"><label>${t('Your drink')}</label><input id="c-drink-custom" placeholder="${t('e.g. Ristretto')}" value="${esc(c.drinkCustom)}"></div>`:''}

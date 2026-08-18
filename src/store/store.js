@@ -14,7 +14,7 @@
    ============================================================ */
 import { daysAgo, isToday } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
-import { beanCatalog, combineMachine } from '../data/catalog.js';
+import { beanCatalog, combineMachine, machineInfo } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, PODIUM, handleToUid } from '../data/world.js';
 import { fetchFeed, fetchMine, fetchSavedPosts } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
@@ -70,11 +70,27 @@ export function freshState(){
        a coffee that later joins the catalogue picks up its roaster. */
     lastBean:'',
     cafeFollow:{},
-    customBeans:[], customDrinks:[],
+    /* Coffees and brewers the catalogue has never heard of, kept so the
+       picker offers them back tomorrow. Machines used to have no list
+       of their own: one you typed in survived only if you posted with
+       it, so adding your grandmother's moka pot and then changing your
+       mind lost it. */
+    customBeans:[], customMachines:[], customDrinks:[],
     /* Premium's shelf: gear and coffees held at the top of their picker
        on purpose, rather than drifting down as recents age out. Free
-       accounts get the automatic recents and nothing to maintain. */
+       accounts get the automatic recents and nothing to maintain.
+       Called `pins` here and *favourites* on screen — the state key is
+       older than the word and renaming it would drop everyone's. */
     pins:{machines:[],beans:[]},
+    /* What you wrote down about a coffee or a brewer, keyed by the name
+       exactly as a recipe stores it. Premium, private, and yours alone:
+       nothing here is ever sent anywhere, which is precisely why you
+       may write whatever you like in it. Catalogue entries take a note;
+       a coffee you added yourself takes the whole card, because there
+       is no roaster row behind it to fill one in.
+         beans:    name → {roaster,origin,roast,notes,note}
+         machines: name → {kind,note}                                */
+    gear:{beans:{},machines:{}},
     /* The pours held up as this week's standouts on the recap card,
        keyed by the week's Monday — see toggleRecapPick(). */
     recapPicks:{},
@@ -95,9 +111,11 @@ export function freshState(){
   };
 }
 export async function load(){try{const s=await persistence.read(); state=(s&&s.me)?s:freshState();
-  ['posts','customBeans','customDrinks','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
+  ['posts','customBeans','customMachines','customDrinks','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
   ['follows','cafeFollow','followPending','recapPicks'].forEach(k=>{if(!state[k])state[k]={};});
   if(!state.pins||!Array.isArray(state.pins.machines)||!Array.isArray(state.pins.beans)) state.pins={machines:[],beans:[]};
+  if(!state.gear||typeof state.gear!=='object') state.gear={beans:{},machines:{}};
+  ['beans','machines'].forEach(k=>{ if(!state.gear[k]||typeof state.gear[k]!=='object') state.gear[k]={}; });
   /* Retired in step 1.17: challenges are no longer something you join or
      submit to, so the two maps that tracked that are dropped from any
      state persisted before it. */
@@ -530,12 +548,18 @@ export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
    coffee; the searchable picker asks for one thing, so one thing is
    stored. */
 export function freshCreate(){
-  return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',drinkCustom:'',pattern:null,caption:'',img:null,source:'home',cafe:'',
-  /* The photo, before it is a square: `imgPreview` is the whole picture
-     as picked, `imgFocus` where the 1:1 crop sits along it (domain/framing.js),
-     `imgAdjustable` whether there is any choice to make. All three are
-     sheet-local — `img` is the only one that becomes a post. */
-  imgPreview:null,imgW:0,imgH:0,imgFocus:.5,imgAdjustable:false,
+  return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',drinkCustom:'',pattern:null,caption:'',source:'home',cafe:'',
+  /* The photos, before they are squares. One entry per picture:
+       { sid, img, preview, w, h, focus, adjustable, uploading, failed }
+     `preview` is the whole picture as picked, `focus` where the 1:1 crop
+     sits along it (domain/framing.js), `adjustable` whether there is any
+     choice to make. Only `img` becomes a post; the rest is sheet-local.
+
+     An array rather than one field because Premium may attach up to
+     three (step-1.28). It is still one photo for almost everybody, and
+     the first one is still the pour: it is what the feed card, the
+     profile grid, the week card and the link preview all show. */
+  photos:[],photoI:0,
   /* Closed by default — most people posting a coffee are not tracking
      dose/yield/time/temp, and a form full of espresso-nerd fields reads
      as "this app is not for me". The bean/machine are still prefilled
@@ -582,14 +606,15 @@ function shelf(pinned,...rest){
 export function myMachines(){
   return shelf((state.pins&&state.pins.machines)||[],
     [combineMachine(state.me.machineBrand,state.me.machineModel)],
-    myPosts().map(p=>p.recipe&&p.recipe.machine));
+    machinePassport().map(m=>m.name));
 }
 export function myCoffees(){
   return shelf((state.pins&&state.pins.beans)||[],
     [state.lastBean], beanPassport().map(b=>b.name));
 }
-/* Pinning is Premium; the picker shows the lock rather than hiding it,
-   because a shelf you can see is the argument for the feature. */
+/* Favourites are Premium; the picker shows the lock rather than hiding
+   it, because a shelf you can see is the argument for the feature.
+   `pins` is the state key — see freshState() for why it kept the name. */
 export function isPinned(kind,name){
   const l=(state.pins&&state.pins[kind==='machine'?'machines':'beans'])||[];
   return l.includes(name);
@@ -600,6 +625,28 @@ export function togglePin(kind,name){
   if(i>=0) l.splice(i,1); else l.unshift(name);
   save();
   return i<0;
+}
+
+/* ---------- what you wrote down yourself ----------
+   Read everywhere, written only by Premium (ui/actions.js gearSave).
+   Reading is deliberately not gated: someone whose code lapses should
+   still see what they wrote, not lose it behind a lock. */
+export function gearNote(kind,name){
+  const g=state.gear&&state.gear[kind==='machine'?'machines':'beans'];
+  return (g&&g[(name||'').trim()])||null;
+}
+export function setGearNote(kind,name,patch){
+  const n=(name||'').trim(); if(!n) return null;
+  if(!state.gear) state.gear={beans:{},machines:{}};
+  const k=kind==='machine'?'machines':'beans';
+  if(!state.gear[k]) state.gear[k]={};
+  const next={ ...(state.gear[k][n]||{}), ...patch };
+  /* An emptied form is a deletion, not a row of blanks: leaving one
+     behind would keep claiming "you wrote something about this". */
+  const empty=Object.keys(next).every(x=>!(''+(next[x]||'')).trim());
+  if(empty) delete state.gear[k][n]; else state.gear[k][n]=next;
+  save();
+  return empty?null:next;
 }
 
 
@@ -617,6 +664,31 @@ export function beanPassport(){
   });
   (state.customBeans||[]).forEach(n=>{ if(n&&!map.has(n)) map.set(n,{ name:n, pours:0, last:null, roaster:'' }); });
   return [...map.values()].map(e=>({ ...e, cat:beanCatalog(e.name) }))
+    .sort((a,b)=>b.pours-a.pours || a.name.localeCompare(b.name));
+}
+
+/* The same thing for gear. A machine passport is a stranger idea than a
+   bean one — most people own one brewer and it never changes — which is
+   exactly why it earns its place: the interesting number is not how many
+   you own but how the pours split across them, and whether the AeroPress
+   that came out for a weekend ever went back in the cupboard.
+
+   Built the same way, from the pours themselves, so it cannot disagree
+   with what you actually logged. Your profile machine and anything you
+   typed into the picker join it at zero, because gear you have named is
+   gear you have — it just hasn't been poured on yet. */
+export function machinePassport(){
+  const map=new Map();
+  const add=(n,p)=>{
+    const name=(n||'').trim(); if(!name) return;
+    const e=map.get(name)||{ name, pours:0, last:null };
+    if(p){ e.pours++; if(p.createdAt&&(!e.last||p.createdAt>e.last)) e.last=p.createdAt; }
+    map.set(name,e);
+  };
+  myPosts().forEach(p=>add(p.recipe&&p.recipe.machine,p));
+  add(combineMachine(state.me.machineBrand,state.me.machineModel),null);
+  (state.customMachines||[]).forEach(n=>add(n,null));
+  return [...map.values()].map(e=>({ ...e, info:machineInfo(e.name) }))
     .sort((a,b)=>b.pours-a.pours || a.name.localeCompare(b.name));
 }
 /* The server applied the Following filter and the block list, so the

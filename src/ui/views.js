@@ -10,8 +10,8 @@ import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
-         myPosts, allPosts, myBeans, myCountries, activityBars, feedPosts, coffeeStats, friendsToday,
-         weekRecap, arrivals } from '../store/store.js';
+         myPosts, allPosts, myBeans, myCountries, machinePassport, activityBars, feedPosts, coffeeStats,
+         friendsToday, weekRecap, arrivals } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
 import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
@@ -371,9 +371,17 @@ export function renderProfile(){
       <div class="recent">${recent.map(p=>`<div class="rp" data-action="open-post" data-id="${p.id}"><div class="rpimg">${art(imageUrl(p.img,'thumb'),p.pattern||'none',p.quality==null?0.9:p.quality,seedOf(p.id),p.drink)}</div><div class="rpd">${agoLabel(p.createdAt,p.ago)}</div><div class="rpt">${esc(p.drink||t('Coffee'))}</div></div>`).join('')}</div></div>`;
   const startedHTML = `<div class="journey"><h3>${t('Your journey starts here')}</h3><p class="sub" style="margin-bottom:12px">${t('Every pour earns points and builds your streak, and enough of them move you up a level.')}</p>
       <div style="padding:0 12px 14px"><button class="btn block" data-action="open-create">${icon('bolt',18)} ${t('Log your first coffee')}</button></div></div>`;
+  /* The gear twin of the bean strip. Only once there is something to
+     show: someone who has never named a machine has nothing to look at
+     here, and an empty card teaching them that would be the app talking
+     about itself. */
+  const gear=machinePassport();
+  const gearHTML = gear.length?`<div class="section-h" style="margin:18px 0 8px"><h2>${t('Machine passport')}</h2><a data-action="open-gearpass">${t('See all')}</a></div>
+    <div class="passport"><div class="ph"><div class="lft"><img src="${S.esp}" alt="${t('espresso machine')}"><b>${tn(gear.length,'{n} brewer','{n} brewers')}</b></div><span data-action="open-gearpass" style="cursor:pointer">${t('tap for details')}</span></div>
+      <div class="beans">${gear.map(m=>`<div class="bean" data-action="open-machine" data-id="${esc(m.name)}"><span class="fl">${icon('mach',14)}</span>${esc(m.name)}</div>`).join('')}</div></div>`:'';
   const passportHTML = beans.length?`<div class="section-h" style="margin-bottom:8px"><h2>${t('Bean passport')}</h2><a data-action="open-passport">${t('See all')}</a></div>
     <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="${t('coffee beans')}"><b>${tn(beans.length,'{n} bean','{n} beans')}</b></div><span data-action="open-passport" style="cursor:pointer">${origins.length?`${tn(origins.length,'{n} origin','{n} origins')} · `:''}${t('tap for details')}</span></div>
-      <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return cat?`<div class="bean" data-action="open-bean" data-id="${esc(cat.n)}"><span class="fl">${flag[cat.c]||'🫘'}</span>${cat.n}</div>`:`<div class="bean" data-action="toast" data-msg="${t('Your own coffee. Details are coming later.')}">🫘 ${esc(n)}</div>`;}).join('')}</div></div>`:'';
+      <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return `<div class="bean" data-action="open-bean" data-id="${esc(cat?cat.n:n)}"><span class="fl">${(cat&&flag[cat.c])||'🫘'}</span>${esc(cat?cat.n:n)}</div>`;}).join('')}</div></div>`:'';
   return `<div class="pad">
     ${langToggle()}
     <div class="prof-top"><div class="prof-av${state.me.premium?' prem':''}" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px;cursor:pointer" data-action="open-settings" title="${t('Change your photo in Settings')}">${initials(u.name)}${u.avatar?`<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}</div>
@@ -391,6 +399,7 @@ export function renderProfile(){
     ${hasPours?journeyHTML:startedHTML}
     ${recapTeaser()}
     ${passportHTML}
+    ${gearHTML}
     <div class="seg" style="margin-top:18px">
       <button class="${ui.profTab==='stats'?'on':''}" data-action="ptab" data-t="stats">${t('Stats')}</button>
       <button class="${ui.profTab==='pours'?'on':''}" data-action="ptab" data-t="pours">${t('Pours')} ${pourCount}</button>

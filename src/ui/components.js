@@ -11,7 +11,7 @@ import { USERS, handleToUid, CAFES, userOf } from '../data/world.js';
 import { state, allPosts, findPost } from '../store/store.js';
 import { REACTIONS } from '../data/reactions.js';
 import { imageUrl } from '../data/media.js';
-import { art } from '../domain/art.js';
+import { art, artSet } from '../domain/art.js';
 import { t, tn } from '../i18n.js';
 import { icon } from './icons.js';
 
@@ -154,9 +154,17 @@ export function recipeRows(r){
   if(r.temp) rows.push(['h',t('Temp'),r.temp]);
   return rows;
 }
+/* The coffee and the machine are the two rows worth tapping: both have
+   a page behind them now, and someone reading a stranger's recipe is
+   exactly the person who doesn't know what a Silvano Evo is. Everything
+   else on the grid is a number and stays inert. */
 export function recipePanel(r){
   const rows=recipeRows(r); if(!rows.length) return '';
-  return `<div class="recipe-grid">${rows.map(x=>x[0]==='bean'?`<div class="recipe-bean"><span class="g">${icon('bean',18)}</span><div><span>${x[1]}</span><b>${esc(x[2])}</b></div></div>`:x[0]==='mach'?`<div class="recipe-mach"><span>${x[1]}</span><b>${esc(x[2])}</b></div>`:`<div><span>${x[1]}</span><b>${esc(x[2])}</b></div>`).join('')}</div>`;
+  return `<div class="recipe-grid">${rows.map(x=>x[0]==='bean'
+    ?`<div class="recipe-bean click" data-action="open-bean" data-id="${esc(x[2])}"><span class="g">${icon('bean',18)}</span><div><span>${x[1]}</span><b>${esc(x[2])}</b></div></div>`
+    :x[0]==='mach'
+    ?`<div class="recipe-mach click" data-action="open-machine" data-id="${esc(x[2])}"><span>${x[1]}</span><b>${esc(x[2])}</b></div>`
+    :`<div><span>${x[1]}</span><b>${esc(x[2])}</b></div>`).join('')}</div>`;
 }
 export const recipeBtnLabel=r=>(r.dose&&r.yield)?t('Recipe · {a} in → {b} out',{a:r.dose,b:r.yield}):t('Recipe');
 
@@ -226,9 +234,9 @@ export function postCard(p){
         <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${p.cafe}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
       ${p.user==='me'?'':followMini(p.user)}
       <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">⋯</button></div>
-    <div class="media" data-action="open-post" data-id="${p.id}">
-      ${art(imageUrl(p.img,'feed'),p.pattern,p.quality,seedOf(p.id),p.drink)}
-      <div class="heartpop" id="hp-${p.id}">${icon('heartF',90)}</div></div>
+    <div class="media" data-action="open-post" data-id="${p.id}" data-media="${p.id}">
+      ${artSet((p.imgs&&p.imgs.length?p.imgs:[p.img]).map(k=>imageUrl(k,'feed')),p.pattern,p.quality,seedOf(p.id),p.drink)}
+      <div class="heartpop" data-hp="${p.id}">${icon('heartF',90)}</div></div>
     <div class="p-act">
       ${likeButton(p)}
       <button class="act" data-action="open-post" data-id="${p.id}" aria-label="${t('Comments')}">${icon('chat',22)} <span class="cnt" data-cmtn="${p.id}">${cn}</span></button>
@@ -242,7 +250,7 @@ export function postCard(p){
         <span class="chip drinkchip">${esc(p.drink||t('Coffee'))}</span>
         ${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}
         ${r&&r.milk?`<span class="chip"><span class="g">${icon('milk',12)}</span>${esc(r.milk)}</span>`:''}
-        ${r&&r.machine?`<span class="chip"><span class="g">${icon('mach',12)}</span>${esc(r.machine)}</span>`:''}
+        ${r&&r.machine?`<span class="chip tag" data-action="open-machine" data-id="${esc(r.machine)}"><span class="g">${icon('mach',12)}</span>${esc(r.machine)}</span>`:''}
         ${p.cafe?`<span class="chip"><span class="g">${icon('cafe',12)}</span>${esc(p.cafe)}</span>`:''}
       </div>
       ${rows.length?`<button class="recipe-btn" data-action="recipe" data-id="${p.id}">☕ ${recipeBtnLabel(r)} ▾</button>

@@ -6,6 +6,15 @@
    here it is bundled. No app state lives here.
    ============================================================ */
 
+/* The German copy, read directly rather than through t(). The search
+   index below has to match a word in EITHER language regardless of
+   which one the app is currently set to — the index is built once and
+   a language switch must not silently stop finding things — so both
+   spellings go into the haystack together. i18n.de.js imports nothing,
+   so this stays a leaf-to-leaf dependency. */
+import { DE } from '../i18n.de.js';
+const both = s => s ? s+' '+(DE[s]||'') : '';
+
 /* ---------- drinks ---------- */
 export const DRINKS=['Cappuccino','Latte','Flat white','Cortado','Piccolo','Mocha','Macchiato',
   'Espresso','Doppio','Americano','Long black','Pour-over','Filter','Cold brew','Aeropress','Iced latte'];
@@ -98,6 +107,85 @@ export const POPULAR_MACHINES=[
   ['Sage','Bambino Plus'],['DeLonghi','Dedica'],['Rancilio','Silvia'],['Gaggia','Classic Evo Pro'],
   ['Bialetti','Moka Express'],['AeroPress','Original'],['Hario','V60'],['Philips','Series 3200 LatteGo'],
   ['Jura','ENA 8'],['Sage','Barista Express'],['Lelit','Bianca'],['Moccamaster','KBGV Select']];
+
+/* ============================================================
+   What a machine actually is.
+
+   Every brewer in the list above gets the same four facts, because a
+   picker row that says "Bialetti Moka Express" tells someone who owns
+   one nothing they didn't know, and someone who doesn't own one
+   nothing at all. These four answer "what am I looking at" without
+   turning into a spec sheet: what kind of thing it is, how it makes
+   the coffee, whether it can do milk, and where the brand is from.
+
+   Claimed at the level they are actually true. The *type* of a Jura is
+   a fact about every Jura; the boiler layout of one Rocket model is
+   not, so it isn't here. Where a brand spans two kinds of machine —
+   DeLonghi sells both a Dedica and a Magnifica — the model says which
+   (MODEL_KIND below), and nothing is guessed from the model name.
+
+   Nothing here is per-model marketing. If we don't know, machineInfo()
+   returns null and the sheet says so rather than inventing a spec. */
+export const MACHINE_KINDS={
+  espresso: {label:'Espresso machine',       method:'Pump pressure, around 9 bar',        milk:'Steam wand'},
+  auto:     {label:'Bean-to-cup',            method:'Grinds, doses and brews at a button', milk:'Built in, varies by model'},
+  lever:    {label:'Lever espresso machine',  method:'Pressure by hand, on a piston',      milk:'Steam wand'},
+  press:    {label:'Manual espresso press',   method:'Pressure by hand, no electricity',   milk:'None'},
+  portable: {label:'Portable espresso maker', method:'Hand-pumped, made to travel',        milk:'None'},
+  moka:     {label:'Moka pot',                method:'Steam pressure, on the stove',       milk:'None'},
+  pourover: {label:'Pour-over dripper',       method:'Gravity, poured by hand',            milk:'None'},
+  press_fr: {label:'French press',            method:'Full immersion, then pressed',       milk:'None'},
+  filter:   {label:'Filter coffee brewer',    method:'Gravity, poured for you',            milk:'None'},
+  aero:     {label:'Immersion brewer',        method:'Steeped, then pushed through a filter', milk:'None'}
+};
+
+/* brand → [kind, where the brand is from]. The country is the brand's
+   home, not where a given unit was assembled — that is the fact people
+   mean when they ask, and the only one that stays true per brand. */
+const BRAND_INFO={
+  'La Marzocco':['espresso','Italy'], 'Rocket Espresso':['espresso','Italy'], 'ECM':['espresso','Germany'],
+  'Profitec':['espresso','Germany'], 'Lelit':['espresso','Italy'], 'Rancilio':['espresso','Italy'],
+  'Gaggia':['espresso','Italy'], 'Sage':['espresso','Australia'], 'Breville':['espresso','Australia'],
+  'Ascaso':['espresso','Spain'], 'Quick Mill':['espresso','Italy'], 'Bezzera':['espresso','Italy'],
+  'Nuova Simonelli':['espresso','Italy'], 'Victoria Arduino':['espresso','Italy'],
+  'DeLonghi':['auto','Italy'], 'Jura':['auto','Switzerland'], 'Philips':['auto','Netherlands'],
+  'Siemens':['auto','Germany'], 'Melitta':['auto','Germany'], 'Saeco':['auto','Italy'],
+  'Nivona':['auto','Germany'], 'Miele':['auto','Germany'], 'Krups':['auto','Germany'],
+  'Bosch':['auto','Germany'], 'WMF':['auto','Germany'], 'Gastroback':['espresso','Germany'],
+  'Flair':['press','USA'], 'La Pavoni':['lever','Italy'], 'Cafelat':['press','Hong Kong'],
+  'Wacaco':['portable','Hong Kong'],
+  'Hario':['pourover','Japan'], 'Chemex':['pourover','USA'], 'AeroPress':['aero','USA'],
+  'Fellow':['pourover','USA'], 'Kalita':['pourover','Japan'], 'Origami':['pourover','Japan'],
+  'Moccamaster':['filter','Netherlands'],
+  'Bialetti':['moka','Italy'], 'Grosche':['moka','Canada'], 'Cilio':['moka','Germany'], 'Bugatti':['moka','Italy'],
+  'Bodum':['press_fr','Denmark'], 'Espro':['press_fr','Canada'], 'Timemore':['press_fr','China']
+};
+
+/* The brands that sell more than one kind of thing. Keyed "Brand Model",
+   because that is the string a recipe stores. Anything not listed takes
+   its brand's kind. */
+const MODEL_KIND={
+  'DeLonghi Dedica':'espresso', 'DeLonghi La Specialista Arte':'espresso',
+  'DeLonghi La Specialista Maestro':'espresso', 'DeLonghi La Specialista Opera':'espresso',
+  'Gaggia Classic Evo Pro':'espresso', 'Gaggia Classic Pro':'espresso',
+  'Gaggia Cadorna Prestige':'auto', 'Gaggia Anima':'auto', 'Gaggia Magenta Plus':'auto',
+  'WMF Kitchenminis Aroma':'filter',
+  'Grosche Zurich French Press':'press_fr',
+  'Bodum Pour Over':'pourover', 'Espro Bloom Pour Over':'pourover', 'Timemore U Pour Over':'pourover'
+};
+
+/* What we can say about one machine, or null when it isn't ours to
+   describe — someone's own entry, or a brand with no row above. The
+   caller shows what it gets; nothing is filled in with a guess. */
+export function machineInfo(label){
+  const s=(label||'').trim(); if(!s) return null;
+  const {brand,model}=splitMachine(s);
+  if(!brand||brand==='Other') return null;
+  const b=BRAND_INFO[brand]; if(!b) return null;
+  const kind=MODEL_KIND[brand+(model?' '+model:'')]||b[0];
+  const k=MACHINE_KINDS[kind]; if(!k) return null;
+  return { brand, model, kind, label:k.label, method:k.method, milk:k.milk, country:b[1] };
+}
 
 /* [level, name, points needed to reach it]. Each step costs roughly 1.5x
    the one before, so Level 2 is ten pours away and Level 10 is a real
@@ -249,6 +337,40 @@ export function beanCatalog(name){
     .sort((a,b)=>b.n.length-a.n.length)[0] || null;
 }
 
+/* ---------- what a coffee actually is ----------
+   Same idea as machineInfo(): the bean sheet should answer "what am I
+   looking at" for every bag in the catalogue, not only for the three
+   specialty ones somebody wrote a paragraph about.
+
+   Both helpers below are READINGS of columns the catalogue already
+   has — a roast level said as a position on a scale, an origin line
+   said as blend or single origin. Nothing is inferred about how a
+   coffee tastes or what it is best brewed on: the notes are the
+   roaster's claim and are shown as theirs, and a guess dressed as a
+   fact would be worse than a blank row. */
+const ROAST_STEPS=['Light','Light-medium','Medium','Medium-dark','Dark'];
+export const ROAST_MAX=ROAST_STEPS.length;
+export const roastStep = r => ROAST_STEPS.indexOf((r||'').trim())+1;   // 0 when unknown
+
+/* "Fairtrade organic blend" says blend; "Ethiopia · Sidama" names one
+   country and says single origin; "Seasonal" on its own says neither,
+   and gets nothing rather than a coin toss. */
+export function beanKind(origin){
+  const o=(origin||'').trim(); if(!o) return '';
+  const lc=o.toLowerCase();
+  if(lc.includes('blend')) return 'Blend';
+  if(lc.includes('single origin')) return 'Single origin';
+  return flag[(o.split('·')[0]||'').trim()] ? 'Single origin' : '';
+}
+
+/* Everything the app knows about one coffee, or null for a coffee it
+   has never heard of — someone's own bag, which carries whatever they
+   chose to write down instead (see store/store.js gearNote). */
+export function beanInfo(name){
+  const c=beanCatalog(name); if(!c) return null;
+  return { ...c, kind:beanKind(c.origin), step:roastStep(c.roast) };
+}
+
 /* One entry per roaster, in catalog order, so the picker's "browse by
    roaster" list stays stable. Browsing is a shortcut into the search,
    not a step you have to pass through. */
@@ -313,7 +435,11 @@ export function machineIndex(){
     if(!models.length) out.push({brand:b,model:'',label:b,sub:''});
     else models.forEach(m=>out.push({brand:b,model:m,label:b+' '+m,sub:b}));
   });
-  out.forEach(x=>{ x.hay=norm(x.label); });
+  /* What the thing IS goes in the haystack too. Half the people looking
+     for a Bialetti Brikka don't know the word Brikka — they know they
+     own a moka pot, and "moka" finding nothing while the app holds six
+     of them is the search being wrong, not the person. */
+  out.forEach(x=>{ const i=machineInfo(x.label); x.hay=norm(x.label+' '+both(i?i.label:'')); });
   return (_machineIdx=out);
 }
 
@@ -330,7 +456,7 @@ export function beanIndex(){
     brand:b.roaster, name:b.n, label:b.n, sub:b.roaster,
     /* Origin and tasting notes are searchable too, so "ethiopia" or
        "fruity" finds a bag whose name gives none of that away. */
-    hay:norm([b.n,b.roaster,b.c,b.origin,(b.notes||[]).join(' ')].join(' '))
+    hay:norm([b.n,b.roaster,both(b.c),b.origin,(b.notes||[]).join(' ')].join(' '))
   }));
   return (_beanIdx=out);
 }
@@ -358,6 +484,15 @@ function rankHits(items,q,limit){
 }
 export function searchMachines(q,limit=60){ return rankHits(machineIndex(),q,limit); }
 export function searchBeans(q,limit=60){ return rankHits(beanIndex(),q,limit); }
+
+/* The same ranking over a plain list of strings — the shelf of things
+   someone typed in themselves. Without it, a search that reaches the
+   whole catalogue still cannot find the bag you added yesterday, which
+   is the one coffee you are most likely to be looking for. */
+export function searchOwn(list,q,limit=12){
+  const items=(list||[]).map(v=>({label:v,name:v,brand:'',sub:'',hay:norm(v)}));
+  return rankHits(items,q,limit).map(x=>x.label);
+}
 
 /* Does the catalogue already hold exactly this? Decides whether the
    picker offers "add it as your own" — offering to add a coffee that is

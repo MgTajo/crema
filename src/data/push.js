@@ -39,11 +39,29 @@ export const standalone = () =>
     && window.matchMedia('(display-mode: standalone)').matches)
   || (typeof navigator!=='undefined' && navigator.standalone===true);
 
-const isIOS = () =>
+export const isIOS = () =>
   typeof navigator!=='undefined'
   && (/iPad|iPhone|iPod/.test(navigator.platform||'')
       /* iPadOS 13+ reports as a Mac; the touch points give it away. */
       || (navigator.platform==='MacIntel' && (navigator.maxTouchPoints||0) > 1));
+
+/* Safari specifically, not just "an iPhone".
+   On iOS every browser is WebKit underneath, but only Safari puts "Add
+   to Home Screen" in the share sheet — Chrome and Firefox have their
+   own menus in their own places. So the prompt is shown only where the
+   instructions it gives are actually true, and the others are left
+   alone rather than sent looking for a button that isn't there. */
+export const iosSafari = () =>
+  isIOS() && typeof navigator!=='undefined'
+  && !/CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Android/i.test(navigator.userAgent||'');
+
+/* The whole question this answers: is this person reading Crema in a
+   Safari tab when they could be running it from their Home Screen?
+   `standalone` is what tells the two apart — iOS sets
+   navigator.standalone on a home-screen launch, and the installed app
+   also matches display-mode: standalone. Either one means installed,
+   and means this prompt has nothing to say. */
+export const canInstallOnIOS = () => iosSafari() && !standalone();
 
 /* True when the only thing standing between this user and push is
    Apple's Home Screen requirement — worth saying out loud, because the

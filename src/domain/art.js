@@ -64,3 +64,27 @@ export function cupSVG(pattern,quality,seed,opts={}){
     <ellipse cx="42" cy="34" rx="20" ry="12" fill="#ffffff" opacity="0.07"/></svg>`;
 }
 export function art(img,pattern,q,seed,alt){ return img?`<img class="photo" src="${img}" alt="${esc(alt||'coffee')}" loading="lazy">`:cupSVG(pattern||'none', q==null?0.9:q, seed); }
+
+/* Two or three photos on one pour (step-1.28): a swipeable rail rather
+   than a carousel with controls. CSS scroll-snap does the whole job —
+   no script, no state, no library — so it costs the feed nothing on the
+   nine cards out of ten that still carry a single photo, which take the
+   plain <img> above untouched.
+
+   A count in the corner rather than position dots. Dots would have to
+   follow the scroll, and an element's `scroll` event reaches neither a
+   bubbling nor a capturing listener on `document` — so keeping them
+   honest would mean wiring a listener to every rail on every repaint,
+   in an app whose views are strings. The count says the one thing the
+   reader needs before they touch it (there is more here), and it cannot
+   drift out of step with what is on screen because it never moves.
+
+   `srcs` are already URLs; the caller picks the size, because the feed
+   and the open sheet want different ones. */
+export function artSet(srcs,pattern,q,seed,alt){
+  const list=(srcs||[]).filter(Boolean);
+  if(list.length<2) return art(list[0],pattern,q,seed,alt);
+  return `<div class="shots">${
+    list.map((u,i)=>`<img class="photo" src="${u}" alt="${esc(alt||'coffee')} ${i+1}/${list.length}" loading="${i?'lazy':'eager'}">`).join('')
+  }</div><div class="shots-n" aria-hidden="true">${list.length}</div>`;
+}
