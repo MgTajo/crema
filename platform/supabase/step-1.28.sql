@@ -84,7 +84,33 @@ create trigger posts_photo_cap
 -- Every pour that already has a photo gets a one-element array, so the
 -- column is never "null means one photo, or means none". Cheap: the
 -- table is small and this touches each row once.
+--
+-- ⚠️ The two exclusions are not defensive padding. step-1.11 added
+-- `posts_image_key_is_a_key` as NOT VALID precisely so the base64 rows
+-- that predate it stayed legal, and promoting it with
+--   alter table posts validate constraint posts_image_key_is_a_key;
+-- was left as a manual follow-up to migrate-base64-images.mjs. Whether
+-- that ever happened is not recorded anywhere. If even one `data:` row
+-- survives, copying it into image_keys would violate the constraint
+-- added above — which IS valid — and abort this entire migration
+-- partway. Those rows keep their image_key and simply get no array;
+-- imagesOf() in src/data/posts.js falls back to image_key, so they
+-- render exactly as they do today.
 update posts
    set image_keys = array[image_key]
  where image_key is not null
-   and image_keys is null;
+   and image_keys is null
+   and image_key not like 'data:%'
+   and length(image_key) <= 300;
+
+-- What was skipped, if anything. Zero rows means the base64 migration
+-- is done and `posts_image_key_is_a_key` can safely be promoted.
+do $$
+declare n int;
+begin
+  select count(*) into n from posts
+   where image_key is not null and image_keys is null;
+  if n > 0 then
+    raise notice 'step-1.28: % pour(s) left without image_keys — legacy data: URIs in image_key. Run migrate-base64-images.mjs, then re-run this file.', n;
+  end if;
+end $$;
