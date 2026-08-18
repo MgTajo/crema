@@ -41,17 +41,24 @@ alter table posts add column if not exists image_keys text[];
 -- object keys, never inline images. A data: URI here would be three
 -- times the damage it was there — 300 KB per photo shipped to every
 -- viewer on every feed load, per photo.
+--
+-- Written out element by element rather than with `unnest`, because a
+-- CHECK expression may not contain a subquery — Postgres rejects the
+-- constraint outright (0A000) and, in the SQL editor, that rolls the
+-- whole file back. Enumerating is honest here rather than clumsy: the
+-- cap is three, so there are exactly three slots to state. Subscripting
+-- past the end returns NULL, which is what "no second photo" means.
 alter table posts drop constraint if exists posts_image_keys_are_keys;
 alter table posts add constraint posts_image_keys_are_keys
   check (
     image_keys is null
     or (
       cardinality(image_keys) between 1 and 3
-      and array_position(image_keys, null) is null
-      and not exists (
-        select 1 from unnest(image_keys) k
-        where k like 'data:%' or length(k) > 300
-      )
+      -- there is always a cover, and it is always a real key
+      and image_keys[1] is not null
+      and image_keys[1] not like 'data:%' and length(image_keys[1]) <= 300
+      and (image_keys[2] is null or (image_keys[2] not like 'data:%' and length(image_keys[2]) <= 300))
+      and (image_keys[3] is null or (image_keys[3] not like 'data:%' and length(image_keys[3]) <= 300))
     )
   );
 
