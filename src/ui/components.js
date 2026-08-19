@@ -14,6 +14,7 @@ import { imageUrl } from '../data/media.js';
 import { art, artSet } from '../domain/art.js';
 import { t, tn } from '../i18n.js';
 import { icon } from './icons.js';
+import { agoTag } from './timeago.js';
 
 /* @handles become links to the person named, when we know who that is.
    Case-insensitive on purpose: handles are stored lowercase, but nobody
@@ -231,7 +232,7 @@ export function postCard(p){
   return `<div class="card" data-post="${p.id}">
     <div class="p-head">
       <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${p.cafe}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
+        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${p.cafe}`:''} · ${agoTag(p.createdAt,p.ago)}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
       ${p.user==='me'?'':followMini(p.user)}
       <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">⋯</button></div>
     <div class="media" data-action="open-post" data-id="${p.id}" data-media="${p.id}">
@@ -325,6 +326,6 @@ export function commentRow(c,pid,idx){
   const u=c.u==='me'?USERS.me:userOf(c.u);
   return `<div class="cmt">${avatar(c.u)}
     <div class="cbody"><div class="t"><b data-action="open-user" data-id="${c.u||''}">${u.name}</b> ${mentionify(c.t)}</div>
-      <div class="meta"><span>${c.ago||t('now')}</span><span data-action="cmt-reply" data-handle="${u.handle||''}">${t('Reply')}</span></div></div>
+      <div class="meta"><span>${agoTag(c.at,c.ago||t('now'))}</span><span data-action="cmt-reply" data-handle="${u.handle||''}">${t('Reply')}</span></div></div>
     <button class="clike ${c.likedByMe?'on':''}" data-action="cmt-like" data-pid="${pid}" data-idx="${idx}" data-cid="${c.id||''}" aria-label="${t('Like comment')}">${icon(c.likedByMe?'heartF':'heart',15)}<span>${c.likes||''}</span></button></div>`;
 }

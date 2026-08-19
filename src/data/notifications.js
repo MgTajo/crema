@@ -28,6 +28,7 @@ export function notificationOf(row){
     type: row.type,
     text: row.body || row.type,
     time: agoFrom(row.created_at),
+    at: row.created_at,          // ui/timeago.js re-reads this; `time` is only the first label
     read: !!row.read,
     post: row.post_id || null,
     cafe: row.cafe_id || null,

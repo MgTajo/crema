@@ -27,6 +27,7 @@ import { render } from './ui/views.js';
 import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap } from './ui/actions.js';
+import { startAgoTicker } from './ui/timeago.js';
 import { canInstallOnIOS } from './data/push.js';
 import { seen, markSeen, DAILY_CHAMPION } from './core/announce.js';
 import { applyLang } from './i18n.js';
@@ -61,6 +62,10 @@ applyMe(); applyTheme(); tick();
 if(auth.error && !auth.session){ authState().error = auth.error; ui.gate=true; }
 render();
 setInterval(tick,10000);
+/* The clock in the app bar is not the only thing on screen that has to
+   keep up with the time: every "4m" under a pour is a clock too, and
+   until this ran they all stopped at whatever the last fetch said. */
+startAgoTicker();
 /* After the first paint, never before it: the socket and the poller both
    only ever *change* what is on screen, and there is nothing to change
    until the feed that just loaded is showing. Guests too — the live

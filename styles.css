@@ -274,6 +274,12 @@
      display:block, so it has to say so) and a shade dimmer than the rest
      of it: findable if you look, invisible if you don't. */
   .p-head .who .edited{display:inline; opacity:.7}
+  /* The relative timestamp is its own element now, because ui/timeago.js
+     rewrites it every 30s without repainting the card around it. Same
+     problem as .edited above: the timestamp line's span is display:block,
+     and a descendant span inherits that selector — so a nested one has
+     to be told it is still part of the line and not a new one. */
+  .p-head .who .ago, .freq-row .who .ago{display:inline}
   .lvlchip{font-family:var(--mono); font-size:10px; font-weight:500; color:var(--crema-deep); background:var(--crema-soft); border:1px solid var(--st3); padding:2px 7px; border-radius:999px; letter-spacing:.02em; white-space:nowrap; display:inline-block}
   .followmini{font-size:13px; font-weight:600; color:var(--crema); background:none; border:0; cursor:pointer; padding:6px 4px}
   .followmini.on{color:var(--muted)}

@@ -35,7 +35,10 @@ export function commentOf(row, myUid){
     id: row.id,
     u: row.user_id===myUid ? 'me' : row.user_id,
     t: row.body,
+    /* Both: `ago` is the label as it read when the row arrived, `at` is
+       what ui/timeago.js recomputes it from a minute later. */
     ago: agoFrom(row.created_at),
+    at: row.created_at,
     likes: countOf(row.comment_likes),
     likedByMe: false
   };
@@ -66,7 +69,7 @@ export async function fetchFollowRequests(uid){
     + `&followee_id=eq.${uid}&status=eq.pending&order=created_at.desc&limit=100`);
   return (rows||[]).map(r=>{
     const u = r.profiles ? registerUser(rowToUser(r.profiles)) : null;
-    return u ? { id:u.id, user:u, ago:agoFrom(r.created_at) } : null;
+    return u ? { id:u.id, user:u, ago:agoFrom(r.created_at), at:r.created_at } : null;
   }).filter(Boolean);
 }
 

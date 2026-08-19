@@ -27,6 +27,7 @@ import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scorin
 import { t, tn } from '../i18n.js';
 import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, hiddenMark, followMini, followBtn, followState } from './components.js';
 import { icon, logoMark } from './icons.js';
+import { agoTag } from './timeago.js';
 import { renderView, renderAppbar } from './views.js';
 import { arm } from './history.js';
 
@@ -233,7 +234,7 @@ function overlayPost(id){
       <div class="media" data-action="none" data-media="${p.id}">${artSet((p.imgs&&p.imgs.length?p.imgs:[p.img]).map(k=>imageUrl(k,'hero')),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" data-hp="${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">
         <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${esc(p.cafe)}`:''} · ${p.ago}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
+          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${esc(p.cafe)}`:''} · ${agoTag(p.createdAt,p.ago)}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
         ${p.user==='me'?'':followMini(p.user)}
         <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">⋯</button></div>
       <div class="p-body"><div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
@@ -529,7 +530,7 @@ function overlayNotifs(){
       ? `<div class="nact"><button class="btn sm" data-action="accept-follow" data-id="${n.u}">${t('Accept')}</button>
          <button class="btn ghost sm" data-action="decline-follow" data-id="${n.u}">${t('Decline')}</button></div>` : '';
     return `<div class="nrow ${n.read?'':'unread'}" ${ask?'':`data-action="notif-go" data-idx="${i}"`}>${av}
-      <div class="nb"><div class="nt">${n.u?`<b>${esc(userOf(n.u).name)}</b> `:''}${esc(t(n.text))}</div><span>${t('{time} ago',{time:n.time})}</span>${ask}</div></div>`;}).join('');
+      <div class="nb"><div class="nt">${n.u?`<b>${esc(userOf(n.u).name)}</b> `:''}${esc(t(n.text))}</div><span>${t('{time} ago',{time:agoTag(n.at,n.time)})}</span>${ask}</div></div>`;}).join('');
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${t('Notifications')}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${t('Notifications')}</b></div>
     <div class="ov-body">${rows||`<div class="empty"><div class="big">🔔</div>${t('All caught up.')}</div>`}</div></div>`;

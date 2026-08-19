@@ -398,7 +398,11 @@ export async function fetchArrivals(){
   /* An empty feed has no "newest", and nothing below it to shift — so
      it is not an arrival, it is just the feed loading for the first
      time with something in it. */
-  if(!state.posts.length && !arrivals.list.length) return (await loadFeed()) ? 1 : 0;
+  if(!state.posts.length && !arrivals.list.length){
+    if(!(await loadFeed())) return 0;
+    noteFriendsPour(state.posts);
+    return 1;
+  }
 
   const held=[...arrivals.list, ...state.posts];
   const known=new Set(held.map(p=>p.id));
@@ -418,6 +422,10 @@ export async function fetchArrivals(){
     if(!fresh.length) return 0;
     await markMine(fresh);
     cachePosts(fresh);
+    /* Before the pill, not after it: someone poured whether or not the
+       reader has tapped to let the card in, and the strip counts the
+       morning rather than the list. */
+    noteFriendsPour(fresh);
     arrivals.list=[...fresh, ...arrivals.list]
       .sort((a,b)=>a.createdAt<b.createdAt?1:a.createdAt>b.createdAt?-1:0);
     return fresh.length;
@@ -478,6 +486,42 @@ export async function loadFriendsToday(){
     friendsToday.loaded=true;
     return true;
   }catch(e){ console.warn('friends-today failed',e); return false; }
+}
+
+/* The same strip, kept current without another request.
+
+   loadFriendsToday() runs at boot and on the way back into the app, and
+   for a long time those were the only two moments it ran — so a friend
+   whose pour slid into the feed on the Realtime socket, in front of the
+   reader, arrived above a line still saying two friends had brewed. The
+   feed was live and the sentence about it was not.
+
+   Everything needed is already in hand: fetchArrivals() has just
+   fetched the rows, so this is a set membership test, not a round trip.
+   Returns how many faces were added, so a caller can tell whether the
+   strip moved.
+
+   The honest limit: on the Today tab the arrivals query is publicOnly,
+   so a friend's followers-only pour is not among the rows this sees and
+   the count waits for the next loadFriendsToday(). That pour is not on
+   the Today feed either, so nothing on screen contradicts anything —
+   the strip is behind, not wrong. */
+export function noteFriendsPour(posts){
+  if(!session || !friendsToday.loaded) return 0;
+  const follows=new Set(followeeIds());
+  const seen=new Set(friendsToday.list);
+  let added=0;
+  for(const p of (posts||[])){
+    /* p.user is 'me' for the reader's own pours, which are never in
+       follows — their own cup is not one of the friends this counts. */
+    if(!follows.has(p.user) || seen.has(p.user)) continue;
+    /* "Today" is the reader's calendar day, the same one startOfToday()
+       hands the query — a pour fetched just after midnight belongs to
+       the day it was poured, not to the one being counted. */
+    if(!isToday(p.createdAt)) continue;
+    seen.add(p.user); friendsToday.list.push(p.user); added++;
+  }
+  return added;
 }
 
 /* Point the store at the signed-in user's own store and load their world.

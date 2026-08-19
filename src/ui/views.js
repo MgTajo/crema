@@ -18,6 +18,7 @@ import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scor
 import { t, tn, lang, locale, LANGS } from '../i18n.js';
 import { postCard, searchHTML, avatar, podiumRow, gcell, followBtn } from './components.js';
 import { icon, logoMark } from './icons.js';
+import { agoTag } from './timeago.js';
 import { hhmm } from './recap.js';
 import { renderOverlay, challengeCard } from './overlays.js';
 import { renderGate } from './gate.js';
@@ -114,7 +115,7 @@ function followRequestsBlock(){
     <div class="freq-h">${icon('bell',15)} ${tn(reqs.length,'{n} follow request','{n} follow requests')}</div>
     ${reqs.map(r=>`<div class="freq-row">
       <div class="idwrap" data-action="open-user" data-id="${r.id}">${avatar(r.id)}
-        <div class="who"><b>${esc(r.user.name)}</b><span>${esc(r.user.handle)} · ${r.ago}</span></div></div>
+        <div class="who"><b>${esc(r.user.name)}</b><span>${esc(r.user.handle)} · ${agoTag(r.at,r.ago)}</span></div></div>
       <button class="btn sm" data-action="accept-follow" data-id="${r.id}">${t('Accept')}</button>
       <button class="btn ghost sm" data-action="decline-follow" data-id="${r.id}">${t('Decline')}</button>
     </div>`).join('')}
