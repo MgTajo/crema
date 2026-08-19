@@ -112,7 +112,7 @@ export function freshState(){
        render a real position before the first sync rather than reading
        as "off" and inviting someone to turn on what is already on. */
     me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:'',avatar:'',
-        notifySocial:true,notifyStreak:true,notifyDigest:true,notifyMorning:true},
+        notifySocial:true,notifyStreak:true,notifyDigest:true,notifyMorning:true,notifyFriends:true},
     notifications:[]
   };
 }

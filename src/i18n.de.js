@@ -1024,6 +1024,20 @@ export const DE = {
   'Tap <b>Add</b>. That is it.':'Auf <b>Hinzufügen</b> tippen. Das war\'s.',
   'Maybe later':'Später vielleicht',
 
+  /* ---------- the first coffee of the day (step-1.30) ---------- */
+  'Your first coffee of the day':'Dein erster Kaffee des Tages',
+  'Your first coffee of the day is worth more':'Dein erster Kaffee des Tages zählt mehr',
+  'Log the first one you make each morning and it pays {n} points towards your level, on top of what the pour itself is worth. Every morning, once a morning.':'Trag den ersten ein, den du morgens machst, und er bringt {n} Punkte für dein Level — zusätzlich zu dem, was der Kaffee selbst zählt. Jeden Morgen, einmal pro Morgen.',
+  'And when someone you follow pours a coffee, you will hear about it. You can turn that off in Settings.':'Und wenn jemand, dem du folgst, einen Kaffee macht, erfährst du davon. In den Einstellungen kannst du das ausschalten.',
+  'Got it':'Alles klar',
+  'First coffee of the day · {n} points 🔥':'Erster Kaffee des Tages · {n} Punkte 🔥',
+  'When friends pour':'Wenn Freunde Kaffee machen',
+  'Someone you follow just made a coffee':'Jemand, dem du folgst, hat gerade Kaffee gemacht',
+  /* The body of the inbox row itself, written in English by
+     notify_on_post() in step-1.30.sql and translated on the way out —
+     the server has no idea which language the reader picked. */
+  'poured a coffee':'hat einen Kaffee gemacht',
+
   /* ---------- misc ---------- */
   'Challenge complete: {title} · +{n} 🎯':'Challenge geschafft: {title} · +{n} 🎯',
   '{n} challenges complete 🎯':'{n} Challenges geschafft 🎯',

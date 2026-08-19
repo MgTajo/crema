@@ -19,6 +19,7 @@ import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, cur
 import { ensureProfile, pushProfile, pushName, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
          setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium } from '../data/profiles.js';
 import { codeValid, PREMIUM_MAIL, photoLimit } from '../domain/premium.js';
+import { POINT_RULES } from '../domain/scoring.js';
 import { cropSquare, objectPosition, isAdjustable, focusAfterDrag, pickFocus } from '../domain/framing.js';
 import { recapSVG, recapPNG, loadShotPhotos, loadStanding, weekStanding } from './recap.js';
 import { enablePush, disablePush, pushEnabled, syncPush, pushSupported, pushPermission } from '../data/push.js';
@@ -34,7 +35,7 @@ import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
          feed, hydrateReactions, myMachines, myCoffees, togglePin, setGearNote, rememberOwn,
          weekRecap, toggleRecapPick,
-         applyArrivals, dropArrivals, admin, loadQueue } from '../store/store.js';
+         applyArrivals, dropArrivals, admin, loadQueue, streakInfo } from '../store/store.js';
 import { onLive } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
@@ -43,6 +44,7 @@ import { t, tn, setLang } from '../i18n.js';
 import { render, renderView, renderAppbar, CAFE_MAIL } from './views.js';
 import { pushOv, popOv, renderOverlay, pickerList } from './overlays.js';
 import { initHistory } from './history.js';
+import { markSeen, FIRST_POUR_BONUS } from '../core/announce.js';
 
 /* ============================================================ BACK */
 /* Moving to a tab, remembering where you came from. See ui/history.js
@@ -100,6 +102,13 @@ initHistory({ depth: () => ui.ovStack.length + ui.navStack.length + (ui.gate?1:0
    code is NOT here — Premium lives on a profile row, so it needs one. */
 const GUEST_READS=new Set(['open-post','recipe','share-post','close-ov','reload','toast','none',
                            'guest-signin','guest-back','set-lang','show-arrivals',
+                           /* Dismissing a card is closing it. app.js raises the
+                              what's-new card only for a signed-in account, so a
+                              guest should never meet this — but the failure mode
+                              if one ever did is a sign-in sheet in answer to
+                              somebody tapping "Got it", which is the opposite of
+                              what the button says it does. */
+                           'dismiss-whatsnew',
                            'premium-mail','copy-premium-mail',
                            /* A bean or machine page is reference material with
                               nothing of anyone's on it — the same reading a
@@ -183,6 +192,10 @@ document.addEventListener('click',e=>{
     case 'open-notifs':{ const had=state.notifications.some(n=>!n.read); state.notifications.forEach(n=>n.read=true); if(had){save(); renderAppbar();} pushOv({type:'notifs'});
       const u=currentUser(); if(u&&had) markAllRead(u.id).catch(err=>console.warn('mark read failed',err));
       break;}
+    /* Closing the card IS the acknowledgement — see overlayWhatsNew().
+       The flag is written before the sheet is popped so that a crash
+       between the two cannot bring it back tomorrow. */
+    case 'dismiss-whatsnew': markSeen(FIRST_POUR_BONUS); popOv(); break;
     case 'notif-go':{ const n=state.notifications[+el.dataset.idx]; if(!n)break;
       if(n.post) openNotifiedPost(n.post);
       else if(n.challenge) pushOv({type:'challenge',id:n.challenge});
@@ -199,6 +212,7 @@ document.addEventListener('click',e=>{
     case 'push-off': turnPushOff(); break;
     case 'toggle-notify-morning': toggleNotify('notifyMorning'); break;
     case 'toggle-notify-social': toggleNotify('notifySocial'); break;
+    case 'toggle-notify-friends': toggleNotify('notifyFriends'); break;
     case 'toggle-notify-streak': toggleNotify('notifyStreak'); break;
     case 'toggle-notify-digest': toggleNotify('notifyDigest'); break;
     case 'open-passport': pushOv({type:'passport'}); break;
@@ -797,6 +811,7 @@ async function turnPushOn(){
        second screen. Since step-1.19 they are on by default anyway;
        this covers anyone who had turned one off and changed their mind. */
     state.me.notifySocial=true; state.me.notifyStreak=true; state.me.notifyMorning=true;
+    state.me.notifyFriends=true;
     save();
     try{ await setNotifyPrefs(u.id,state.me); }
     catch(e){ console.warn('notification prefs failed',e); }
@@ -2108,6 +2123,17 @@ async function submitPost(){
   if(c.editId){ saveEdit(c); return; }
   if(shotsBusy(c)){ toast(t('The photo is still uploading. One moment.')); return; }
   if(!(await ensureUploaded(c))) return;
+  /* Read BEFORE the optimistic unshift below, or the pour being added is
+     itself the answer and every pour looks like the first of the day.
+
+     The award is Postgres's decision, not this line's — award_daily_first()
+     in step-1.30.sql owns it, and it resolves the day through the poster's
+     own tz_offset. This only decides which of two toasts to show, off the
+     same day-index set the streak is drawn from, so the client and the
+     server disagree only for somebody who crosses a timezone between one
+     coffee and the next. The cost of being wrong is a sentence, and
+     refreshScore() below shows the real number either way. */
+  const firstToday = !streakInfo().poured;
   /* The id is minted client-side so it never changes under us — the
      generated cup art is seeded from it, and so is the share link. */
   const u=currentUser();
@@ -2122,7 +2148,14 @@ async function submitPost(){
   /* Land on the tab that will actually contain what you just posted: a
      followers-only pour never appears in Today. */
   ui.ovStack=[]; ui.route='home'; ui.filter=np.visibility==='followers'?'following':'today'; render();
-  setTimeout(()=>toast(keys.length?t('Posted. Streak kept 🔥'):t('Posted ☕ · add a photo next time')),120);
+  /* The bonus toast displaces the ordinary one rather than following it:
+     two toasts in a row means the first is never read, and "your first
+     coffee of the day" already says the streak is kept. */
+  const bonus=(POINT_RULES.find(r=>/first coffee of the day/i.test(r[0]))||['','+20'])[1];
+  setTimeout(()=>toast(
+    firstToday        ? t('First coffee of the day · {n} points 🔥',{n:bonus})
+    : keys.length     ? t('Posted. Streak kept 🔥')
+                      : t('Posted ☕ · add a photo next time')),120);
 
   /* Optimistic: the post is already on screen. Reconcile on failure. */
   if(u) createPost(np,u.id).then(()=>{

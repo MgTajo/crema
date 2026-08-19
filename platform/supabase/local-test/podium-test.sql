@@ -185,7 +185,7 @@ end $$;
 \echo 'T10 PASS'
 
 \echo '--- T11: comments count toward the podium, worth 1 point same as a like ---'
-delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places; delete from podium_wins;
+delete from daily_firsts; delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places; delete from podium_wins;
 insert into posts (id, user_id, drink, caption, visibility, created_at) values
   ('11110000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','Latte','Few likes, lots of talk','public', now()),
   ('22220000-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222222','Latte','Many likes, no comments','public', now()),
@@ -226,7 +226,7 @@ end $$;
 \echo 'T11 PASS'
 
 \echo '--- T12: a pour can reach the podium on comments alone, zero likes ---'
-delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places;
+delete from daily_firsts; delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places;
 insert into posts (id, user_id, drink, caption, visibility, created_at) values
   ('55550000-0000-0000-0000-000000000005','55555555-5555-5555-5555-555555555555','Filter','Zero likes, one comment','public', now());
 insert into comments (post_id, user_id, body) values
@@ -241,7 +241,7 @@ end $$;
 \echo 'T12 PASS'
 
 \echo '--- T13: commenting on your own pour does not buy a place ---'
-delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places;
+delete from daily_firsts; delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places;
 insert into posts (id, user_id, drink, caption, visibility, created_at) values
   ('66660000-0000-0000-0000-000000000006','66666666-6666-6666-6666-666666666666','Filter','Self-talk','public', now());
 insert into comments (post_id, user_id, body) values
@@ -255,7 +255,7 @@ end $$;
 \echo 'T13 PASS'
 
 \echo '--- T14: podium_award_day() refuses to settle today ---'
-delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places; delete from podium_wins;
+delete from daily_firsts; delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places; delete from podium_wins;
 insert into posts (id, user_id, drink, caption, visibility, created_at) values
   ('77770000-0000-0000-0000-000000000007','11111111-1111-1111-1111-111111111111','Latte','Still today','public', now());
 insert into likes (post_id, user_id) values ('77770000-0000-0000-0000-000000000007','22222222-2222-2222-2222-222222222222');
@@ -267,7 +267,7 @@ end $$;
 \echo 'T14 PASS'
 
 \echo '--- T15: a settled day pays 15/10/5 and moves profiles.points ---'
-delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places; delete from podium_wins;
+delete from daily_firsts; delete from notifications; delete from likes; delete from comments; delete from posts; delete from podium_places; delete from podium_wins;
 insert into posts (id, user_id, drink, caption, visibility, created_at) values
   ('88880000-0000-0000-0000-000000000008','11111111-1111-1111-1111-111111111111','Latte','Yesterday gold',  'public', now() - interval '1 day'),
   ('99990000-0000-0000-0000-000000000009','22222222-2222-2222-2222-222222222222','Latte','Yesterday silver','public', now() - interval '1 day'),
@@ -297,13 +297,19 @@ begin
   -- user_points() counts everything, not just the podium bonus: the pour
   -- itself (+10) plus 2 points per like it received (the ordinary profile
   -- score, unrelated to the podium's own 1-point-per-like ranking weight)
-  -- plus the podium bonus. Ann's post got 3 likes, Bo's 2, Cy's 1 (the
-  -- fixture above), so: 10 + 3*2 + 15 = 31, 10 + 2*2 + 10 = 24, 10 + 1*2 + 5 = 17.
-  assert (select points from profiles where id='11111111-1111-1111-1111-111111111111') = 31,
+  -- plus the podium bonus, plus — since step-1.30 — 20 for the pour being
+  -- the first of its author's day, which each of these three is. (An
+  -- award outlives the pour that earned it on purpose, so every fixture
+  -- reset in this file clears daily_firsts too; without that these three
+  -- would still be carrying the mornings the earlier blocks paid for.)
+  -- Ann's
+  -- post got 3 likes, Bo's 2, Cy's 1 (the fixture above), so:
+  --   10 + 3*2 + 15 + 20 = 51, 10 + 2*2 + 10 + 20 = 44, 10 + 1*2 + 5 + 20 = 37.
+  assert (select points from profiles where id='11111111-1111-1111-1111-111111111111') = 51,
          'podium win did not reach profiles.points via recalc_score() for 1st';
-  assert (select points from profiles where id='22222222-2222-2222-2222-222222222222') = 24,
+  assert (select points from profiles where id='22222222-2222-2222-2222-222222222222') = 44,
          'podium win did not reach profiles.points via recalc_score() for 2nd';
-  assert (select points from profiles where id='33333333-3333-3333-3333-333333333333') = 17,
+  assert (select points from profiles where id='33333333-3333-3333-3333-333333333333') = 37,
          'podium win did not reach profiles.points via recalc_score() for 3rd';
 end $$;
 \echo 'T15 PASS'
@@ -314,7 +320,7 @@ select podium_award_recent();
 do $$
 begin
   assert (select count(*) from podium_wins) = 3, 're-running the award sweep changed the winner count';
-  assert (select points from profiles where id='11111111-1111-1111-1111-111111111111') = 31,
+  assert (select points from profiles where id='11111111-1111-1111-1111-111111111111') = 51,
          're-settling an already-paid day changed the score';
 end $$;
 \echo 'T16 PASS'

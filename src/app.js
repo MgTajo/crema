@@ -28,6 +28,7 @@ import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap } from './ui/actions.js';
 import { canInstallOnIOS } from './data/push.js';
+import { seen, markSeen, FIRST_POUR_BONUS } from './core/announce.js';
 import { applyLang } from './i18n.js';
 /* Side effect only: measures the window and keeps --app-h in step with it
    for the rest of the session. Module evaluation happens before anything
@@ -138,12 +139,36 @@ if(auth.session){
   await syncProfile();
   applyMe(); render();
 
-  if(!state.onboarded){ pushOv({type:'onboard'}); }
+  if(!state.onboarded){
+    pushOv({type:'onboard'});
+    /* A brand-new account is not being told what CHANGED — for them the
+       first-pour bonus is simply how Crema has always worked, and
+       onboarding says what points are. Marked seen rather than left
+       pending so the card does not ambush them on their second open. */
+    markSeen(FIRST_POUR_BONUS);
+  }
   else if(auth.recovery){ pushOv({type:'password'}); toast('Signed in — pick a new password'); }
   else openFromHash(takeHash());
 }else{
   openFromHash(takeHash());
 }
+
+/* ---------- what changed while you were away ----------
+   Once per browser, ever (core/announce.js), and only for somebody who
+   has an account and can therefore earn the thing it describes — a
+   guest has no level to add points to, and this would be the second
+   sheet of their visit.
+
+   Same restraint as the iPhone prompt below it: never over onboarding,
+   never over a pour somebody followed a link to, never over the sign-in
+   sheet, and behind a short delay so the feed arrives first. The seen
+   flag is written when it is DISMISSED, not when it is raised
+   (`dismiss-whatsnew` in ui/actions.js) — an app killed while the card
+   was on screen has not told anybody anything. */
+if(auth.session && state.onboarded && !seen(FIRST_POUR_BONUS)) setTimeout(()=>{
+  if(ui.ovStack.length||ui.gate) return;
+  pushOv({type:'whatsnew'});
+}, 1400);
 
 /* ---------- the iPhone-in-a-tab prompt ----------
    Raised once per app open, and only when there is nothing else on

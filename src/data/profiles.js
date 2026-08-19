@@ -72,6 +72,12 @@ export function rowToMe(row){
        default-true reasoning: nothing sends without the device having
        granted push in the first place. */
     notifyMorning: row.notify_morning===undefined ? true : !!row.notify_morning,
+    /* step-1.30.sql. A friend's morning is a different volume of thing
+       from somebody answering you — bounded by how many people you
+       follow rather than by how much you post — so it gets its own
+       switch instead of riding notify_social. Same
+       undefined-means-not-run-yet contract, same default. */
+    notifyFriends: row.notify_friends===undefined ? true : !!row.notify_friends,
     /* step-1.27.sql. Read-only here in the strongest sense: meToRow
        never writes either of them back, and a client PATCH that tried
        would be reverted by profiles_guard_admin() in Postgres. This
@@ -85,11 +91,11 @@ export function rowToMe(row){
   };
 }
 
-/* The four notification switches, written on their own. Uses its own
-   optionalColumns() so that on a deploy where step-1.16.sql (or 1.20)
-   has not been run yet the toggles quietly do nothing instead of
-   failing the save — same contract as avatar_key above. */
-const notifyOpt = optionalColumns(['notify_social','notify_streak','notify_digest','notify_morning']);
+/* The five notification switches, written on their own. Uses its own
+   optionalColumns() so that on a deploy where step-1.16.sql (or 1.20,
+   or 1.30) has not been run yet the toggles quietly do nothing instead
+   of failing the save — same contract as avatar_key above. */
+const notifyOpt = optionalColumns(['notify_social','notify_streak','notify_digest','notify_morning','notify_friends']);
 export function setNotifyPrefs(uid, me){
   return notifyOpt.run(has=>{
     const body={};
@@ -97,6 +103,7 @@ export function setNotifyPrefs(uid, me){
     if(has('notify_streak')) body.notify_streak = !!me.notifyStreak;
     if(has('notify_digest')) body.notify_digest = !!me.notifyDigest;
     if(has('notify_morning')) body.notify_morning = !!me.notifyMorning;
+    if(has('notify_friends')) body.notify_friends = !!me.notifyFriends;
     return { path:`profiles?id=eq.${uid}`, method:'PATCH', body };
   });
 }
