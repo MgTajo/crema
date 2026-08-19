@@ -30,8 +30,18 @@ const KEY = 'crema.seen';
 
 /* Every announcement Crema has ever made, oldest first. The ids are
    permanent — one is only ever appended, never renamed, or the card it
-   names comes back for everybody who already dismissed it. */
-export const FIRST_POUR_BONUS = 'first-pour-bonus';
+   names comes back for everybody who already dismissed it.
+
+   FIRST_POUR_BONUS is spent and nothing raises it any more. It is kept
+   here rather than deleted because the key it wrote is still sitting in
+   people's browsers, and the list is the only record of what that key
+   means. It described a +20 for your OWN first pour of the day; a day
+   later that became a race for a single daily +20 (step-1.31), which is
+   a different promise to the same people — so it is a NEW announcement
+   with a new id rather than an edit to the old copy. Anybody who
+   dismissed the first card sees the corrected one once. */
+export const FIRST_POUR_BONUS = 'first-pour-bonus';   // superseded 2026-08-19
+export const DAILY_CHAMPION   = 'daily-champion';
 
 export function seen(id){
   try{ return localStorage.getItem(`${KEY}.${id}`) === '1'; }catch(e){ return false; }

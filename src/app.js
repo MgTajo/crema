@@ -28,7 +28,7 @@ import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap } from './ui/actions.js';
 import { canInstallOnIOS } from './data/push.js';
-import { seen, markSeen, FIRST_POUR_BONUS } from './core/announce.js';
+import { seen, markSeen, DAILY_CHAMPION } from './core/announce.js';
 import { applyLang } from './i18n.js';
 /* Side effect only: measures the window and keeps --app-h in step with it
    for the rest of the session. Module evaluation happens before anything
@@ -142,10 +142,10 @@ if(auth.session){
   if(!state.onboarded){
     pushOv({type:'onboard'});
     /* A brand-new account is not being told what CHANGED — for them the
-       first-pour bonus is simply how Crema has always worked, and
-       onboarding says what points are. Marked seen rather than left
-       pending so the card does not ambush them on their second open. */
-    markSeen(FIRST_POUR_BONUS);
+       daily race is simply how Crema has always worked, and onboarding
+       says what points are. Marked seen rather than left pending so the
+       card does not ambush them on their second open. */
+    markSeen(DAILY_CHAMPION);
   }
   else if(auth.recovery){ pushOv({type:'password'}); toast('Signed in — pick a new password'); }
   else openFromHash(takeHash());
@@ -165,7 +165,7 @@ if(auth.session){
    flag is written when it is DISMISSED, not when it is raised
    (`dismiss-whatsnew` in ui/actions.js) — an app killed while the card
    was on screen has not told anybody anything. */
-if(auth.session && state.onboarded && !seen(FIRST_POUR_BONUS)) setTimeout(()=>{
+if(auth.session && state.onboarded && !seen(DAILY_CHAMPION)) setTimeout(()=>{
   if(ui.ovStack.length||ui.gate) return;
   pushOv({type:'whatsnew'});
 }, 1400);

@@ -19,7 +19,6 @@ import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, cur
 import { ensureProfile, pushProfile, pushName, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
          setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium } from '../data/profiles.js';
 import { codeValid, PREMIUM_MAIL, photoLimit } from '../domain/premium.js';
-import { POINT_RULES } from '../domain/scoring.js';
 import { cropSquare, objectPosition, isAdjustable, focusAfterDrag, pickFocus } from '../domain/framing.js';
 import { recapSVG, recapPNG, loadShotPhotos, loadStanding, weekStanding } from './recap.js';
 import { enablePush, disablePush, pushEnabled, syncPush, pushSupported, pushPermission } from '../data/push.js';
@@ -35,7 +34,7 @@ import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
          feed, hydrateReactions, myMachines, myCoffees, togglePin, setGearNote, rememberOwn,
          weekRecap, toggleRecapPick,
-         applyArrivals, dropArrivals, admin, loadQueue, streakInfo } from '../store/store.js';
+         applyArrivals, dropArrivals, admin, loadQueue } from '../store/store.js';
 import { onLive } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
@@ -44,7 +43,7 @@ import { t, tn, setLang } from '../i18n.js';
 import { render, renderView, renderAppbar, CAFE_MAIL } from './views.js';
 import { pushOv, popOv, renderOverlay, pickerList } from './overlays.js';
 import { initHistory } from './history.js';
-import { markSeen, FIRST_POUR_BONUS } from '../core/announce.js';
+import { markSeen, DAILY_CHAMPION } from '../core/announce.js';
 
 /* ============================================================ BACK */
 /* Moving to a tab, remembering where you came from. See ui/history.js
@@ -195,7 +194,7 @@ document.addEventListener('click',e=>{
     /* Closing the card IS the acknowledgement — see overlayWhatsNew().
        The flag is written before the sheet is popped so that a crash
        between the two cannot bring it back tomorrow. */
-    case 'dismiss-whatsnew': markSeen(FIRST_POUR_BONUS); popOv(); break;
+    case 'dismiss-whatsnew': markSeen(DAILY_CHAMPION); popOv(); break;
     case 'notif-go':{ const n=state.notifications[+el.dataset.idx]; if(!n)break;
       if(n.post) openNotifiedPost(n.post);
       else if(n.challenge) pushOv({type:'challenge',id:n.challenge});
@@ -2123,17 +2122,18 @@ async function submitPost(){
   if(c.editId){ saveEdit(c); return; }
   if(shotsBusy(c)){ toast(t('The photo is still uploading. One moment.')); return; }
   if(!(await ensureUploaded(c))) return;
-  /* Read BEFORE the optimistic unshift below, or the pour being added is
-     itself the answer and every pour looks like the first of the day.
+  /* No optimistic "you won the morning" here, deliberately. Under
+     step-1.30 the client could guess — your own first pour of the day is
+     a fact about your own posts. Under step-1.31 the +20 goes to the
+     first pour in ALL of Crema, and this device cannot know whether
+     somebody in another kitchen was up twenty minutes ago. Guessing
+     would mean congratulating people who did not win.
 
-     The award is Postgres's decision, not this line's — award_daily_first()
-     in step-1.30.sql owns it, and it resolves the day through the poster's
-     own tz_offset. This only decides which of two toasts to show, off the
-     same day-index set the streak is drawn from, so the client and the
-     server disagree only for somebody who crosses a timezone between one
-     coffee and the next. The cost of being wrong is a sentence, and
-     refreshScore() below shows the real number either way. */
-  const firstToday = !streakInfo().poured;
+     So the race is announced the only way it honestly can be: by the
+     server, as a `daily_champion` notification, which arrives over the
+     Realtime socket within a second of the insert and reaches the phone
+     even if the app is closed. refreshScore() below picks up the points
+     either way. */
   /* The id is minted client-side so it never changes under us — the
      generated cup art is seeded from it, and so is the share link. */
   const u=currentUser();
@@ -2148,14 +2148,7 @@ async function submitPost(){
   /* Land on the tab that will actually contain what you just posted: a
      followers-only pour never appears in Today. */
   ui.ovStack=[]; ui.route='home'; ui.filter=np.visibility==='followers'?'following':'today'; render();
-  /* The bonus toast displaces the ordinary one rather than following it:
-     two toasts in a row means the first is never read, and "your first
-     coffee of the day" already says the streak is kept. */
-  const bonus=(POINT_RULES.find(r=>/first coffee of the day/i.test(r[0]))||['','+20'])[1];
-  setTimeout(()=>toast(
-    firstToday        ? t('First coffee of the day · {n} points 🔥',{n:bonus})
-    : keys.length     ? t('Posted. Streak kept 🔥')
-                      : t('Posted ☕ · add a photo next time')),120);
+  setTimeout(()=>toast(keys.length?t('Posted. Streak kept 🔥'):t('Posted ☕ · add a photo next time')),120);
 
   /* Optimistic: the post is already on screen. Reconcile on failure. */
   if(u) createPost(np,u.id).then(()=>{

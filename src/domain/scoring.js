@@ -44,12 +44,15 @@ export const levelName = n => (LEVELS.find(l=>l[0]===n)||LEVELS[0])[1];
    person did in response to it. Nothing pays for using the app. */
 export const POINT_RULES=[
   ['Log a coffee','+10'],
-  /* step-1.30. Deliberately worth more than the pour itself: a second cup
-     at eleven is worth logging, the first one is worth getting up for —
-     and turning up every morning is the only thing the app has ever
-     asked for and never paid. Must match crema_first_pour_points() in
-     platform/supabase/step-1.30.sql. */
-  ['Your first coffee of the day','+20'],
+  /* step-1.31, and it is a RACE: exactly one pour a day earns this — the
+     first one logged in all of Crema, on the Berlin clock the podium
+     already uses. step-1.30 paid it to everybody for their own first
+     pour, which is an allowance rather than a reward: everyone collects
+     it, every day, for what they were going to do anyway. A thing you
+     can lose is the only kind you can win. Must match
+     crema_first_pour_points() in platform/supabase/step-1.30.sql, which
+     step-1.31 leaves in place as the value. */
+  ['First coffee in Crema today','+20'],
   ['A bean you\'ve never logged','+15'],
   ['An exact recipe · dose in, yield out','+5'],
   ['Someone comments on your pour','+3'],

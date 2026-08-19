@@ -185,38 +185,39 @@ function overlayIosInstall(){
 
 /* ---------- what changed while you were away ----------
    Raised once per browser, ever, from app.js — see core/announce.js for
-   where that "once" is kept and why it is not in the store blob.
+   where that "once" is kept, and why the correction below is a NEW
+   announcement id rather than an edit to the old card's copy.
 
    It exists because a reward nobody knows about is not a reward. Points
    in Crema are quiet by design: they arrive on a profile row and nothing
    announces them, which is right for the ones you earn by being
    *noticed* — a like, a comment, a podium finish — and wrong for one you
-   have to change your behaviour to collect. Nobody moves their logging
-   to the morning to chase a number they have never heard of.
+   have to change your behaviour to collect.
 
-   So it says what the number is and what it costs to get. It does not
+   And this one is a race, which raises the bar again: nobody enters a
+   competition they have not been told is running. So the card says the
+   three things you need in order to play — that there is exactly one a
+   day, that being first is what wins it, and what it pays. It does not
    say "new!", it does not list a changelog, and it has exactly one
-   button, which closes it: there is nothing to do here except know.
+   button, which closes it.
 
-   The second line is the other half of the same release. It is one line
-   rather than a section because a card that announces two things
-   announces neither — the bonus is the thing you have to act on, and a
-   friend's coffee arriving on your phone is a thing that simply happens
-   to you now.
+   The second line is the other half of the same release, and it is one
+   line rather than a section because a card that announces two things
+   announces neither.
 
    Both the button and the backdrop go through `dismiss-whatsnew` rather
    than `close-ov`: closing it IS the acknowledgement, and a card that
    came back tomorrow because somebody tapped beside it instead of on it
    would be the one thing this is not allowed to be. */
 function overlayWhatsNew(){
-  const bonus = (POINT_RULES.find(r=>/first coffee of the day/i.test(r[0]))||['','+20'])[1];
-  return `<div class="ov-back" data-action="dismiss-whatsnew"></div><div class="sheet bottom" role="dialog" aria-label="${t('Your first coffee of the day is worth more')}">
+  const bonus = (POINT_RULES.find(r=>/first coffee in crema/i.test(r[0]))||['','+20'])[1];
+  return `<div class="ov-back" data-action="dismiss-whatsnew"></div><div class="sheet bottom" role="dialog" aria-label="${t('First coffee in Crema wins the morning')}">
     <div class="grab"></div>
     <div class="ov-body" style="padding:10px 20px 22px;text-align:center">
-      <div style="font-size:42px;line-height:1">☕</div>
-      <h2 style="font-family:var(--serif);font-weight:400;font-size:24px;letter-spacing:-.02em;margin:10px 0 6px">${t('Your first coffee of the day is worth more')}</h2>
-      <p style="color:var(--ink2);font-size:13.5px;line-height:1.55;margin:0 auto 16px;max-width:300px">${t('Log the first one you make each morning and it pays {n} points towards your level, on top of what the pour itself is worth. Every morning, once a morning.',{n:bonus})}</p>
-      <p style="color:var(--muted);font-size:12.5px;line-height:1.5;margin:0 auto 18px;max-width:300px">${t('And when someone you follow pours a coffee, you will hear about it. You can turn that off in Settings.')}</p>
+      <div style="font-size:42px;line-height:1">🥇</div>
+      <h2 style="font-family:var(--serif);font-weight:400;font-size:24px;letter-spacing:-.02em;margin:10px 0 6px">${t('First coffee in Crema wins the morning')}</h2>
+      <p style="color:var(--ink2);font-size:13.5px;line-height:1.55;margin:0 auto 16px;max-width:300px">${t('Every day, the very first coffee logged in the whole app pays {n} points towards your level. One a day, for one person. Log yours early enough and it is yours.',{n:bonus})}</p>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.5;margin:0 auto 18px;max-width:300px">${t('And you will hear about it when someone you follow logs their first coffee of the day. You can turn that off in Settings.')}</p>
       <button class="btn block" data-action="dismiss-whatsnew">${t('Got it')}</button>
     </div></div>`;
 }
@@ -518,6 +519,7 @@ function overlayNotifs(){
        a decision did — and it is the one row where the symbol carries
        weight, so it gets its own rather than the default cup. */
     const noFace=n.type==='challenge'?'🏆':n.type==='podium'?'🏅'
+                :n.type==='daily_champion'?'🥇'
                 :n.type==='moderation'?'⚖️':n.type==='report_update'?'🚩':'☕';
     const av=n.u?avatar(n.u):`<div class="avatar" style="background:var(--crema)">${noFace}</div>`;
     /* A request is the one notification that is a question, so it keeps
@@ -839,7 +841,7 @@ function remindersBlock(){
 
     return `${sw('toggle-notify-morning',state.me.notifyMorning,t('Morning coffee nudge'),t('If you have not logged one yet that day'))}
       ${sw('toggle-notify-social',state.me.notifySocial,t('Likes, comments &amp; follows'),t('When someone reacts to your coffee'))}
-      ${sw('toggle-notify-friends',state.me.notifyFriends,t('When friends pour'),t('Someone you follow just made a coffee'))}
+      ${sw('toggle-notify-friends',state.me.notifyFriends,t('When friends pour'),t('Their first coffee of the day, once a morning'))}
       ${sw('toggle-notify-streak',state.me.notifyStreak,t('Streak reminder'),t('Evenings, only when your streak is at risk'))}
       ${sw('toggle-notify-digest',state.me.notifyDigest,t('Your week in coffee'),
            state.me.premium?t('Sunday at 4pm, when your card is ready'):t('Sunday afternoon, if you poured that week'))}
