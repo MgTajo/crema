@@ -758,16 +758,6 @@ export const DE = {
   'Pin to the top':'Nach oben pinnen',
   'Unpin':'Nicht mehr pinnen',
 
-  /* the long arc */
-  'Where it is going':'Wohin es geht',
-  'You are pouring <b>{p}% more</b> than the month before.':'Du machst <b>{p} % mehr</b> Kaffee als im Monat davor.',
-  'You are pouring <b>{p}% less</b> than the month before.':'Du machst <b>{p} % weniger</b> Kaffee als im Monat davor.',
-  'About the same as the month before — <b>{a}</b> against <b>{b}</b>.':'Ungefähr wie im Monat davor — <b>{a}</b> gegen <b>{b}</b>.',
-  '<b>{a}</b> this month, after a month with none logged.':'<b>{a}</b> diesen Monat, nach einem Monat ganz ohne Eintrag.',
-  'Keep logging and the month-on-month comparison shows up here.':'Trag weiter ein, dann steht hier der Vergleich von Monat zu Monat.',
-  'Pours a week, {n} weeks back. The busiest was {m}.':'Kaffees pro Woche, {n} Wochen zurück. Die stärkste hatte {m}.',
-  'a week ago':'vor einer Woche',
-  '{n} weeks ago':'vor {n} Wochen',
   'this week':'diese Woche',
   '{d} is your biggest coffee day.':'{d} ist dein stärkster Kaffeetag.',
 

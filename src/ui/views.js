@@ -439,55 +439,6 @@ function statCard(title,body,note){
 const statRows=rows=>`<div class="stx-rows">${rows.map(r=>
   `<div><span>${esc(r[0])}</span><b>${esc(r[1])}</b>${r[2]?`<i>${esc(r[2])}</i>`:''}</div>`).join('')}</div>`;
 
-/* ----- the long arc -----
-   The profile above already draws 21 daily bars, and a second bar chart
-   of the same days in the same shape is not worth paying for — so this
-   one is deliberately a different question and a different drawing.
-   Weekly totals over up to three months as a filled curve, and above it
-   the only number that matters: which way it is going.
-
-   Drawn stretched (preserveAspectRatio="none") so the curve fills
-   whatever width the phone has; the stroke is pinned with
-   vector-effect so the line doesn't smear along with it. */
-function arcCard(s){
-  const w=s.weeks;
-  if(!w || w.length<3) return '';
-  const n=w.length, max=Math.max(...w,1), H=34;
-  const px=i=>(i/(n-1))*100, py=v=>H-(v/max)*(H-3)-1.5;
-  const pts=w.map((v,i)=>`${px(i).toFixed(2)},${py(v).toFixed(2)}`).join(' ');
-  const chart=`<svg class="stx-arc" viewBox="0 0 100 ${H}" preserveAspectRatio="none" aria-hidden="true">
-      <polygon points="0,${H} ${pts} 100,${H}"/>
-      <polyline points="${pts}" vector-effect="non-scaling-stroke"/>
-    </svg>
-    <div class="stx-axis"><span>${tn(n,'a week ago','{n} weeks ago')}</span><span>${t('this week')}</span></div>`;
-
-  /* The headline. A percentage needs two whole months behind it, and a
-     month that was empty has no percentage at all — "up ∞%" is not a
-     fact about anyone's coffee. */
-  const tr=s.trend;
-  let head, dir='';
-  if(tr && tr.pct!=null && Math.abs(tr.pct)>=5){
-    dir=tr.pct>0?'up':'down';
-    head=tr.pct>0
-      ? t('You are pouring <b>{p}% more</b> than the month before.',{p:tr.pct})
-      : t('You are pouring <b>{p}% less</b> than the month before.',{p:Math.abs(tr.pct)});
-  }else if(tr && tr.pct!=null){
-    dir='flat';
-    head=t('About the same as the month before — <b>{a}</b> against <b>{b}</b>.',{a:tr.recent,b:tr.prev});
-  }else if(tr){
-    head=t('<b>{a}</b> this month, after a month with none logged.',{a:tr.recent});
-  }else{
-    head=t('Keep logging and the month-on-month comparison shows up here.');
-  }
-  const chip=dir?`<span class="stx-dir ${dir}">${dir==='up'?'↑':dir==='down'?'↓':'→'} ${tr.recent}/${tr.prev}</span>`:'';
-  return `<div class="stx-card">
-    <h4>${t('Where it is going')}${chip}</h4>
-    <p class="stx-p" style="margin-bottom:12px">${head}</p>
-    ${chart}
-    <p class="stx-note">${t('Pours a week, {n} weeks back. The busiest was {m}.',{n,m:max})}</p>
-  </div>`;
-}
-
 /* The teaser a free account gets instead. It shows the real headline —
    their drink, counted from their own pours — and stops there. An
    entirely blurred screen would be a wall; one true number is an offer,
@@ -581,8 +532,6 @@ export function renderStats(){
       t('Most of your coffee happens around <b>{h}</b>.',{h:hhmm(s.peakMin)})
         +(s.timed<s.pours?' '+t('Counted from the {n} pours that carry a recorded time.',{n:s.timed}):'')));
   }
-
-  out.push(arcCard(s));
 
   const setup=[];
   if(s.beans[0])    setup.push([t('Most-poured coffee'),s.beans[0].name,`${s.beans[0].count}×`]);

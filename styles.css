@@ -978,16 +978,6 @@
   .stx-rows b{font-size:14px; font-weight:600; text-align:right; overflow-wrap:anywhere}
   .stx-rows i{grid-column:2; font-style:normal; font-family:var(--mono); font-size:10px; color:var(--green); font-weight:700; text-align:right}
   .stx-hint{background:var(--surface2); border:1px dashed var(--line2); border-radius:var(--r-sm); padding:13px 14px; font-size:12.5px; line-height:1.5; color:var(--ink2); cursor:pointer}
-  /* the long arc — weeks, not days, as a filled curve. Stretched to the
-     card's width, so the stroke is pinned by vector-effect in the markup
-     rather than scaled along with the geometry. */
-  .stx-arc{display:block; width:100%; height:86px; overflow:visible}
-  .stx-arc polygon{fill:var(--crema); opacity:.14}
-  .stx-arc polyline{fill:none; stroke:var(--crema); stroke-width:2; stroke-linejoin:round; stroke-linecap:round}
-  .stx-dir{float:right; font-family:var(--mono); font-size:10px; font-weight:500; letter-spacing:.04em;
-    padding:3px 8px; border-radius:999px; background:var(--surface2); color:var(--muted)}
-  .stx-dir.up{background:var(--pm1); color:var(--green)}
-  .stx-dir.down{background:var(--st1); color:var(--st4)}
 
   /* the locked stats tab: one real number, then the shape of the rest */
   .stx-lock{position:relative; cursor:pointer; border-radius:var(--r); overflow:hidden}

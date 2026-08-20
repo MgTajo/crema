@@ -1026,29 +1026,6 @@ export function coffeeStats(){
   const peakMin=usualMinute(mins);
   const peakHour=peakMin!=null?Math.floor(peakMin/60):null;
 
-  /* ----- the long arc -----
-     Weekly totals counting back from today, so every bucket is a full
-     seven days and the newest one is comparable with the rest. Only
-     weeks the history actually covers are built: a first bucket that is
-     half outside someone's account would draw a slump they never had.
-
-     Deliberately NOT the same shape as the 21 daily bars on the profile
-     above. Those answer "what have I done lately"; this answers "which
-     way is it going", which is a different question and the one a habit
-     is actually judged by. */
-  const inRange=(a,b)=>idx.filter(d=>d>=a&&d<b).length;
-  const fullWeeks=Math.min(12,Math.floor(span/7));
-  const weeks=[];
-  for(let w=fullWeeks-1;w>=0;w--) weeks.push(inRange(w*7,w*7+7));
-
-  /* Month on month, and only once there are two whole months to set
-     against each other. A percentage off a fortnight is noise wearing a
-     decimal point. */
-  const trend = span>=60 ? (()=>{
-    const recent=inRange(0,30), prev=inRange(30,60);
-    return { recent, prev, pct: prev ? Math.round((recent-prev)/prev*100) : null };
-  })() : null;
-
   /* The espresso numbers, for the people who fill them in. A ratio is
      the mean of each shot's own yield÷dose rather than total÷total: one
      outlier litre of cold brew shouldn't redefine your espresso. */
@@ -1073,7 +1050,6 @@ export function coffeeStats(){
     artPours:posts.filter(p=>p.art&&p.pattern).length,
     cafePours:posts.filter(p=>p.cafe).length,
     hours, timed, peakHour, peakMin, weekdays,
-    weeks, trend,
     brew, streak:st.days, best:st.best
   };
 }
