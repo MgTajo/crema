@@ -1,14 +1,21 @@
 /* Crema service worker
-   - network-first for HTML and app code (so deploys are visible at once)
-   - cache-first for artwork (images/icons — fixed names, never change)
-   - everything precached below, so the app opens offline either way */
+   - cache-first for everything precached below, so a cold start never
+     waits on the network for code it already has
+   - app code and HTML are revalidated behind that paint, and the page is
+     told when what it is running has gone stale
+   - artwork is cache-first with no revalidation (fixed names, never
+     change) */
 /* Bump on any deploy that must reach existing installs immediately: the
    browser reinstalls this worker only when this file's bytes change, and
-   `activate` then purges every other cache. With code served
-   network-first (below) a bump is no longer required for code changes —
-   it is the lever for evicting a bad cache. */
-const C = 'crema-v42';
-const ASSETS = ['./manifest.webmanifest','./styles.css',
+   `activate` then purges every other cache. It is the lever for evicting
+   a bad cache — an ordinary deploy does not need it, because the
+   revalidation below picks the deploy up on its own. */
+const C = 'crema-v43';
+/* './' is the URL a navigation actually asks for — the manifest's
+   start_url is "." and the TWA launches the same address. Precaching
+   './index.html' alone would have left the one request that matters
+   uncached on a first install. */
+const ASSETS = ['./','./manifest.webmanifest','./styles.css',
   './src/app.js','./src/config.js','./src/core/util.js','./src/core/announce.js','./src/i18n.js','./src/i18n.de.js',
   './src/data/assets.js','./src/data/catalog.js','./src/data/world.js',
   './src/data/supabase.js','./src/data/profiles.js','./src/data/remote.js','./src/data/posts.js',
@@ -34,6 +41,58 @@ self.addEventListener('activate', e => {
       .then(() => self.clients.claim())
   );
 });
+/* ------------------------------------------------------------------
+   Why this is not network-first any more.
+
+   It was, and for a good reason: cache-first on code once meant a
+   deploy was invisible until `C` changed, because a service worker
+   only reinstalls when sw.js itself differs, and three deploys shipped
+   behind a stale cache that way. Network-first fixed that and
+   introduced a quieter cost — every cold start went to the network for
+   the document, the stylesheet and forty-odd ES modules that were all
+   sitting in the cache already. On a phone waking its radio that is
+   seconds of nothing on screen, which is what the Play build's long
+   beige start actually was.
+
+   Stale-while-revalidate keeps both. The cache answers immediately, so
+   the app opens at the speed of local storage; the request still goes
+   out behind the paint and refreshes the cache, so a deploy is picked
+   up without anybody bumping anything. And when the refreshed copy
+   differs from the one that was served, the page is told (see
+   `announce` below and the 'stale' handler in src/app.js), so a deploy
+   can still reach a running app in the same open rather than the next
+   one.
+   ------------------------------------------------------------------ */
+
+/* Whether two responses for the same URL are the same bytes. GitHub
+   Pages sends an ETag on everything; when there isn't one to compare —
+   the dev server sends no-store and no validator — the answer is "we
+   cannot tell", which has to mean *unchanged*. Guessing the other way
+   would announce an update on every request and reload the app in a
+   loop. */
+const tagOf = r => (r && (r.headers.get('ETag') || r.headers.get('Last-Modified'))) || '';
+const differs = (a, b) => { const x = tagOf(a), y = tagOf(b); return !!x && !!y && x !== y; };
+
+/* Once per worker, however many files came back changed: a deploy
+   changes most of them at once and the page only needs telling once. */
+let announced = false;
+function announce() {
+  if (announced) return;
+  announced = true;
+  self.clients.matchAll({ type: 'window' })
+    .then(cs => cs.forEach(c => c.postMessage({ type: 'stale' })));
+}
+
+/* Refresh one entry behind whatever was already served. Never rejects:
+   offline is the normal case here, not an error. */
+function revalidate(req, served) {
+  return fetch(req, { cache: 'no-cache' }).then(res => {
+    if (!res.ok) return;
+    caches.open(C).then(c => c.put(req, res.clone()));
+    if (served && differs(served, res)) announce();
+  }).catch(() => {});
+}
+
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
@@ -42,34 +101,29 @@ self.addEventListener('fetch', e => {
   const isHTML = e.request.mode === 'navigate'
     || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
 
-  // App code, as opposed to artwork. This distinction is the whole point:
-  // cache-first on code meant a deploy was invisible until `C` changed,
-  // because a service worker only reinstalls when sw.js itself differs.
-  // Three deploys shipped behind a stale cache that way. Code is now
-  // network-first — always current when online, cache when not — while
-  // images and icons, which never change under a fixed name, stay
-  // cache-first and instant.
+  // App code, as opposed to artwork. Both are cache-first; only code and
+  // HTML are worth a request behind the paint, because artwork never
+  // changes under a fixed name.
   const isCode = /\.(?:js|mjs|css|webmanifest)$/.test(url.pathname);
 
-  if (isHTML || isCode) {
-    e.respondWith(
-      fetch(e.request)
-        .then(res => {
-          if (res.ok) { const cp = res.clone(); caches.open(C).then(c => c.put(e.request, cp)); }
-          return res;
-        })
-        .catch(() => caches.match(e.request)
-          .then(h => h || (isHTML ? caches.match('./index.html') : undefined)))
-    );
-  } else {
-    // cache-first for static assets
-    e.respondWith(
-      caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
+  /* A navigation can carry query parameters the cache has never seen —
+     a launcher's own tracking params, a shared link — and matching them
+     strictly would miss the shell that is sitting right there. The
+     document is the same document either way. */
+  const opts = isHTML ? { ignoreSearch: true } : undefined;
+
+  e.respondWith(
+    caches.match(e.request, opts).then(hit => {
+      if (hit) {
+        if (isHTML || isCode) e.waitUntil(revalidate(e.request, hit));
+        return hit;
+      }
+      return fetch(e.request).then(res => {
         if (res.ok) { const cp = res.clone(); caches.open(C).then(c => c.put(e.request, cp)); }
         return res;
-      }).catch(() => undefined))
-    );
-  }
+      }).catch(() => isHTML ? caches.match('./') : undefined);
+    })
+  );
 });
 
 /* ============================================================

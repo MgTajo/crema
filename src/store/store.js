@@ -156,7 +156,7 @@ export const social={ blocks:[], loaded:false, listsLoaded:false, followers:[], 
                       requests:[] };
 
 /* People to follow — the newest profiles that aren't you, filled by
-   hydrateSocial(). Empty until the backend answers. */
+   hydrateRest(). Empty until the backend answers. */
 export const discover={ list:[], loaded:false };
 
 /* Your own pours — all of them, not the handful that happen to be on the
@@ -236,7 +236,31 @@ export async function loadChallenges(){
   }catch(e){ console.warn('challenges failed',e); return false; }
 }
 
-export async function hydrateSocial(){
+/* ---------- your world, in two waves rather than ten ----------
+   Everything here used to be awaited in a queue: follows, then follow
+   requests, then notifications, then the podium, then your pours, then
+   gear, then counts, then suggestions, then challenges, then café
+   follower counts. Ten round trips to Frankfurt, each one waiting for
+   the one before it, and the first paint waited behind all of them —
+   which was most of the beige screen on a cold start.
+
+   They do not depend on each other, so they go out together. Only the
+   podium and the suggestions need something first, and it is the same
+   thing: both filter against the block list.
+
+   Every call keeps its own try/catch, and that is what makes going
+   parallel safe rather than fragile — a rejection never reaches the
+   Promise.all, so a failed notifications fetch still costs nothing but
+   notifications, exactly as it did when these ran in a line. */
+
+/* Who you follow and who you have blocked.
+
+   Split out from the rest because it is the one wave the *feed* has to
+   wait for: feedArgs() filters on both, and a feed fetched before the
+   block list arrived is a feed a blocked account can appear on. Nothing
+   else on this screen has that property, so nothing else is allowed to
+   hold the feed up. */
+export async function hydrateIdentity(){
   if(!session) return;
   const uid=session.user.id;
   try{
@@ -252,45 +276,43 @@ export async function hydrateSocial(){
     cafeFollows.forEach(id=>{ state.cafeFollow[id]=true; });
     social.blocks=blocks; social.loaded=true;
   }catch(e){ console.warn('social state failed',e); }
+}
 
-  /* Who is waiting on you. Its own try: a follow-request failure must
-     not cost you the rest of your world. */
-  try{ social.requests=await fetchFollowRequests(uid); }
-  catch(e){ console.warn('follow requests failed',e); }
+/* One task, warned about by name and never allowed to reject — the
+   shape every step below used to have written out longhand. */
+const step=(label,fn)=>Promise.resolve().then(fn).catch(e=>console.warn(label+' failed',e));
 
-  /* Independent of the above — a failure here must not cost you the feed. */
-  try{ state.notifications=await fetchNotifications(uid); }
-  catch(e){ console.warn('notifications failed',e); }
-
-  /* Today's podium. Empty is a real answer — nothing has been liked yet
-     today — and the UI says so rather than inventing a board. */
-  try{
-    const board=await fetchPodium(uid,{ blocked:social.blocks });
-    PODIUM.length=0; PODIUM.push(...board);
-    cachePosts(board);
-  }catch(e){ console.warn('podium failed',e); }
-
-  try{
-    mine.list=await fetchMine(uid,{ limit:200, myUid:uid });
-    mine.loaded=true; cachePosts(mine.list);
-  }catch(e){ console.warn('your pours failed',e); }
-
-  try{ await hydrateGear(uid); }
-  catch(e){ console.warn('gear failed',e); }
-
-  try{ social.counts=await fetchProfileCounts(uid); }
-  catch(e){ console.warn('profile counts failed',e); }
-
-  try{ discover.list=await fetchSuggestedProfiles(uid,social.blocks); discover.loaded=true; }
-  catch(e){ console.warn('suggestions failed',e); }
-
-  /* The three live challenges, with progress. Nobody joins them, so
-     there is no join count to fetch any more. */
-  await loadChallenges();
-
-  /* Real follow counts, so no screen shows a number nobody earned. */
-  try{ applyCounts(await fetchCafeFollowCounts(), CAFES, 'followers'); }
-  catch(e){ console.warn('cafe follow counts failed',e); }
+/* The rest of your world. Runs after hydrateIdentity() has settled,
+   because the podium and the suggestions read social.blocks. */
+export async function hydrateRest(){
+  if(!session) return;
+  const uid=session.user.id;
+  await Promise.all([
+    /* Who is waiting on you. */
+    step('follow requests', async()=>{ social.requests=await fetchFollowRequests(uid); }),
+    step('notifications', async()=>{ state.notifications=await fetchNotifications(uid); }),
+    /* Today's podium. Empty is a real answer — nothing has been liked
+       yet today — and the UI says so rather than inventing a board. */
+    step('podium', async()=>{
+      const board=await fetchPodium(uid,{ blocked:social.blocks });
+      PODIUM.length=0; PODIUM.push(...board);
+      cachePosts(board);
+    }),
+    step('your pours', async()=>{
+      mine.list=await fetchMine(uid,{ limit:200, myUid:uid });
+      mine.loaded=true; cachePosts(mine.list);
+    }),
+    step('gear', ()=>hydrateGear(uid)),
+    step('profile counts', async()=>{ social.counts=await fetchProfileCounts(uid); }),
+    step('suggestions', async()=>{ discover.list=await fetchSuggestedProfiles(uid,social.blocks); discover.loaded=true; }),
+    /* The three live challenges, with progress. Nobody joins them, so
+       there is no join count to fetch any more. */
+    step('challenges', ()=>loadChallenges()),
+    /* Real follow counts, so no screen shows a number nobody earned.
+       CAFES is filled by loadReferenceData(), which the boot settles
+       before any of this starts — see src/app.js. */
+    step('cafe follow counts', async()=>{ applyCounts(await fetchCafeFollowCounts(), CAFES, 'followers'); })
+  ]);
 }
 
 function applyCounts(counts,list,field){ list.forEach(x=>{ x[field]=counts[x.id]|0; }); }
@@ -369,6 +391,14 @@ export async function loadFeed(){
     feed.cursor=list.length?list[list.length-1].createdAt:null;
     feed.done=list.length<FEED_PAGE;
     feed.loaded=true;
+    /* Deliberate, not incidental. state.posts has always been part of the
+       persisted blob, but nothing ever wrote it at the moment it was
+       worth writing — it reached localStorage only when some unrelated
+       save() happened to follow a feed load, so what a cold start found
+       there was whatever the last like or notification read had frozen.
+       Written here, the next open paints real coffee instead of an empty
+       screen while the network answers. */
+    save();
     return true;
   }catch(e){ console.warn('feed load failed — keeping what we have',e); return false; }
   finally{ feed.loading=false; }
@@ -524,16 +554,31 @@ export function noteFriendsPour(posts){
   return added;
 }
 
-/* Point the store at the signed-in user's own store and load their world.
-   Signing out drops back to an empty state and the guest feed — the
-   public Today page, which needs no account and so needs none of the
-   per-user hydration below. Every sign-in and sign-out goes through this
-   one function. */
-export async function useSession(next){
+/* ---------- taking on a session, in two halves ----------
+   Point the store at the signed-in user's own store and load their
+   world. Signing out drops back to an empty state and the guest feed —
+   the public Today page, which needs no account and so needs none of
+   the per-user hydration. Every sign-in and sign-out goes through here.
+
+   Split in two because the halves are not the same kind of work and
+   should not be paid for at the same moment: adoptSession() is
+   localStorage and nothing else, syncWorld() is the network. A boot
+   runs the first, paints, and then runs the second (src/app.js). A
+   sign-in inside a running page has nothing to paint in between, so it
+   calls useSession() and gets both. */
+
+/* Adopt a session and restore what this browser already knows about it.
+   Local only: no network, nothing to wait for. */
+export async function adoptSession(next){
   session = next;
   persistence = makePersistence(next, KEY);
   await load();
-  feed.done=false; feed.cursor=null; feed.loaded=false;
+  feed.done=false; feed.cursor=null;
+  /* `loading`, not `loaded`: something IS on its way, and the difference
+     is what the feed's empty state says while it waits — "loading
+     today's pours" rather than "nobody has poured today", which is a
+     claim we cannot make until the answer is back. */
+  feed.loaded=false; feed.loading=true;
   social.blocks=[]; social.loaded=false; social.listsLoaded=false; social.followers=[]; social.following=[];
   social.counts={followers:0,following:0,pours:0};
   discover.list=[]; discover.loaded=false;
@@ -544,13 +589,28 @@ export async function useSession(next){
   /* Following is a signed-in tab, so a sign-out has to leave it — or the
      segment would sit on a tab the guest feed can't be. */
   if(!next) ui.filter='today';
-  if(next) await hydrateSocial();
-  /* Parallel, not sequential: friendsToday depends on hydrateSocial()
-     (followeeIds()) but not on the feed, and store.js has no render() to
-     call once a later-arriving answer would need to repaint — so both
-     have to be settled before useSession() itself resolves, and callers
-     render off what it leaves in the store. */
-  await Promise.all([loadFeed(), loadFriendsToday()]);
+  /* The cached feed is the previous visit's Today, and on the next
+     morning that is yesterday. Painting it under a heading that says
+     Today would be the one dishonest thing about opening fast, so it is
+     dropped here and the screen waits for the real answer instead. */
+  state.posts=(state.posts||[]).filter(p=>isToday(p.createdAt));
+}
+
+/* The network half of taking on a session. Two waves, not ten:
+   hydrateIdentity() first, because the feed may not be fetched before
+   the block list is known, and then everything else at once — with the
+   feed among them and named first, so it gets the connection ahead of
+   nine things nobody is looking at yet. */
+export async function syncWorld(){
+  if(session) await hydrateIdentity();
+  await Promise.all([loadFeed(), loadFriendsToday(), session?hydrateRest():null]);
+}
+
+/* Both halves, for callers that have nothing to paint in between — a
+   sign-in inside a running page, where the screen is already up. */
+export async function useSession(next){
+  await adoptSession(next);
+  await syncWorld();
 }
 
 /* Posts we have fetched but that aren't on the current feed page — the
@@ -711,7 +771,7 @@ export function rememberOwn(kind,name){
 /* Rebuild `state` from the rows, rather than merging into it: a
    favourite removed on your phone has to disappear here, and a merge
    would keep resurrecting it. Same rule, and the same reason, as
-   hydrateSocial() rebuilding state.follows.
+   hydrateIdentity() rebuilding state.follows.
 
    The one exception is the first load after step-1.29 shipped, when the
    server has nothing and this browser has a shelf somebody spent months

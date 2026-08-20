@@ -21,7 +21,7 @@
 import { initAuth, getSession } from './data/supabase.js';
 import { loadReferenceData } from './data/remote.js';
 import { fetchPost } from './data/posts.js';
-import { useSession, applyMe, findPost, cachePosts, state, ui } from './store/store.js';
+import { adoptSession, syncWorld, applyMe, findPost, cachePosts, state, ui } from './store/store.js';
 import { startLive } from './store/live.js';
 import { render } from './ui/views.js';
 import { authState } from './ui/gate.js';
@@ -41,18 +41,49 @@ import './ui/viewport.js';
    that is already in the reader's language. */
 applyLang();
 
-/* top-level await: the session decides what the first paint even is. */
+/* ============================================================
+   Nothing above the first paint may touch the network.
+
+   That line is the whole of what this boot is now, and it is worth
+   saying plainly because the old order looked reasonable and cost
+   seconds. It was: refresh the access token, then fetch reference
+   data, then run ten social queries one after another, then fetch the
+   feed — and only then paint. Every one of those is a round trip to
+   Frankfurt, and on a phone waking its radio the first one alone can
+   be most of a second. The result was a Play-build cold start that
+   showed the splash, then the shell's background colour, and nothing
+   else for about three seconds.
+
+   Everything needed for a truthful first screen is already in this
+   browser: who is signed in, what the app looked like last time, and
+   the cached café and bean tables. So it paints from that, and the
+   network arrives into a screen that is already up.
+   ============================================================ */
+
+/* top-level await, but not a network one: initAuth() reads the stored
+   session and starts its refresh without waiting for it. The exception
+   is the way back from an OAuth redirect, which does have to finish
+   here — a visitor who has just signed in has no cached screen to be
+   shown in the meantime, and painting them as a guest first would be a
+   worse answer than waiting. */
 const auth = await initAuth();
 
 /* Cafés, beans and challenges are read-only reference data, and every
    post carries a cafe_id that needs them to resolve to a name — so they
-   load *before* the feed rather than behind it. Cached for 15 minutes,
-   so this is usually instant, and it works offline. Guests too: the
-   tables are world-readable, and a pour whose café renders as nothing
-   is a worse advert than one that names the place. */
-await loadReferenceData();
+   load *before* the feed rather than behind it. Cached for 15 minutes.
 
-await useSession(auth.session);
+   Not awaited here, and deliberately not: loadReferenceData() applies
+   whatever is in its cache synchronously, before its own first await,
+   so CAFES and BEANS are already filled by the time the paint below
+   reads them. The promise is the *network* refresh behind that, and the
+   only thing that has to wait for it is the world sync — which writes
+   café follower counts and challenge progress into these same arrays,
+   and would have them overwritten by a refresh landing afterwards. */
+const reference = loadReferenceData();
+
+/* localStorage only — the session, the settings, and the last feed this
+   browser saw. The network half of it is syncWorld(), below. */
+await adoptSession(auth.session);
 applyMe(); applyTheme(); tick();
 
 /* A sign-in that failed on the way back belongs on the sign-in screen,
@@ -60,18 +91,30 @@ applyMe(); applyTheme(); tick();
    It also has to *open* that screen: this visitor is a guest now, and
    the guest feed is the one place the message wouldn't be seen. */
 if(auth.error && !auth.session){ authState().error = auth.error; ui.gate=true; }
+
+/* ---------- the first paint ---------- */
 render();
 setInterval(tick,10000);
 /* The clock in the app bar is not the only thing on screen that has to
    keep up with the time: every "4m" under a pour is a clock too, and
    until this ran they all stopped at whatever the last fetch said. */
 startAgoTicker();
-/* After the first paint, never before it: the socket and the poller both
-   only ever *change* what is on screen, and there is nothing to change
-   until the feed that just loaded is showing. Guests too — the live
-   feed is the most persuasive thing on their screen. */
-startLive();
 if(auth.error && auth.session) toast(auth.error);
+
+/* ---------- and now the network ----------
+   Reference data first, then your social graph and the feed. Repaints
+   when it lands, which is the point of having painted already.
+
+   startLive() hangs off the end for the reason it always did: the
+   socket and the poller only ever *change* what is on screen, and
+   there is nothing to change until the feed is showing. Guests too —
+   the live feed is the most persuasive thing on their screen. */
+(async()=>{
+  await reference;
+  await syncWorld();
+  applyMe(); render();
+})().catch(e=>console.warn('the world did not load',e))
+    .then(startLive);
 
 /* Open a pour by id, fetching it when it isn't already on screen.
    Cached rather than pushed into `state.posts`: a shared pour is usually
@@ -191,6 +234,18 @@ if(canInstallOnIOS()) setTimeout(()=>{
   pushOv({type:'ios'});
 }, 2200);
 
+/* A newer deploy is in the cache and this page is running the older
+   one. See the 'stale' message below for when this is allowed to fire. */
+function takeUpdate(){
+  if(ui.ovStack.length||ui.gate) return;
+  if(performance.now()>10000) return;
+  try{
+    if(sessionStorage.getItem('crema_took_update')) return;
+    sessionStorage.setItem('crema_took_update','1');
+  }catch(e){ return; }        // no storage, no way to stop a second one
+  location.reload();
+}
+
 if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname))){
   let _reloading=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_reloading)return; _reloading=true; location.reload(); });
@@ -204,7 +259,16 @@ if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','
 
      `push-resubscribed` means the push service rotated our endpoint
      behind our back. The worker cannot write to PostgREST (it has no
-     session), so the page stores the new one. */
+     session), so the page stores the new one.
+
+     `stale` is the other half of the cache-first service worker: the
+     code running right now came out of the cache, and the copy the
+     worker has since fetched is not the same one. Taking it costs a
+     reload, so it is only ever done in the first seconds of a start,
+     with nothing open on top and nothing typed — a deploy that lands
+     while somebody is reading can wait for the next open, which will
+     have it either way. Once per tab, so a server that answers with a
+     different validator every time cannot turn this into a loop. */
   navigator.serviceWorker.addEventListener('message',e=>{
     const d=e.data||{};
     if(d.type==='navigate'&&d.url){
@@ -212,6 +276,7 @@ if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','
       if(i>=0) openFromHash(String(d.url).slice(i));
     }
     else if(d.type==='push-resubscribed') initPush();
+    else if(d.type==='stale') takeUpdate();
   });
 
   try{ navigator.serviceWorker.register('./sw.js').then(r=>{ if(r&&r.update) r.update(); }).catch(()=>{}); }catch(e){}

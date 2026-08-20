@@ -73,12 +73,23 @@ function writeCache(data){
 /* Fetch reference data, preferring fresh cache, falling back to stale
    cache and finally to the bundled arrays. Never throws.
    Returns the source, which the caller can use to decide whether to
-   repaint. */
+   repaint.
+
+   Note where the cache is applied: synchronously, before this function's
+   first `await`, whether or not it is still fresh. That is what lets the
+   boot (src/app.js) call this WITHOUT awaiting it and still paint café
+   and bean names off it — an async function runs up to its first await
+   in the caller's own tick. A stale copy on screen for the length of one
+   request is a better answer than a pour whose café renders as nothing,
+   and the fetch below then replaces it in place. */
 export async function loadReferenceData(){
   if(!BACKEND) return 'none';
 
   const cached=readCache();
-  if(cached && Date.now()-cached.at < REFERENCE_TTL_MS){ apply(cached); return 'cache'; }
+  if(cached){
+    apply(cached);
+    if(Date.now()-cached.at < REFERENCE_TTL_MS) return 'cache';
+  }
 
   try{
     const [cafeRows,beanRows,challengeRows]=await Promise.all([
@@ -92,7 +103,7 @@ export async function loadReferenceData(){
       challenges:(challengeRows||[]).map(challengeOf)
     };
     apply(data); writeCache(data);
-    return 'network';
+    return cached ? 'refreshed' : 'network';
   }catch(e){
     console.warn('reference data unavailable'+(cached?', using the cached copy':''),e);
     if(cached){ apply(cached); return 'stale-cache'; }

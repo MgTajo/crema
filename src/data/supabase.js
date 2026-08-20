@@ -163,9 +163,20 @@ export async function initAuth(){
     try{ await fetchUser(); }
     catch(e){ if(fatalAuth(e)) store(null); }
   }
+  /* The access token is an hour long, so on any cold start worth the
+     name it is expired — and this used to await its replacement before
+     the app was allowed to paint. It does not have to. accessToken()
+     refreshes on demand and every request goes through it, `refreshing`
+     means the two share one round trip rather than racing, and the
+     stored user is who this is either way. So the refresh is started
+     here and the boot walks on: by the time the first query needs a
+     token, this is usually already the new one.
+
+     A refresh token the server actually rejects still signs the user
+     out — one emit() later than before, and now on a screen that is
+     already up rather than on a blank one. */
   if(session && session.expires_at - Date.now() < 60000){
-    try{ await refresh(); }
-    catch(e){ if(fatalAuth(e)) store(null); }
+    refresh().catch(e=>{ if(fatalAuth(e)){ store(null); emit(); } });
   }
   return { session, error, recovery: kind==='recovery' && !!session };
 }
