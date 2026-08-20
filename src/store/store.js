@@ -15,7 +15,7 @@
 import { daysAgo, isToday } from '../core/util.js';
 import { FEED_PAGE } from '../config.js';
 import { beanCatalog, combineMachine, machineInfo } from '../data/catalog.js';
-import { USERS, CAFES, CHALLENGES, PODIUM, handleToUid } from '../data/world.js';
+import { USERS, CAFES, CHALLENGES, PODIUM, handleToUid, registerUser } from '../data/world.js';
 import { fetchFeed, fetchMine, fetchSavedPosts } from '../data/posts.js';
 import { fetchMyFollows, fetchMyLikes, fetchMySaves, fetchMyCafeFollows, fetchMyBlocks,
          fetchCafeFollowCounts, fetchFollowRequests } from '../data/social.js';
@@ -100,6 +100,14 @@ export function freshState(){
     /* The pours held up as this week's standouts on the recap card,
        keyed by the week's Monday — see toggleRecapPick(). */
     recapPicks:{},
+    /* The authors of everything persisted above — post authors, the
+       comment shown under a card, whoever is named in the bell. Kept
+       because the posts are: a cached feed with no cached people paints
+       every card as "Someone / @unknown" until the network answers,
+       which is the one thing the fast cold start got wrong. Rebuilt from
+       scratch on every save() (rememberPeople), so it never holds anyone
+       this browser is no longer showing. */
+    people:{},
     onboarded:false, theme:'auto',
     /* step-1.21 reset the Premium flag on every existing account. A
        brand-new one has nothing to reset, so it is marked done here
@@ -121,6 +129,13 @@ export async function load(){try{const s=await persistence.read(); state=(s&&s.m
   ['follows','cafeFollow','followPending','recapPicks'].forEach(k=>{if(!state[k])state[k]={};});
   if(!state.pins||!Array.isArray(state.pins.machines)||!Array.isArray(state.pins.beans)) state.pins={machines:[],beans:[]};
   if(!state.gear||typeof state.gear!=='object') state.gear={beans:{},machines:{}};
+  /* The cached people, back into USERS before anything paints. Without
+     this the first screen of a cold start is the previous visit's feed
+     drawn with nobody on it — see rememberPeople(). Browsers that
+     persisted their state before this existed simply have none, and get
+     the old behaviour for one paint. */
+  if(!state.people||typeof state.people!=='object') state.people={};
+  Object.keys(state.people).forEach(uid=>{ registerUser(Object.assign({id:uid}, state.people[uid])); });
   ['beans','machines'].forEach(k=>{ if(!state.gear[k]||typeof state.gear[k]!=='object') state.gear[k]={}; });
   /* Retired in step 1.17: challenges are no longer something you join or
      submit to, so the two maps that tracked that are dropped from any
@@ -138,9 +153,43 @@ export async function load(){try{const s=await persistence.read(); state=(s&&s.m
      and take away a code someone has since redeemed. */
   if(!state.premiumReset){ state.premiumReset=true; state.me.premium=false; save(); }
  }catch(e){state=freshState();}}
+/* Everything about a person that a cached screen has to draw before the
+   network answers: the name and handle under a card, the face, the gold
+   ring. Deliberately NOT followerN/pourN — those are profile_counts'
+   to give, and a stale zero restored into USERS would read as a real
+   count on a profile sheet opened before the fetch lands.
+
+   Derived at save time from what is actually persisted rather than
+   appended at each call site, so the feed and the people on it cannot
+   drift apart, and anyone who has scrolled off is dropped rather than
+   accumulating in localStorage forever. */
+const PERSON_KEYS=['name','handle','color','level','levelName','city','bio','avatar','premium','points'];
+function rememberPeople(){
+  const people={};
+  const add=uid=>{
+    /* 'me' is state.me's job (applyMe), and it is restored before this
+       ever matters. */
+    if(!uid||uid==='me'||people[uid]) return;
+    const u=USERS[uid]; if(!u) return;
+    const lean={};
+    PERSON_KEYS.forEach(k=>{ if(u[k]!==undefined) lean[k]=u[k]; });
+    people[uid]=lean;
+  };
+  (state.posts||[]).forEach(p=>{
+    add(p.user);
+    /* postCard() draws the newest comment under the card, by name. */
+    (p.comments||[]).forEach(c=>add(c.u));
+  });
+  (state.myGallery||[]).forEach(p=>add(p.user));
+  /* The bell paints from localStorage too, and every row starts with
+     somebody's name in bold. */
+  (state.notifications||[]).forEach(n=>add(n.u));
+  state.people=people;
+}
+
 /* fire-and-forget: the UI has already repainted optimistically, so a failed
    write must never block or throw — it only warns. */
-export function save(){ Promise.resolve(persistence.write(state)).catch(err=>console.warn('save failed',err)); }
+export function save(){ rememberPeople(); Promise.resolve(persistence.write(state)).catch(err=>console.warn('save failed',err)); }
 export async function clearSaved(){ try{ await persistence.clear(); }catch(err){ console.warn('clear failed',err); } }
 
 /* ---------- the remote feed ----------
