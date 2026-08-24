@@ -35,7 +35,7 @@ import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts
          feed, hydrateReactions, myMachines, myCoffees, togglePin, setGearNote, rememberOwn,
          weekRecap, toggleRecapPick,
          applyArrivals, dropArrivals, admin, loadQueue } from '../store/store.js';
-import { onLive } from '../store/live.js';
+import { onLive, whileAnsweringRequest } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
@@ -607,6 +607,9 @@ async function refreshOpenThread(postId){
 
 onLive((what,arg)=>{
   if(what==='bell'){ renderAppbar(); return; }
+  /* The follow-request block lives above the feed, so it repaints with
+     the feed screen — and only there, since nothing else renders it. */
+  if(what==='requests'){ if(onFeedScreen()) renderView(); return; }
   if(what==='thread'){ refreshOpenThread(arg); return; }
   if(what==='post'){ const p=findPost(arg); if(p){ paintLike(p); paintReactions(p); paintCommentCount(p); } return; }
   if(what==='feed'){
@@ -1681,7 +1684,7 @@ async function acceptFollow(id){
   save(); renderView(); renderAppbar();
   toast(wasFollowing ? t('{name} can see your pours now',{name:first}) : t('You and {name} now follow each other',{name:first}));
   try{
-    await social.acceptFollow(u.id,id);
+    await whileAnsweringRequest(()=>social.acceptFollow(u.id,id));
     /* they can see followers-only pours from here on, and so do we —
      so the feed they are in is not the feed we already have */
     if(await loadFeed()) renderView();
@@ -1704,7 +1707,7 @@ async function declineFollow(id){
   const req=storeSocial.requests.find(r=>r.id===id); if(!req) return;
   storeSocial.requests=storeSocial.requests.filter(r=>r.id!==id);
   renderView(); renderAppbar(); toast(t('Request declined'));
-  try{ await social.declineFollow(u.id,id); }
+  try{ await whileAnsweringRequest(()=>social.declineFollow(u.id,id)); }
   catch(err){
     console.warn('decline failed',err);
     storeSocial.requests.unshift(req); renderView();
