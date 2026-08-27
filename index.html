@@ -67,13 +67,17 @@
         <svg width="44" height="44" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="#8A5A28"/><path transform="translate(11.1,11.1) scale(.178)" fill="#F5EADA" d="M50 92C50 92 6 62 6 34.5 6 18.5 17.5 8 30.5 8 39.5 8 46 13.2 50 20.5 54 13.2 60.5 8 69.5 8 82.5 8 94 18.5 94 34.5 94 62 50 92 50 92Z"/></svg>
         <b>Crema</b>
       </div>
-      <h1>A cup a day.</h1>
-      <p>Crema is where people keep a record of the coffee they make, and see what everyone else made this morning. The beans are ones you can buy, and the streaks are built from real timestamps.</p>
-      <div class="tags"><span>Log every cup</span><span>Keep the streak</span><span>See the morning</span><span>Beans you can actually buy</span></div>
+      <!-- data-t: this panel is in the HTML so it paints before any
+           module runs, so it cannot call t() where it is written.
+           applyLang() in src/i18n.js swaps these on boot and on every
+           language change, reading the English here as the key. -->
+      <h1 data-t>A cup a day.</h1>
+      <p data-t>Crema is where people keep a record of the coffee they make, and see what everyone else made this morning. The beans are ones you can buy, and the streaks are built from real timestamps.</p>
+      <div class="tags"><span data-t>Log every cup</span><span data-t>Keep the streak</span><span data-t>See the morning</span><span data-t>Beans you can actually buy</span></div>
       <footer class="site-footer">
         <a href="impressum/">Impressum</a>
         <span aria-hidden="true">·</span>
-        <a href="privacy/">Datenschutz / Privacy</a>
+        <a href="privacy/" data-t>Datenschutz / Privacy</a>
       </footer>
     </div>
 

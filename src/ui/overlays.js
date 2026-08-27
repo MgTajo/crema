@@ -19,13 +19,14 @@ import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, c
 import { REST_AFTER } from '../domain/streak.js';
 import { PREMIUM_MAIL, PHOTOS_PREMIUM } from '../domain/premium.js';
 import { statementFor } from '../data/moderation.js';
+import { notifBody } from '../data/notifications.js';
 import { objectPosition } from '../domain/framing.js';
 import { recapSVG, shotPhotos } from './recap.js';
 import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
 import { art, artSet, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { t, tn } from '../i18n.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, hiddenMark, followMini, followBtn, followState } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, selectOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, hiddenMark, followMini, followBtn, followState } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { agoTag } from './timeago.js';
 import { renderView, renderAppbar } from './views.js';
@@ -238,7 +239,7 @@ function overlayPost(id){
         ${p.user==='me'?'':followMini(p.user)}
         <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">⋯</button></div>
       <div class="p-body"><div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
-        <div class="chips"><span class="chip drinkchip">${esc(p.drink||t('Coffee'))}</span>${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(r.milk)}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
+        <div class="chips"><span class="chip drinkchip">${esc(t(p.drink||'Coffee'))}</span>${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(t(r.milk))}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
       ${reactionBar(p)}
       ${rows.length?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0">${recipePanel(r)}
         <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ ${t('Brew this recipe')}</button></div></div></div>`:''}
@@ -308,8 +309,11 @@ const detailRows=rows=>{
    draws the value, it does not invent a finer one. */
 const roastScale=step=>!step?'':`<div class="roastbar" aria-hidden="true">${
   Array.from({length:ROAST_MAX},(_,i)=>`<i class="${i<step?'on':''}"></i>`).join('')}</div>`;
+/* The notes are the roaster's claim and stay the roaster's claim; t()
+   only says it in the reader's language. A note somebody typed onto
+   their own bag isn't in the bundle and falls back to itself. */
 const noteChips=list=>(list||[]).filter(Boolean).length
-  ? `<div class="chips">${list.filter(Boolean).map(x=>`<span class="chip tag">${esc(x)}</span>`).join('')}</div>` : '';
+  ? `<div class="chips">${list.filter(Boolean).map(x=>`<span class="chip tag">${esc(t(x))}</span>`).join('')}</div>` : '';
 
 /* Your own pours with this thing, and — for a coffee — what you brewed
    it on. Both are counted off your own rows, so they are the only
@@ -359,11 +363,11 @@ function overlayBean(name){
      neighbour in fewer words is noise. */
   const rows=[
     [t('Roaster'),roaster],
-    [t('Origin'),origin],
+    [t('Origin'),origin?t(origin):''],
     [t('Roast level'),roast?t(roast):''],
     b?[t('Availability'),b.loc==='INT'?t('Sold in Germany'):t('Roasted in Germany')]:null
   ].filter(Boolean);
-  const heroSub=[roaster,origin].filter(Boolean).join(' · ')||(own?t('Your own coffee'):'');
+  const heroSub=[roaster,origin&&t(origin)].filter(Boolean).join(' · ')||(own?t('Your own coffee'):'');
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(name)}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${esc(name)}</b></div>
     <div class="ov-body">
@@ -530,7 +534,7 @@ function overlayNotifs(){
       ? `<div class="nact"><button class="btn sm" data-action="accept-follow" data-id="${n.u}">${t('Accept')}</button>
          <button class="btn ghost sm" data-action="decline-follow" data-id="${n.u}">${t('Decline')}</button></div>` : '';
     return `<div class="nrow ${n.read?'':'unread'}" ${ask?'':`data-action="notif-go" data-idx="${i}"`}>${av}
-      <div class="nb"><div class="nt">${n.u?`<b>${esc(userOf(n.u).name)}</b> `:''}${esc(t(n.text))}</div><span>${t('{time} ago',{time:agoTag(n.at,n.time)})}</span>${ask}</div></div>`;}).join('');
+      <div class="nb"><div class="nt">${n.u?`<b>${esc(userOf(n.u).name)}</b> `:''}${esc(notifBody(n.text))}</div><span>${t('{time} ago',{time:agoTag(n.at,n.time)})}</span>${ask}</div></div>`;}).join('');
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${t('Notifications')}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${t('Notifications')}</b></div>
     <div class="ov-body">${rows||`<div class="empty"><div class="big">🔔</div>${t('All caught up.')}</div>`}</div></div>`;
@@ -628,8 +632,8 @@ export function challengeCard(ch){
     <div class="chcard-cup">${cupSVG(ch.pattern,.9,ch.id.length)}</div>
     <div class="chcard-b">
       <div class="chcard-h"><span class="chcat">${catLabel(ch.cat)}</span><span class="chpts">+${ch.points}</span></div>
-      <b>${esc(ch.title)}</b>
-      <div class="chcard-s">${esc(ch.blurb)}</div>
+      <b>${esc(t(ch.title))}</b>
+      <div class="chcard-s">${esc(t(ch.blurb))}</div>
       ${progressBar(ch)}
       <div class="chcard-f">${ch.done?t('Earned this week'):t('{time} left',{time:endsIn(ch)})}</div>
     </div></div>`;
@@ -662,18 +666,18 @@ const ruleText = ch => (RULE_TEXT[ch.kind]||(()=>t('Keep pouring.')))(ch.goal, c
 function overlayChallenge(id){
   const ch=CHALLENGES.find(c=>c.id===id); if(!ch) return '';
   const left=ch.goal-ch.progress;
-  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(ch.title)}">
-    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${esc(ch.title)}</b></div>
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(t(ch.title))}">
+    <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${esc(t(ch.title))}</b></div>
     <div class="ov-body"><div style="padding:0 16px 20px">
       <div class="ch-top" style="height:150px;border-radius:16px;margin-top:14px">${cupSVG(ch.pattern,.92,ch.id.length)}<span class="ends">${ch.done?t('Complete'):t('{time} left',{time:endsIn(ch)})}</span></div>
       <div style="margin:14px 2px 4px">
-        <b style="font-family:var(--serif);font-size:22px">${esc(ch.title)}</b>
+        <b style="font-family:var(--serif);font-size:22px">${esc(t(ch.title))}</b>
         <div class="chips" style="margin:8px 0">
           <span class="chip">${catLabel(ch.cat)}</span>
-          <span class="chip tag">${esc(ch.tag)}</span>
+          <span class="chip tag">${esc(t(ch.tag))}</span>
           <span class="chip" style="color:var(--st4);border-color:var(--st3);background:var(--st1)">${t('+{n} points',{n:ch.points})}</span>
           ${ch.done?`<span class="chip" style="color:var(--green)">✓ ${t('Earned')}</span>`:''}</div>
-        <p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:4px 0 14px">${esc(ch.blurb)}</p>
+        <p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:4px 0 14px">${esc(t(ch.blurb))}</p>
         ${progressBar(ch)}
         <div class="chrule">
           <div class="rlabel" style="margin:0 0 4px">${t('What counts')}</div>
@@ -862,8 +866,8 @@ function overlayPassport(){
      sheet of its own to go to, empty until you fill it in. */
   const row=b=>{
     const own=gearNote('bean',b.name)||{};
-    const sub=[b.cat&&b.cat.roaster, b.cat&&b.cat.origin, b.cat&&b.cat.roast].filter(Boolean).join(' · ')
-      || [own.roaster,own.origin,own.roast].filter(Boolean).join(' · ');
+    const sub=[b.cat&&b.cat.roaster, b.cat&&t(b.cat.origin), b.cat&&t(b.cat.roast)].filter(Boolean).join(' · ')
+      || [own.roaster,own.origin&&t(own.origin),own.roast&&t(own.roast)].filter(Boolean).join(' · ');
     return `<div class="rlist-row click" data-action="open-bean" data-id="${esc(b.name)}">
       <div class="bean-fl">${(b.cat&&flag[b.cat.c])||'🫘'}</div>
       <div class="who" style="flex:1;min-width:0"><b>${esc(b.name)}</b>
@@ -960,7 +964,7 @@ function overlaySettings(){
       <div class="field"><label>${t('Bio')}</label><textarea id="sp-bio" placeholder="${t('Say a little about your coffee…')}">${esc(m.bio)}</textarea></div>
       <div class="rowfields">
         <div class="field"><label>${t('City')}</label><input id="sp-city" value="${esc(m.city)}"></div>
-        <div class="field sel"><label>${t('Go-to milk')}</label><select id="sp-milk">${MILK_LIST.map(x=>`<option${x===m.favMilk?' selected':''}>${x}</option>`).join('')}</select></div></div>
+        <div class="field sel"><label>${t('Go-to milk')}</label><select id="sp-milk">${selectOptions(MILK_LIST,m.favMilk)}</select></div></div>
       ${machinePicker('sp',m.machineBrand,m.machineModel)}
       <button class="btn block" data-action="save-profile">${t('Save profile')}</button>
       <div class="rlabel" style="margin-top:18px">${t('Crema Premium')}</div>
@@ -977,7 +981,7 @@ function overlaySettings(){
       <div class="mrow" data-action="open-admin"><div class="mi">⚖️</div>Reports &amp; decisions</div>`:''}
       <div class="rlabel" style="margin-top:18px">${t('Legal')}</div>
       <a class="mrow" href="/impressum/" target="_blank" rel="noopener"><div class="mi">📄</div>Impressum</a>
-      <a class="mrow" href="/privacy/" target="_blank" rel="noopener"><div class="mi">🔒</div>Datenschutz / Privacy Policy</a>
+      <a class="mrow" href="/privacy/" target="_blank" rel="noopener"><div class="mi">🔒</div>${t('Datenschutz / Privacy Policy')}</a>
     </div></div>`;
 }
 
@@ -1167,7 +1171,7 @@ function codeForm(id){
    opens on the general case. */
 export function premiumOffer(id,lead){
   return `<div class="pm-card on">
-    <b class="pm-h">✦ Crema Premium</b>
+    <b class="pm-h">${t('✦ Crema Premium')}</b>
     ${lead?`<div class="pm-lead">${lead}</div>`:''}
     <div class="pm-free">${t('Free right now, while Crema is young — no card, no trial countdown, no price to compare. It needs a code, and the codes are being handed out by hand. That will not last: when billing starts, this window shuts.')}</div>
     ${perkList()}
@@ -1180,7 +1184,7 @@ function premiumBlock(m){
   if(m.premium) return `
     <div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">✦</div>
       <div style="flex:1">${t('Premium active')}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('Free for now. We will ask you before anything costs money.')}</div></div>
-      <span class="lvlchip" style="background:var(--gold);color:var(--on-crema);border-color:transparent">ACTIVE</span></div>
+      <span class="lvlchip" style="background:var(--gold);color:var(--on-crema);border-color:transparent">${t('ACTIVE')}</span></div>
     <div class="pm-card" style="margin:4px 0 8px">${perkList()}</div>
     <button class="btn ghost block" data-action="premium-off">${t('Turn Premium off')}</button>`;
   return premiumOffer('sp-code','');
@@ -1284,7 +1288,7 @@ function accountBlock(){
   return `
     <div class="mrow" style="cursor:default"><div class="mi">☕</div>
       <div style="flex:1">${t('Signed in')}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${esc(email||(session&&session.user&&session.user.id)||'')}</div></div>
-      <span class="lvlchip" style="color:var(--green);border-color:var(--pm2);background:var(--pm1)">SYNCED</span></div>
+      <span class="lvlchip" style="color:var(--green);border-color:var(--pm2);background:var(--pm1)">${t('SYNCED')}</span></div>
     <div class="mrow" data-action="open-password"><div class="mi">🔑</div>${t('Change password')}</div>
     <button class="btn ghost block" style="margin-top:10px" data-action="sign-out">${t('Sign out')}</button>`;
 }
@@ -1325,7 +1329,7 @@ function overlayOnboard(){
     <h2 class="obh2">${t('Your setup')}</h2><p class="obsub">${t('New posts start with this filled in. You can change it any time in Settings.')}</p>
     ${machinePicker('ob',state.me.machineBrand,state.me.machineModel)}
     <div class="rowfields"><div class="field sel"><label>${t('Go-to drink')}</label><select id="ob-drink">${drinkOptions(state.me.favDrink,{allowAdd:false})}</select></div>
-    <div class="field sel"><label>${t('Go-to milk')}</label><select id="ob-milk">${MILK_LIST.map(x=>`<option${x===state.me.favMilk?' selected':''}>${x}</option>`).join('')}</select></div></div>
+    <div class="field sel"><label>${t('Go-to milk')}</label><select id="ob-milk">${selectOptions(MILK_LIST,state.me.favMilk)}</select></div></div>
     <div style="display:flex;gap:10px;margin-top:6px"><button class="btn ghost" data-action="ob-back">${t('Back')}</button><button class="btn" style="flex:1" data-action="ob-finish">${t('Start brewing')} ☕</button></div>`;
   return `<div class="ov-back"></div><div class="sheet" role="dialog" aria-label="${t('Welcome')}"><div class="ov-body" style="padding:26px 22px">${dots}${body}</div></div>`;
 }
@@ -1541,7 +1545,11 @@ function overlayCreate(){
   const anyFailed=pics.some(x=>x.failed);
   const pats=[['heart',t('Heart')],['rosetta',t('Rosetta')],['tulip',t('Tulip')],['swan',t('Swan')],['abstract',t('Abstract art')]];
   const mkList=(base,cur)=>{const l=base.slice(); if(cur&&!l.includes(cur))l.push(cur); return l;};
-  const sel=(list,cur,ph,extra)=>`<option value=""${cur?'':' selected'}>${ph}</option>`+list.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')+(extra?`<option${cur===extra?' selected':''}>${extra}</option>`:'');
+  /* `translate` is on for catalogue values (milk) and off for names
+     that are nobody's to translate — a café's own bean list. Either way
+     the option carries the stored string in `value`. */
+  const sel=(list,cur,ph,{translate=false}={})=>`<option value=""${cur?'':' selected'}>${ph}</option>`
+    +(translate?selectOptions(list,cur):list.map(o=>`<option value="${esc(o)}"${o===cur?' selected':''}>${esc(o)}</option>`).join(''));
   const chosenCafe=(c.source==='cafe'&&c.cafe)?CAFES.find(x=>x.id===c.cafe):null;
   const milkOpts=chosenCafe?chosenCafe.menu.milks:MILK_LIST;
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${editing?t('Edit coffee'):t('New coffee')}">
@@ -1581,7 +1589,7 @@ function overlayCreate(){
         <button class="${c.source==='home'?'on':''}" data-action="csource" data-s="home">🏠 ${t('I made it')}</button>
         <button class="${c.source==='cafe'?'on':''}" data-action="csource" data-s="cafe">☕ ${t('At a café')}</button></div>`:''}
       ${c.source==='cafe'?`<div class="field sel"><label>${t('Café')}</label><select id="c-cafe"><option value=""${c.cafe?'':' selected'}>${t('Choose a café…')}</option>${CAFES.map(cf=>`<option value="${cf.id}"${cf.id===c.cafe?' selected':''}>${cf.name} · ${cf.area}</option>`).join('')}</select></div>`:''}
-      ${HAS_MILK.has(c.drink)?`<div class="field sel"><label>${t('Milk')}</label><select id="c-milk">${sel(mkList(milkOpts,c.milk),c.milk,t('Optional'))}</select></div>`:''}
+      ${HAS_MILK.has(c.drink)?`<div class="field sel"><label>${t('Milk')}</label><select id="c-milk">${sel(mkList(milkOpts,c.milk),c.milk,t('Optional'),{translate:true})}</select></div>`:''}
       <div class="field"><label>${t('Caption')}</label><textarea id="c-caption" placeholder="${t('Say something about this coffee…')}">${esc(c.caption)}</textarea></div>
       ${visibilityPicker(c)}
       ${c.source==='cafe' ? (chosenCafe?`

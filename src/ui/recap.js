@@ -279,7 +279,7 @@ export function statTiles(r,standing){
   const top=r.drinks[0], bean=r.beans[0], pat=r.patterns[0];
   const out=[];
 
-  if(top) out.push([t('your usual'), cap(top.name),
+  if(top) out.push([t('your usual'), cap(t(top.name)),
     t('{n} of your {total} pours',{n:top.count,total:r.pours})]);
   if(r.avgMin!=null) out.push([t('coffee o’clock'), hhmm(r.avgMin),
     t('your usual time this week')]);

@@ -210,7 +210,7 @@ export function renderExplore(){
   const people=discover.loaded&&!sugg.length
     ? `<div class="empty" style="padding:20px">👋<br>${t('Nobody else to follow yet. You are early.')}</div>`
     : sugg.length
-      ? `<div class="hscroll">${sugg.map(u=>`<div class="ucard"><div data-action="open-user" data-id="${u.id}" style="cursor:pointer">${avatar(u.id,'big')}<b>${esc(u.name)}</b><span>${u.city?esc(u.city):u.levelName}</span></div>
+      ? `<div class="hscroll">${sugg.map(u=>`<div class="ucard"><div data-action="open-user" data-id="${u.id}" style="cursor:pointer">${avatar(u.id,'big')}<b>${esc(u.name)}</b><span>${u.city?esc(u.city):esc(t(u.levelName))}</span></div>
         ${followBtn(u.id,'sm block')}</div>`).join('')}</div>`
       : '';
   return `<div class="pad">
@@ -369,7 +369,7 @@ export function renderProfile(){
         <div><b>${new Set(mine.filter(p=>p.pattern).map(p=>p.pattern)).size}</b><span>${t('art styles')}</span></div></div>
       <div class="actbars">${ACT.map((c,i)=>{const d=new Date(Date.now()-(ACT.length-1-i)*864e5).toLocaleDateString(locale(),{weekday:'short',day:'numeric',month:'short'});return `<div class="ab${i===ACT.length-1?' today':''}" data-d="${d}" data-c="${c}"><i style="height:${c===0?8:c===1?52:100}%"></i></div>`;}).join('')}<div class="bartip" id="bartip" hidden></div></div>
       <div class="acthint"><span>${t('3 weeks ago')}</span><span>${t('today')}</span></div>
-      <div class="recent">${recent.map(p=>`<div class="rp" data-action="open-post" data-id="${p.id}"><div class="rpimg">${art(imageUrl(p.img,'thumb'),p.pattern||'none',p.quality==null?0.9:p.quality,seedOf(p.id),p.drink)}</div><div class="rpd">${agoLabel(p.createdAt,p.ago)}</div><div class="rpt">${esc(p.drink||t('Coffee'))}</div></div>`).join('')}</div></div>`;
+      <div class="recent">${recent.map(p=>`<div class="rp" data-action="open-post" data-id="${p.id}"><div class="rpimg">${art(imageUrl(p.img,'thumb'),p.pattern||'none',p.quality==null?0.9:p.quality,seedOf(p.id),p.drink)}</div><div class="rpd">${agoLabel(p.createdAt,p.ago)}</div><div class="rpt">${esc(t(p.drink||'Coffee'))}</div></div>`).join('')}</div></div>`;
   const startedHTML = `<div class="journey"><h3>${t('Your journey starts here')}</h3><p class="sub" style="margin-bottom:12px">${t('Every pour earns points and builds your streak, and enough of them move you up a level.')}</p>
       <div style="padding:0 12px 14px"><button class="btn block" data-action="open-create">${icon('bolt',18)} ${t('Log your first coffee')}</button></div></div>`;
   /* The gear twin of the bean strip. Only once there is something to
@@ -387,7 +387,7 @@ export function renderProfile(){
     ${langToggle()}
     <div class="prof-top"><div class="prof-av${state.me.premium?' prem':''}" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px;cursor:pointer" data-action="open-settings" title="${t('Change your photo in Settings')}">${initials(u.name)}${u.avatar?`<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}</div>
       <div class="prof-id"><b>${esc(u.name)}</b><div class="h">${u.handle}${u.city?` · ${esc(u.city)}`:''}</div>
-        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} ${t('Level')} ${lvl[0]} · ${t(lvl[1])}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:var(--gold);color:var(--on-crema);border-color:transparent">PREMIUM</span>`:''}</div></div>
+        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} ${t('Level')} ${lvl[0]} · ${t(lvl[1])}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:var(--gold);color:var(--on-crema);border-color:transparent">${t('PREMIUM')}</span>`:''}</div></div>
     <div class="bio">${bioHTML}</div>
     <div class="lvlbar" data-action="open-scoring" style="cursor:pointer">
       <div class="top"><b>${t('{n} points',{n:fmt(points)})}</b><span>${next?t('{n} to {level}',{n:fmt(next[2]-points),level:t(next[1])}):t('Top level reached')}</span></div>
@@ -430,7 +430,7 @@ function drinkMix(drinks,total){
   const top=drinks.slice(0,3), rest=drinks.slice(3).reduce((a,d)=>a+d.count,0);
   const seg=(w,i)=>`<i style="width:${w}%" class="s${i}"></i>`;
   return `<div class="stx-mix">${top.map((d,i)=>seg(pct(d.count,total),i)).join('')}${rest?seg(pct(rest,total),3):''}</div>
-    <div class="stx-leg">${top.map((d,i)=>`<span><i class="s${i}"></i>${esc(d.name)} ${pct(d.count,total)}%</span>`).join('')}
+    <div class="stx-leg">${top.map((d,i)=>`<span><i class="s${i}"></i>${esc(t(d.name))} ${pct(d.count,total)}%</span>`).join('')}
       ${rest?`<span><i class="s3"></i>${t('Other')} ${pct(rest,total)}%</span>`:''}</div>`;
 }
 function statCard(title,body,note){
@@ -448,7 +448,7 @@ function statsLocked(s){
   return `<div class="stx">
     <div class="stx-hero">
       <span class="stx-k">${t('Your coffee')}</span>
-      <b>${esc(top.name)}</b>
+      <b>${esc(t(top.name))}</b>
       <span class="stx-sub">${tn(s.pours,'{c} of {n} pour','{c} of {n} pours',{c:top.count})} · ${t('{p}% of everything you log',{p:pct(top.count,s.pours)})}</span>
       ${s.drinks.length>1?drinkMix(s.drinks,s.pours):''}
     </div>
@@ -486,7 +486,7 @@ export function renderStats(){
      preference they set during onboarding. */
   out.push(`<div class="stx-hero">
     <span class="stx-k">${t('Your coffee')}</span>
-    <b>${esc(top.name)}</b>
+    <b>${esc(t(top.name))}</b>
     <span class="stx-sub">${tn(s.pours,'{c} of {n} pour','{c} of {n} pours',{c:top.count})} · ${t('{p}% of everything you log',{p:pct(top.count,s.pours)})}</span>
     ${s.drinks.length>1?drinkMix(s.drinks,s.pours):''}
   </div>`);
@@ -537,7 +537,7 @@ export function renderStats(){
   if(s.beans[0])    setup.push([t('Most-poured coffee'),s.beans[0].name,`${s.beans[0].count}×`]);
   if(s.roasters[0]) setup.push([t('Roaster you return to'),s.roasters[0].name,`${s.roasters[0].count}×`]);
   if(s.machines[0]) setup.push([t('Machine'),s.machines[0].name,`${s.machines[0].count}×`]);
-  if(s.milks[0])    setup.push([t('Milk'),s.milks[0].name,`${pct(s.milks[0].count,s.pours)}%`]);
+  if(s.milks[0])    setup.push([t('Milk'),t(s.milks[0].name),`${pct(s.milks[0].count,s.pours)}%`]);
   /* The pattern's own count, not every art pour — a row reading
      "Rosetta · 7 pours" next to a total that also happens to be 7 is a
      number that means one thing and looks like another. */

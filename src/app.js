@@ -30,7 +30,7 @@ import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap } f
 import { startAgoTicker } from './ui/timeago.js';
 import { canInstallOnIOS } from './data/push.js';
 import { seen, markSeen, DAILY_CHAMPION } from './core/announce.js';
-import { applyLang } from './i18n.js';
+import { applyLang, t } from './i18n.js';
 /* Side effect only: measures the window and keeps --app-h in step with it
    for the rest of the session. Module evaluation happens before anything
    below runs, so the shell is the right height for the first paint. */
@@ -99,7 +99,7 @@ setInterval(tick,10000);
    keep up with the time: every "4m" under a pour is a clock too, and
    until this ran they all stopped at whatever the last fetch said. */
 startAgoTicker();
-if(auth.error && auth.session) toast(auth.error);
+if(auth.error && auth.session) toast(t(auth.error));
 
 /* ---------- and now the network ----------
    Reference data first, then your social graph and the feed. Repaints

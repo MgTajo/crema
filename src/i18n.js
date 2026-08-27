@@ -32,7 +32,24 @@ function detect(){
 
 export let lang=detect();
 
-export function applyLang(){ document.documentElement.setAttribute('lang',lang); }
+/* The page's own static text — the pitch beside the phone frame in
+   index.html — is marked `data-t` and swapped here.
+
+   It lives in the HTML rather than in a render function because it has
+   to paint before a single module has run (D-2026-08-20-01), which is
+   also why it cannot simply call t() where it is written. The English
+   in the file is the key, read once and kept, so switching back and
+   forth does not translate a translation. Everything else on screen is
+   rendered by ui/ and asks t() directly. */
+const statics=new Map();
+
+export function applyLang(){
+  document.documentElement.setAttribute('lang',lang);
+  document.querySelectorAll('[data-t]').forEach(el=>{
+    if(!statics.has(el)) statics.set(el, el.textContent.trim());
+    el.textContent=t(statics.get(el));
+  });
+}
 
 export function setLang(l){
   if(!SUPPORTED.includes(l)||l===lang) return false;

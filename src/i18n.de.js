@@ -11,13 +11,17 @@
    Kundenportal, so "Melde dich an" beats "Bitte authentifizieren Sie
    sich".
 
-   Deliberately NOT translated: drink names (Cappuccino, Flat White),
-   milk names, machine and bean names, and the level titles. Those are
-   values that get written to the database and matched against later —
-   translating "Whole milk" to "Vollmilch" in the picker would write a
-   different string into the same column and quietly split the stats of
-   anyone who switches language. The level names are English on purpose
-   in both languages, the way latte-art vocabulary already is.
+   Catalogue VALUES — drink names, milk names, tasting notes, origin
+   lines, the level titles — are translated too, but for the eye only.
+   The English string is what is stored and matched against: a <select>
+   carries it in `value` and shows the German label (selectOptions() in
+   ui/components.js), and a stored "Oat" is read back through t()
+   wherever it is shown. Translating the LABEL cannot split anyone's
+   stats; translating the value would, which is why this rule matters
+   more than the words do. See the catalogue section further down.
+
+   Still NOT translated, because they are proper nouns: machine brands
+   and models, roasters, and the names of individual coffees.
 
    Terms kept as the coffee scene actually uses them in German:
    "Streak", "Latte Art", "Rosetta", "posten", "liken", "Follower".
@@ -336,7 +340,7 @@ export const DE = {
   'Recipe loaded. Brew it again ☕':'Rezept geladen. Brüh es nochmal ☕',
 
   /* Reaction chips (data/reactions.js) */
-  'Great art':'Schöne Art',
+  'Great art':'Schöne Kunst',
   'Beautiful latte art':'Schöne Latte Art',
   'Nice spot':'Schöner Ort',
   'Lovely place to have it':'Schöner Ort dafür',
@@ -1031,6 +1035,257 @@ export const DE = {
      award at 20 in crema_first_pour_points() or add the new wording. */
   'poured the first coffee of the day':'hat den ersten Kaffee des Tages gemacht',
   'First coffee in Crema today · +20 points':'Erster Kaffee heute in Crema · +20 Punkte',
+
+
+  /* ============================================================
+     Catalogue values — the words the app WRITES DOWN.
+
+     These are translated for the eye only. Everything here is stored in
+     the database in its English form and matched against later, so the
+     value never changes with the language: a <select> carries the
+     English string in `value` and shows the German one as its label
+     (see selectOptions() in ui/components.js), and a stored "Oat" is
+     read back through t() wherever it is shown. Switching language
+     therefore cannot split anyone's stats, which is what kept these
+     untranslated until now.
+
+     Proper nouns stay put: machine brands and models, roasters, the
+     names of individual coffees, and the latte-art vocabulary the
+     German scene already uses in English (Rosetta, Tulip, Latte Art).
+     ============================================================ */
+
+  /* ---------- drinks (only the ones German says differently) ---------- */
+  'Flat white':'Flat White',
+  'Long black':'Long Black',
+  'Pour-over':'Handfilter',
+  'Filter':'Filterkaffee',
+  'Cold brew':'Cold Brew',
+  'Aeropress':'AeroPress',
+  'Iced latte':'Iced Latte',
+  '＋ Add your own drink…':'＋ Eigenes Getränk hinzufügen…',
+
+  /* ---------- milk ---------- */
+  'Whole milk':'Vollmilch',
+  'Semi-skimmed':'Fettarme Milch',
+  'Skimmed':'Magermilch',
+  'Lactose-free':'Laktosefrei',
+  'Oat':'Hafer',
+  'Barista oat':'Barista-Hafer',
+  'Almond':'Mandel',
+  'Soy':'Soja',
+  'Coconut':'Kokos',
+
+  /* ---------- levels ---------- */
+  'First Sips':'Erste Schlucke',
+  'Steam Dreams':'Dampfträume',
+  'Heart Starter':'Herzanfänger',
+  'Heart Artist':'Herzkünstler',
+  'Tulip Tinkerer':'Tulpenbastler',
+  'Rosetta Artist':'Rosetta-Künstler',
+  'Rosetta Pro':'Rosetta-Profi',
+  'Swan Apprentice':'Schwanenlehrling',
+  'Swan Master':'Schwanenmeister',
+  'Latte Legend':'Latte-Legende',
+
+  /* ---------- what a coffee is: origin lines ---------- */
+  'Blend':'Blend',
+  'Single origin':'Single Origin',
+  'Fairtrade blend':'Fairtrade-Blend',
+  'Organic blend':'Bio-Blend',
+  'Fairtrade organic blend':'Fairtrade-Bio-Blend',
+  'Seasonal':'Saisonal',
+  'Seasonal single origin':'Saisonaler Single Origin',
+  'Single origin, seasonal':'Single Origin, saisonal',
+  'Blend, fine-ground':'Blend, fein gemahlen',
+  'Colombia · Ethiopia blend':'Kolumbien · Äthiopien Blend',
+  'Ethiopia · Sidama':'Äthiopien · Sidama',
+  'Costa Rica · Tarrazú':'Costa Rica · Tarrazú',
+  'Vietnam · Robusta blend':'Vietnam · Robusta-Blend',
+  'India · Chikmagalur':'Indien · Chikmagalur',
+  'Latin America · East Africa blend':'Lateinamerika · Ostafrika Blend',
+
+  /* ---------- tasting notes, as the roaster claims them ---------- */
+  'Bold':'Kräftig',
+  'Chocolate':'Schokolade',
+  'Low acidity':'Wenig Säure',
+  'Nutty':'Nussig',
+  'Balanced':'Ausgewogen',
+  'Caramel':'Karamell',
+  'Smooth':'Weich',
+  'Creamy':'Cremig',
+  'Cocoa':'Kakao',
+  'Roasted nut':'Geröstete Nuss',
+  'Classic':'Klassisch',
+  'Full-bodied':'Vollmundig',
+  'Mild acidity':'Milde Säure',
+  'Intense':'Intensiv',
+  'Dark chocolate':'Zartbitterschokolade',
+  'Fruity':'Fruchtig',
+  'Rich':'Reichhaltig',
+  'Nut':'Nuss',
+  'Aromatic':'Aromatisch',
+  'Roasted':'Röstig',
+  'Traditional':'Traditionell',
+  'Dried fruit':'Trockenfrüchte',
+  'Honey':'Honig',
+  'Floral':'Blumig',
+  'Hazelnut':'Haselnuss',
+  'Brown sugar':'Brauner Zucker',
+  'Woody':'Holzig',
+  'Spice':'Gewürze',
+  'Sweet':'Süß',
+  'Bitter-sweet':'Bittersüß',
+  'Caramelized':'Karamellisiert',
+  'Milk chocolate':'Milchschokolade',
+  'Red berry':'Rote Beere',
+  'Jasmine':'Jasmin',
+  'Blueberry':'Blaubeere',
+  'Berry':'Beere',
+  'Bright':'Spritzig',
+  'Clean':'Klar',
+  'Citrus':'Zitrus',
+  'Earthy':'Erdig',
+  'Spiced':'Gewürzt',
+  'Spicy':'Würzig',
+  'Malty':'Malzig',
+  'Smoky':'Rauchig',
+  'Delicate':'Zart',
+  'Complex':'Komplex',
+  'Red fruit':'Rote Früchte',
+  'Tea-like':'Teeartig',
+  'Crisp':'Frisch',
+
+  /* ============================================================
+     The challenges.
+
+     Title, blurb and tag live in `challenge_templates` in Postgres
+     (platform/supabase/step-1.17.sql) and are written there in English,
+     because the row is the same row for everybody. Like the inbox
+     bodies below, they are translated on the way out — the server has
+     no idea which language the reader picked. Adding a template there
+     means adding its three lines here, or German readers get the
+     English one.
+     ============================================================ */
+  'Five Mornings':'Fünf Morgen',
+  'Log a coffee on five different days this week.':'Trag an fünf verschiedenen Tagen dieser Woche einen Kaffee ein.',
+  'Seven for Seven':'Sieben von sieben',
+  'A coffee every single day this week. No days off.':'Jeden einzelnen Tag dieser Woche ein Kaffee. Keine Pause.',
+  'Before Eight':'Vor acht',
+  'Three coffees logged before 8am — the quiet ones.':'Drei Kaffees vor 8 Uhr eingetragen — die stillen.',
+  'Both Days':'Beide Tage',
+  'Pour on Saturday and again on Sunday.':'Am Samstag einen, am Sonntag noch einen.',
+  'Nightcap':'Absacker',
+  'Two coffees after 8pm. Decaf counts — nobody is judging.':'Zwei Kaffees nach 20 Uhr. Entkoffeiniert zählt auch — niemand urteilt.',
+  'Ten Cups':'Zehn Tassen',
+  'Ten coffees logged before the week is out.':'Zehn Kaffees, bevor die Woche vorbei ist.',
+  'Rosetta Week':'Rosetta-Woche',
+  'Pour three rosettas. Wobble the jug, drag through.':'Gieß drei Rosetten. Kännchen wackeln, durchziehen.',
+  'Start with a Heart':'Fang mit einem Herz an',
+  'Three hearts. The one everything else is built on.':'Drei Herzen. Das, auf dem alles andere aufbaut.',
+  'Tulip Season':'Tulpenzeit',
+  'Three tulips — stack at least two pushes into each.':'Drei Tulpen — mindestens zwei Schübe in jede.',
+  'The Swan':'Der Schwan',
+  'Two swans. Nobody said it would be quick.':'Zwei Schwäne. Niemand hat gesagt, dass es schnell geht.',
+  'Show Your Work':'Zeig deine Rechnung',
+  'Four pours with dose, yield and time all filled in.':'Vier Kaffees mit Menge, Ertrag und Zeit — alles ausgefüllt.',
+  'Free Pour Five':'Fünf frei gegossen',
+  'Five latte-art pours, any pattern you like.':'Fünf Kaffees mit Latte Art, Muster egal.',
+  'Say Something':'Sag was dazu',
+  'Four pours with a real note on how it went.':'Vier Kaffees mit einer echten Notiz, wie es lief.',
+  'Three Bags':'Drei Tüten',
+  'Brew three different coffees this week.':'Brüh diese Woche drei verschiedene Kaffees.',
+  'New Territory':'Neuland',
+  'Log one coffee you have never logged before.':'Trag einen Kaffee ein, den du noch nie eingetragen hast.',
+  'Round the Menu':'Einmal quer durch die Karte',
+  'Four different drinks. Yes, the filter counts.':'Vier verschiedene Getränke. Ja, der Filterkaffee zählt.',
+  'Out and Out':'Raus und weiter',
+  'Coffee at two different cafés. Leave the house.':'Kaffee in zwei verschiedenen Cafés. Geh vor die Tür.',
+  'Passport':'Reisepass',
+  'Beans grown in three different countries.':'Bohnen aus drei verschiedenen Ländern.',
+  'Three Roasters':'Drei Röstereien',
+  'Coffee from three different roasters.':'Kaffee von drei verschiedenen Röstereien.',
+  'Milk Run':'Milchrunde',
+  'Three different milks. Oat, whole, whatever else.':'Drei verschiedene Milchsorten. Hafer, Vollmilch, was auch immer.',
+  'Good Company':'Gute Gesellschaft',
+  'Leave five comments on other people\'s coffee.':'Schreib fünf Kommentare unter den Kaffee anderer Leute.',
+  '#ritual':'#ritual',
+  '#earlybird':'#frühaufsteher',
+  '#weekend':'#wochenende',
+  '#latenight':'#spätabends',
+  '#volume':'#menge',
+  '#rosetta':'#rosetta',
+  '#heart':'#herz',
+  '#tulip':'#tulpe',
+  '#swan':'#schwan',
+  '#recipe':'#rezept',
+  '#latteart':'#latteart',
+  '#notes':'#notizen',
+  '#beans':'#bohnen',
+  '#newbean':'#neuebohne',
+  '#menu':'#karte',
+  '#cafes':'#cafés',
+  '#origin':'#herkunft',
+  '#roasters':'#röstereien',
+  '#milk':'#milch',
+  '#community':'#community',
+
+  /* ============================================================
+     Inbox rows the server writes.
+
+     Same rule as the challenges: the trigger composes these in English
+     in Postgres and has no idea who is reading them, so the whole body
+     is matched here as literal text. Where the body carries a number or
+     a name the server has already substituted, notifBody() in
+     data/notifications.js pulls the variable part out first and the key
+     below keeps its {placeholder}.
+     ============================================================ */
+  'commented on your pour':'hat deinen Kaffee kommentiert',
+  'poured a coffee':'hat einen Kaffee gemacht',
+  'started following you':'folgt dir jetzt',
+  'wants to follow you':'möchte dir folgen',
+  'accepted your follow request':'hat deine Anfrage angenommen',
+  'loved your latte art':'mag deine Latte Art',
+  'loved where you had it':'mag den Ort, an dem du ihn hattest',
+  'loved your choice of coffee':'mag deine Kaffeewahl',
+  'reacted to your pour':'hat auf deinen Kaffee reagiert',
+  '🥇 1st place on today\'s podium':'🥇 1. Platz auf dem Podium des Tages',
+  '🥈 2nd place on today\'s podium':'🥈 2. Platz auf dem Podium des Tages',
+  '🥉 3rd place on today\'s podium':'🥉 3. Platz auf dem Podium des Tages',
+  'Challenge complete: {title} · +{n} points':'Challenge geschafft: {title} · +{n} Punkte',
+  'We looked at what you reported and acted on it. Thank you for flagging it.':
+    'Wir haben uns deine Meldung angesehen und gehandelt. Danke, dass du sie geschickt hast.',
+  'We looked at what you reported and left it up. Thank you for flagging it.':
+    'Wir haben uns deine Meldung angesehen und den Beitrag stehen lassen. Danke, dass du sie geschickt hast.',
+
+  /* ---------- the desktop pitch beside the phone (index.html) ---------- */
+  'A cup a day.':'Eine Tasse am Tag.',
+  'Crema is where people keep a record of the coffee they make, and see what everyone else made this morning. The beans are ones you can buy, and the streaks are built from real timestamps.':
+    'Crema ist der Ort, an dem Leute festhalten, welchen Kaffee sie machen — und sehen, was alle anderen heute Morgen gemacht haben. Die Bohnen kannst du wirklich kaufen, und die Streaks stehen auf echten Zeitstempeln.',
+  'Log every cup':'Jede Tasse eintragen',
+  'Keep the streak':'Den Streak halten',
+  'See the morning':'Den Morgen sehen',
+  'Beans you can actually buy':'Bohnen, die es wirklich gibt',
+  'you@example.com':'du@example.com',
+  'Datenschutz / Privacy':'Datenschutz',
+  'Datenschutz / Privacy Policy':'Datenschutzerklärung',
+
+  /* ---------- the bits that were still English on screen ---------- */
+  'PREMIUM':'PREMIUM',
+  'ACTIVE':'AKTIV',
+  'SYNCED':'SYNCHRON',
+  '✦ Crema Premium':'✦ Crema Premium',
+  'Signed out':'Abgemeldet',
+  'Could not read that file':'Diese Datei ließ sich nicht lesen',
+  'A pour on Crema':'Ein Kaffee auf Crema',
+
+  /* ---------- errors thrown deeper down and shown as they arrive ---------- */
+  'Sign in first.':'Melde dich zuerst an.',
+  'Crema is not configured to reach its backend.':'Crema ist nicht für den Zugriff auf sein Backend eingerichtet.',
+  'Sign-in could not be completed — please try again.':'Die Anmeldung konnte nicht abgeschlossen werden — bitte versuch es noch einmal.',
+  'Sign-in needs browser storage — check your privacy settings.':
+    'Die Anmeldung braucht den Browser-Speicher — sieh in deinen Datenschutzeinstellungen nach.',
+  'Could not claim a username — try a different one in Settings.':
+    'Der Benutzername ließ sich nicht vergeben — probier in den Einstellungen einen anderen.',
 
   /* ---------- misc ---------- */
   'Challenge complete: {title} · +{n} 🎯':'Challenge geschafft: {title} · +{n} 🎯',

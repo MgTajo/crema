@@ -91,18 +91,33 @@ export function beanPicker(pfx,bean){
   return pickerField(pfx,'bean',t('Coffee / beans'),bean,
     cat?cat.roaster:(bean?t('Your own coffee'):''), t('Search coffees, or add yours…'));
 }
+/* Every <option> whose text is a catalogue value goes through here.
+
+   The `value` is the English string and the label is the translated
+   one, which is the whole trick that lets drinks and milks be German on
+   screen without becoming German in the database: the form reads
+   select.value and gets "Oat" whichever language is on. An <option>
+   with no value attribute reports its text instead, so leaving these
+   bare — which is what they were — would have written "Hafer" into the
+   same column as "Oat" and split the stats of anyone who switched. */
+export const selectOptions=(list,current)=>list.map(v=>
+  `<option value="${esc(v)}"${v===current?' selected':''}>${esc(t(v))}</option>`).join('');
+
 /* Drink-type dropdown. Every drink in DRINKS is free — sixteen names is
    a list, not a catalogue, and gating it made people log the wrong
    coffee. What stays Premium is naming one of your own
    (state.customDrinks — visible only to them, never to anyone else's
    picker). `allowAdd:false` drops that sentinel for pickers
-   (onboarding) that have no text field to catch it. */
+   (onboarding) that have no text field to catch it.
+
+   A drink somebody named themselves is not in the German bundle and
+   falls back to itself, which is exactly right: it is their word. */
 export function drinkOptions(current,{allowAdd=true}={}){
   const base=DRINKS;
   const list=base.concat(state.customDrinks.filter(d=>!base.includes(d)));
   if(current&&current!==ADD_DRINK&&!list.includes(current)) list.push(current);
-  return list.map(d=>`<option${d===current?' selected':''}>${esc(d)}</option>`).join('')
-    +(allowAdd&&state.me.premium?`<option value="${esc(ADD_DRINK)}"${current===ADD_DRINK?' selected':''}>${ADD_DRINK}</option>`:'');
+  return selectOptions(list,current)
+    +(allowAdd&&state.me.premium?`<option value="${esc(ADD_DRINK)}"${current===ADD_DRINK?' selected':''}>${esc(t(ADD_DRINK))}</option>`:'');
 }
 /* ----- Premium, wherever it is met -----
    Every locked thing says the same two things in the same shape: what
@@ -148,7 +163,7 @@ export function recipeRows(r){
   const rows=[];
   if(r.bean) rows.push(['bean',t('Coffee'),r.bean]);
   if(r.machine) rows.push(['mach',t('Machine / brewer'),r.machine]);
-  if(r.milk) rows.push(['h',t('Milk'),r.milk]);
+  if(r.milk) rows.push(['h',t('Milk'),t(r.milk)]);
   if(r.dose) rows.push(['h',t('Dose in'),r.dose]);
   if(r.yield) rows.push(['h',t('Yield out'),r.yield]);
   if(r.time) rows.push(['h',t('Time'),r.time]);
@@ -248,9 +263,9 @@ export function postCard(p){
     <div class="p-body">
       <div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
       <div class="chips">
-        <span class="chip drinkchip">${esc(p.drink||t('Coffee'))}</span>
+        <span class="chip drinkchip">${esc(t(p.drink||'Coffee'))}</span>
         ${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}
-        ${r&&r.milk?`<span class="chip"><span class="g">${icon('milk',12)}</span>${esc(r.milk)}</span>`:''}
+        ${r&&r.milk?`<span class="chip"><span class="g">${icon('milk',12)}</span>${esc(t(r.milk))}</span>`:''}
         ${r&&r.machine?`<span class="chip tag" data-action="open-machine" data-id="${esc(r.machine)}"><span class="g">${icon('mach',12)}</span>${esc(r.machine)}</span>`:''}
         ${p.cafe?`<span class="chip"><span class="g">${icon('cafe',12)}</span>${esc(p.cafe)}</span>`:''}
       </div>
@@ -299,7 +314,7 @@ export function searchHTML(q){
 export function podiumRow(p){
   if(!p) return '';
   const u=userOf(p.user);
-  const line=(p.caption||'').trim()||p.drink||t('Coffee');
+  const line=(p.caption||'').trim()||t(p.drink||'Coffee');
   const place=p.place|0;
   const medal=place===1?'🥇':place===2?'🥈':place===3?'🥉':place;
   return `<div class="rlist-row click ${p.user==='me'?'me':''}" data-action="open-post" data-id="${p.id}">

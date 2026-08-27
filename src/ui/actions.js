@@ -277,7 +277,7 @@ document.addEventListener('click',e=>{
        button — so the address is copyable right underneath, and that
        row is the fallback rather than a second-guessing of the first. */
     case 'cafe-lead': toast(t('Opening your mail app ✉️')); break;
-    case 'copy-cafe-mail': copyText(CAFE_MAIL,'hello@crema-app.com copied ✉️'); break;
+    case 'copy-cafe-mail': copyText(CAFE_MAIL,t('{mail} copied ✉️',{mail:CAFE_MAIL})); break;
     case 'share-crema':{
       const link=location.href.split('#')[0];
       if(navigator.share) navigator.share({title:'Crema',text:t('Coffee, brewed social. Log what you pour.'),url:link}).catch(()=>{});
@@ -688,7 +688,7 @@ function authError(e){
   if(/Password should be at least/i.test(m)) return t('Pick a longer password, at least 8 characters.');
   if(/Email not confirmed/i.test(m)) return t('Confirm your email address first. Check your inbox.');
   if(/rate limit|too many/i.test(m)) return t('Too many attempts just now. Wait a minute and try again.');
-  return m || t('Something went wrong. Try again.');
+  return m ? t(m) : t('Something went wrong. Try again.');
 }
 
 async function doAuth(){
@@ -1501,7 +1501,7 @@ function uploadAvatar(file){
     img.onerror=()=>toast(t('That image could not be read'));
     img.src=ev.target.result;
   };
-  reader.onerror=()=>toast('Could not read that file');
+  reader.onerror=()=>toast(t('Could not read that file'));
   reader.readAsDataURL(file);
 }
 async function dropAvatar(){
@@ -2022,8 +2022,8 @@ function brewAgain(id){
 }
 function sharePost(id){
   const p=findPost(id); if(!p) return; const link=postLink(id);
-  if(navigator.share){ navigator.share({title:'Crema',text:(p.caption||'A pour on Crema'),url:link}).catch(()=>{}); }
-  else copyText(link,'Link copied 🔗');
+  if(navigator.share){ navigator.share({title:'Crema',text:(p.caption||t('A pour on Crema')),url:link}).catch(()=>{}); }
+  else copyText(link,t('Link copied 🔗'));
 }
 function copyText(text,msg){
   const done=()=>toast(msg||t('Copied ✓'));

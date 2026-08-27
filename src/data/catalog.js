@@ -14,6 +14,7 @@
    so this stays a leaf-to-leaf dependency. */
 import { DE } from '../i18n.de.js';
 const both = s => s ? s+' '+(DE[s]||'') : '';
+const bothAll = list => (list||[]).map(both).join(' ');
 
 /* ---------- drinks ---------- */
 export const DRINKS=['Cappuccino','Latte','Flat white','Cortado','Piccolo','Mocha','Macchiato',
@@ -456,7 +457,10 @@ export function beanIndex(){
     brand:b.roaster, name:b.n, label:b.n, sub:b.roaster,
     /* Origin and tasting notes are searchable too, so "ethiopia" or
        "fruity" finds a bag whose name gives none of that away. */
-    hay:norm([b.n,b.roaster,both(b.c),b.origin,(b.notes||[]).join(' ')].join(' '))
+    /* Origin and the notes are shown in German now, so they have to be
+       findable in German too: someone reading "Fruchtig" on the bag page
+       and typing it into the search must land back on the same bag. */
+    hay:norm([b.n,b.roaster,both(b.c),both(b.origin),bothAll(b.notes)].join(' '))
   }));
   return (_beanIdx=out);
 }

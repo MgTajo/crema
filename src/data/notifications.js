@@ -10,6 +10,7 @@
    this maps the table onto that shape, so overlayNotifs() is unchanged.
    ============================================================ */
 import { agoFrom } from '../core/util.js';
+import { t } from '../i18n.js';
 import { rest, optionalColumns } from './supabase.js';
 import { registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
@@ -39,6 +40,31 @@ export function notificationOf(row){
 export async function fetchNotifications(uid, { limit=50 }={}){
   const rows = await opt.run(has=>`notifications?select=${select(has)}&user_id=eq.${uid}&order=created_at.desc&limit=${limit}`);
   return (rows||[]).map(notificationOf);
+}
+
+/* ---------- saying it in the reader's language ----------
+   Every body above was composed by a Postgres trigger, in English,
+   with no idea who would open the inbox — the row is written once and
+   read by whoever the notification is for. So the whole sentence is a
+   translation key, matched literally in i18n.de.js.
+
+   The one body the server builds out of parts is the challenge payout
+   (step-1.17.sql): the title and the points are substituted in before
+   the row is written, so an exact match is impossible and the pieces
+   are pulled back out here instead. The title is itself a value from
+   challenge_templates and gets the same treatment.
+
+   Anything with no German — a body from a migration newer than the
+   bundle — falls back to the English the server sent, which is what
+   t() does anyway. Nothing here can fail to render. */
+const CHALLENGE_DONE=/^Challenge complete: (.+) · \+(\d+) points$/;
+
+export function notifBody(body){
+  const s=(body||'').trim();
+  if(!s) return '';
+  const m=s.match(CHALLENGE_DONE);
+  if(m) return t('Challenge complete: {title} · +{n} points',{ title:t(m[1]), n:m[2] });
+  return t(s);
 }
 
 export const markAllRead = uid =>

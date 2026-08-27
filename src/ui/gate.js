@@ -40,7 +40,7 @@ export function renderGate(){
 
   const emailField=`<div class="field"><label>${t('Email')}</label>
     <input id="au-email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false"
-      placeholder="you@example.com" value="${esc(a.email||'')}" data-enter="auth-submit"></div>`;
+      placeholder="${t('you@example.com')}" value="${esc(a.email||'')}" data-enter="auth-submit"></div>`;
   const pwField=`<div class="field"><label>${t('Password')}</label>
     <input id="au-pw" type="password" autocomplete="${up?'new-password':'current-password'}"
       placeholder="${up?t('At least 8 characters'):t('Your password')}" data-enter="auth-submit"></div>`;
