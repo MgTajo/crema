@@ -26,7 +26,8 @@
    on an iPhone in a Safari tab and will never get a single push.
    ============================================================ */
 import { VAPID_PUBLIC_KEY } from '../config.js';
-import { rest } from './supabase.js';
+import { rest, optionalColumns } from './supabase.js';
+import { lang } from '../i18n.js';
 
 export const pushSupported = () =>
   typeof navigator!=='undefined' && 'serviceWorker' in navigator
@@ -107,7 +108,16 @@ export async function pushEnabled(){
   return !!(await currentSubscription());
 }
 
-function rowFrom(sub, uid){
+/* `lang` arrives with step-1.32.sql. Until that has been run by hand
+   the column is not there, and PostgREST refuses the whole upsert rather
+   than ignoring the key it does not know — which would have taken push
+   registration down for everybody the moment this deployed. So it is
+   declared optional the same way avatar_key is: sent once, dropped for
+   the rest of the session if the backend says it has nowhere to put it,
+   and the device keeps its subscription either way. */
+const opt = optionalColumns(['lang']);
+
+function rowFrom(sub, uid, has){
   const j=sub.toJSON();
   return {
     endpoint: sub.endpoint,
@@ -117,12 +127,25 @@ function rowFrom(sub, uid){
     /* Minutes east of UTC, so the reminder job can fire in the evening
        where the user actually is rather than in the evening in Germany. */
     tz_offset: -new Date().getTimezoneOffset(),
+    /* And which language to say it in. Per DEVICE rather than per
+       account, for exactly the reason tz_offset is: the notification
+       appears on this phone, and the language is this browser's
+       (localStorage, see i18n.js). A tablet left in English keeps
+       getting English while the phone switched to German.
+
+       The server composes push text in plpgsql and cannot ask the
+       browser at send time, so this is the only way it can know —
+       step-1.32.sql. `has()` is what keeps it off the wire until that
+       migration has been run; see the note on `opt` above for why
+       sending it blind would not have been harmless. */
+    ...(has('lang') ? { lang } : {}),
     last_seen: new Date().toISOString()
   };
 }
 
-const upsert = row =>
-  rest('push_subscriptions', { method:'POST', body:row, prefer:'resolution=merge-duplicates' });
+const upsert = (sub, uid) => opt.run(has=>({
+  path:'push_subscriptions', method:'POST',
+  body: rowFrom(sub, uid, has), prefer:'resolution=merge-duplicates' }));
 
 /* Ask, subscribe, store. Returns a reason string on failure so the UI can
    say something truer than "didn't work". */
@@ -149,7 +172,7 @@ export async function enablePush(uid){
   }
   if(!sub) return { ok:false, reason:'subscribe-failed' };
 
-  try{ await upsert(rowFrom(sub, uid)); }
+  try{ await upsert(sub, uid); }
   catch(e){ console.warn('storing push subscription failed',e); return { ok:false, reason:'store-failed' }; }
   return { ok:true };
 }
@@ -173,5 +196,5 @@ export async function disablePush(){
 export async function syncPush(uid){
   if(!uid || !(await pushEnabled())) return;
   const sub=await currentSubscription();
-  if(sub) await upsert(rowFrom(sub, uid)).catch(()=>{});
+  if(sub) await upsert(sub, uid).catch(()=>{});
 }

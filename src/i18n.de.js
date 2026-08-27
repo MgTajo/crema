@@ -1239,7 +1239,9 @@ export const DE = {
      data/notifications.js pulls the variable part out first and the key
      below keeps its {placeholder}.
      ============================================================ */
+  'liked your pour':'gefällt dein Kaffee',
   'commented on your pour':'hat deinen Kaffee kommentiert',
+  'mentioned you in a comment':'hat dich in einem Kommentar erwähnt',
   'poured a coffee':'hat einen Kaffee gemacht',
   'started following you':'folgt dir jetzt',
   'wants to follow you':'möchte dir folgen',
@@ -1256,6 +1258,24 @@ export const DE = {
     'Wir haben uns deine Meldung angesehen und gehandelt. Danke, dass du sie geschickt hast.',
   'We looked at what you reported and left it up. Thank you for flagging it.':
     'Wir haben uns deine Meldung angesehen und den Beitrag stehen lassen. Danke, dass du sie geschickt hast.',
+
+  /* ---------- push, and push only ----------
+     These never appear on a screen inside the app: they are the two
+     notifications Crema sends on its own initiative, composed in plpgsql
+     by push_streak_reminders() and push_weekly_digest() in
+     platform/supabase/step-1.16.sql. They live here anyway so that all
+     the German is in one file — `gen-push-i18n.mjs` reads them out of
+     here and prints the seed for `push_i18n`, which is what Postgres
+     actually reads at send time. An audit of unused keys will call these
+     dead; they are not. */
+  'Your streak ends tonight':'Dein Streak endet heute Abend',
+  '{n} days so far — one pour keeps it going.':'{n} Tage bisher — ein Kaffee hält ihn am Leben.',
+  '{n} pour':'{n} Kaffee',
+  '{n} pours':'{n} Kaffees',
+  '{n} like':'{n} Like',
+  '{n} likes':'{n} Likes',
+  '{n} new follower':'{n} neuer Follower',
+  '{n} new followers':'{n} neue Follower',
 
   /* ---------- the desktop pitch beside the phone (index.html) ---------- */
   'A cup a day.':'Eine Tasse am Tag.',

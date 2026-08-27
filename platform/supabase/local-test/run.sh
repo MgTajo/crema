@@ -66,7 +66,8 @@ run -c "grant usage on schema public to anon, authenticated;" \
     -c "revoke all on function podium_check() from public, anon, authenticated;" \
     -c "revoke all on function podium_award_day(date) from public, anon, authenticated;" \
     -c "revoke all on function podium_award_recent() from public, anon, authenticated;" \
-    -c "revoke all on table podium_places from anon, authenticated;"
+    -c "revoke all on table podium_places from anon, authenticated;" \
+    -c "revoke all on table push_i18n from anon, authenticated;"
 
 for t in "$@"; do
   echo "==> $t"

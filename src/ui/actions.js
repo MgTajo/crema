@@ -345,7 +345,16 @@ document.addEventListener('click',e=>{
        and app-bar title is built from t() at render time, so switching it
        means painting the lot again. It is stored outside `state` (see
        src/i18n.js), so it survives a sign-out and a guest can set it. */
-    case 'set-lang': if(setLang(el.dataset.l)) render(); break;
+    case 'set-lang': if(setLang(el.dataset.l)){
+      render();
+      /* The device's push row carries the language too (step-1.32), and
+         the server has no other way to learn it: push text is composed
+         in plpgsql, hours later, with nobody to ask. Re-stating the
+         subscription is the same call boot already makes and is a no-op
+         when notifications are off. Not awaited — switching language
+         must repaint now, not after a round trip. */
+      const u=currentUser(); if(u) syncPush(u.id).catch(()=>{});
+    } break;
     case 'save-profile': saveProfile(); break;
     case 'drop-avatar': dropAvatar(); break;
     /* ---------- Premium ----------

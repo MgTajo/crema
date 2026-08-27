@@ -311,8 +311,16 @@ export function optionalColumns(names){
   const has = name => !gone.has(name);
   /* Which column did Postgres object to? Only ours count — a 42703 for
      anything else is a bug in the query, and swallowing it would turn a
-     typo into a silently half-working screen. */
-  const blame = e => (e && e.status===400 && /42703/.test(e.message||''))
+     typo into a silently half-working screen.
+
+     Two codes, because a read and a write are refused differently: a
+     SELECT of a column that isn't there comes back as Postgres's own
+     42703, while a POST/PATCH carrying one is stopped by PostgREST
+     before it reaches Postgres at all and comes back as PGRST204. The
+     helper was written against reads, so a write kept its unknown column
+     and simply failed — which is the whole point of this thing not
+     happening. */
+  const blame = e => (e && e.status===400 && /42703|PGRST204/.test(e.message||''))
     ? names.find(n=>!gone.has(n) && (e.message||'').includes(n)) : undefined;
   return {
     has,
