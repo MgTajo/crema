@@ -31,6 +31,51 @@ import { makePersistence } from './persistence.js';
 export const KEY='crema_v11';
 let persistence=makePersistence(null,KEY);
 
+/* ---------- the sign-up draft ----------
+   Signing up is the setup first and the account last (ui/gate.js), so
+   the name, the machine and the two go-to answers are given by somebody
+   who has no user id yet. They are written into `state.me` like any
+   other edit — but `state` is keyed by user id, and the moment the
+   account exists adoptSession() re-keys the store and load() hands back
+   an empty one. Everything typed before signing up would be thrown away
+   at the exact moment it became useful.
+
+   So the answers get their own unscoped blob, written once at the
+   moment sign-up is submitted and read back exactly once, by the first
+   session that follows. Small on purpose: it holds the seven fields
+   ensureProfile() needs to create a filled-in row, and nothing else.
+
+   It is a separate blob rather than a corner of the state one because
+   its whole job is to belong to no user yet — and it survives an email
+   confirmation, an OAuth round trip, or a browser closed in between,
+   all of which land as a fresh boot with a session and an empty store. */
+const signupDraft=makePersistence(null,KEY+'_signup');
+const DRAFT_FIELDS=['name','handle','city','machineBrand','machineModel','favDrink','favMilk'];
+
+/* Called when sign-up is submitted — the last moment the answers are
+   still only in this browser's guest store. */
+export function keepSignupDraft(){
+  const d={}; DRAFT_FIELDS.forEach(k=>{ d[k]=state.me[k]||''; });
+  return Promise.resolve(signupDraft.write(d)).catch(err=>console.warn('signup draft failed',err));
+}
+/* Read once and drop, whatever happens next: a draft that outlived the
+   sign-in it was written for is stale, and re-applying it to the wrong
+   account is worse than losing it. Only fills a `me` that has nothing
+   to lose — a real profile row always wins (syncProfile). */
+async function takeSignupDraft(){
+  let d=null;
+  try{ d=await signupDraft.read(); }catch(e){ console.warn('signup draft unreadable',e); }
+  if(!d) return false;
+  await signupDraft.clear();
+  if((state.me.name||'').trim()) return false;
+  DRAFT_FIELDS.forEach(k=>{ if(d[k]) state.me[k]=d[k]; });
+  /* Written down under the new key straight away rather than left to
+     whatever saves next: the draft has just been dropped, so until this
+     lands the answers exist in one place only — memory. */
+  save();
+  return true;
+}
+
 /* The auth session, or null when signed out. Exported as a live binding
    so views can read it without importing the auth client.
 
@@ -51,7 +96,12 @@ export let state;
 /* `premium` is the redeem form's own state — the error under the code
    field and whether a check is in flight. Null until a surface that
    holds the field is opened, like `create` and `picker`. */
-export const ui={route:'home', filter:'today', gate:false, ovStack:[], navStack:[], profTab:'stats', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false, premium:null};
+/* `freshAccount` is set by syncProfile() for the one repaint that
+   follows an account being created, and read by whoever has to tell a
+   brand-new arrival apart from a returning one — the welcome toast, and
+   the what's-new card that must not greet somebody on their first
+   morning with news about what changed. */
+export const ui={route:'home', filter:'today', gate:false, ovStack:[], navStack:[], profTab:'stats', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false, premium:null, freshAccount:false};
 
 /* A brand-new account: nothing invented, nothing borrowed. Everything
    visible after this comes from the user or from the backend. */
@@ -622,6 +672,12 @@ export async function adoptSession(next){
   session = next;
   persistence = makePersistence(next, KEY);
   await load();
+  /* The setup answered before this account existed, moved into the
+     store that now belongs to it. Runs before anything reads state.me —
+     ensureProfile() creates the profile row FROM it, which is what
+     makes "setup first, account last" arrive as a filled-in row rather
+     than an onboarding sheet. */
+  if(next) await takeSignupDraft();
   feed.done=false; feed.cursor=null;
   /* `loading`, not `loaded`: something IS on its way, and the difference
      is what the feed's empty state says while it waits — "loading

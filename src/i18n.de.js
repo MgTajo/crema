@@ -82,6 +82,11 @@ export const DE = {
   'Pick a longer password, at least 8 characters.':'Wähl ein längeres Passwort, mindestens 8 Zeichen.',
   'Account created. Confirm your email address, then sign in.':
     'Konto erstellt. Bestätige deine E-Mail-Adresse und melde dich dann an.',
+  'Account created. Confirm your email address, then sign in — your setup is waiting.':
+    'Konto erstellt. Bestätige deine E-Mail-Adresse und melde dich dann an — dein Setup wartet.',
+  'Last step. The account is what keeps your setup, your streak and your pours.':
+    'Letzter Schritt. Das Konto hält dein Setup, deine Serie und deine Tassen fest.',
+  'Back to your setup':'Zurück zum Setup',
   'Reset link sent. Open it on this device and you can set a new password.':
     'Link ist unterwegs. Öffne ihn auf diesem Gerät, dann kannst du ein neues Passwort setzen.',
   'That email and password do not match.':'E-Mail und Passwort passen nicht zusammen.',

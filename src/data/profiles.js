@@ -170,10 +170,38 @@ function deriveHandle(me, email){
   return clean(me.handle) || clean(me.name).slice(0,20) || clean((email||'').split('@')[0]) || 'barista';
 }
 
+/* Is this username already somebody's?
+
+   Answerable signed out — `profiles are public` for select (schema.sql)
+   — which is the whole reason sign-up can ask before the account
+   exists. Without it a taken username is only discovered by
+   ensureProfile(), which quietly suffixes it with four digits and never
+   says so.
+
+   A network failure answers "no" on purpose: the suffix retry is still
+   there behind it, so the worst case is the behaviour we had, and
+   nobody is stopped from signing up because a check failed. */
+export async function handleTaken(handle){
+  const h = clean(handle);
+  if(!h) return false;
+  try{
+    const rows = await rest(`profiles?handle=eq.${encodeURIComponent(h)}&select=id&limit=1`);
+    return !!(rows && rows.length);
+  }catch(e){ console.warn('username check failed',e); return false; }
+}
+
 /* Read the signed-in user's profile, creating a row on first sign-in.
    Returns { me, created } — `created` is what tells the app this is a
-   brand-new account and onboarding should run. Throws if the backend
-   could not be reached; the caller decides what to do about it. */
+   brand-new account. Throws if the backend could not be reached; the
+   caller decides what to do about it.
+
+   Since sign-up asks for the setup first, `me` is normally already
+   filled in — so the row this creates is a real profile rather than the
+   nameless placeholder it used to be, and onboarding has nothing left to
+   ask (syncProfile in ui/actions.js). It still has to survive an empty
+   `me`: a first Google sign-in from the "Sign in" side, or a browser
+   whose sign-up draft never made it, both land here with nothing, and
+   that is what the onboarding sheet is now for. */
 export async function ensureProfile(uid, email, me){
   const rows = await rest(`profiles?id=eq.${uid}&select=*`);
   if(rows && rows.length) return { me:rowToMe(rows[0]), created:false };

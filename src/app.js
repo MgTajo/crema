@@ -187,6 +187,10 @@ if(auth.session){
   await syncProfile();
   applyMe(); render();
 
+  /* Read once, by whichever of the three branches below greets this
+     person, and then done with. */
+  const fresh=ui.freshAccount; ui.freshAccount=false;
+
   if(!state.onboarded){
     pushOv({type:'onboard'});
     /* A brand-new account is not being told what CHANGED — for them the
@@ -196,7 +200,15 @@ if(auth.session){
     markSeen(DAILY_CHAMPION);
   }
   else if(auth.recovery){ pushOv({type:'password'}); toast('Signed in — pick a new password'); }
-  else openFromHash(takeHash());
+  else{
+    /* Signing up with Google comes back through here rather than
+       through onAuthChange: the redirect is a cold boot with a session
+       already in hand. The account is brand new and its setup was
+       answered before it existed, so there is no sheet to raise — only
+       the same two things onboarding would have done. */
+    if(fresh){ markSeen(DAILY_CHAMPION); toast(t('Welcome to Crema ☕')); }
+    openFromHash(takeHash());
+  }
 }else{
   openFromHash(takeHash());
 }

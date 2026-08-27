@@ -17,7 +17,8 @@ import { USERS, CAFES, CHALLENGES, userOf, handleToUid } from '../data/world.js'
 import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, currentUser,
          sendPasswordReset, updatePassword } from '../data/supabase.js';
 import { ensureProfile, pushProfile, pushName, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
-         setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium } from '../data/profiles.js';
+         setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium,
+         handleTaken } from '../data/profiles.js';
 import { codeValid, PREMIUM_MAIL, photoLimit } from '../domain/premium.js';
 import { cropSquare, objectPosition, isAdjustable, focusAfterDrag, pickFocus } from '../domain/framing.js';
 import { recapSVG, recapPNG, loadShotPhotos, loadStanding, weekStanding } from './recap.js';
@@ -34,13 +35,14 @@ import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
          feed, hydrateReactions, myMachines, myCoffees, togglePin, setGearNote, rememberOwn,
          weekRecap, toggleRecapPick,
-         applyArrivals, dropArrivals, admin, loadQueue } from '../store/store.js';
+         applyArrivals, dropArrivals, admin, loadQueue, keepSignupDraft } from '../store/store.js';
 import { onLive, whileAnsweringRequest } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
 import { t, tn, setLang } from '../i18n.js';
 import { render, renderView, renderAppbar, CAFE_MAIL } from './views.js';
+import { authState, signupStep } from './gate.js';
 import { pushOv, popOv, renderOverlay, pickerList } from './overlays.js';
 import { initHistory } from './history.js';
 import { markSeen, DAILY_CHAMPION } from '../core/announce.js';
@@ -63,6 +65,11 @@ function goBack(){
      dropping someone into. Back holds still here. */
   if(top&&top.type==='onboard') return true;
   if(ui.ovStack.length){ popOv(); return true; }
+  /* Signing up is three steps deep, and back walks them rather than
+     throwing the whole thing away. Nothing typed is lost either way —
+     the answers live in state.me — but landing on the feed because
+     somebody backed out of the machine step reads as a crash. */
+  if(!currentUser()&&ui.gate&&ui.auth&&ui.auth.mode==='up'&&signupStep(ui.auth)>1){ signupStepper(-1); return true; }
   /* The sign-in screen is a screen, not a sheet, but a guest stepped
      into it from the feed and back belongs there — not out of the app. */
   if(!currentUser()&&ui.gate){ ui.gate=false; ui.auth=null; render(); return true; }
@@ -381,11 +388,18 @@ document.addEventListener('click',e=>{
        Both repaint everything: the app bar, the tab bar and the view all
        differ between the two. */
     case 'guest-signin':{ ui.gate=true; ui.ovStack=[];
-      ui.auth={ mode:el.dataset.m==='in'?'in':'up', email:'', error:'', notice:'', busy:false };
+      ui.auth={ mode:el.dataset.m==='in'?'in':'up', step:1, email:'', error:'', notice:'', busy:false };
       render(); break;}
     case 'guest-back':{ ui.gate=false; ui.auth=null; render(); break;}
 
-    case 'auth-mode':{ syncAuth(); ui.auth.mode=el.dataset.m||'in'; ui.auth.error=''; ui.auth.notice=''; renderView(); break;}
+    /* Switching sides restarts the sign-up at its first step: coming
+       back from "Sign in" onto step 3 would ask for an account before
+       anything had been set up, which is the order this flow exists to
+       undo. */
+    case 'auth-mode':{ syncAuth(); const a=authState();
+      a.mode=el.dataset.m||'in'; a.step=1; a.error=''; a.notice=''; renderView(); break;}
+    case 'signup-next': signupStepper(1); break;
+    case 'signup-back': signupStepper(-1); break;
     case 'auth-submit': doAuth(); break;
     case 'auth-oauth': doOAuth(el.dataset.p); break;
     case 'sign-out': doSignOut(); break;
@@ -399,6 +413,7 @@ document.addEventListener('keydown',e=>{ if(e.key!=='Enter') return;
   const el=e.target.closest('[data-enter]'); if(!el) return; e.preventDefault();
   if(el.dataset.enter==='add-cmt') addComment(el.dataset.id);
   else if(el.dataset.enter==='auth-submit') doAuth();
+  else if(el.dataset.enter==='signup-next') signupStepper(1);
   else if(el.dataset.enter==='pw-save') savePassword();
   else if(el.dataset.enter==='redeem') redeemCode(el.dataset.i||'pm-code'); });
 /* Recipe fields wear their unit as you type — "18" becomes "18g" the
@@ -686,8 +701,8 @@ document.addEventListener('mouseout',e=>{const ab=e.target.closest('.actbars .ab
 
 /* ============================================================ AUTH */
 /* Keep typed values across the re-render that follows every state change. */
-function syncAuth(){ if(!ui.auth) ui.auth={mode:'in',error:'',notice:'',busy:false,email:''};
-  const el=$('#au-email'); if(el) ui.auth.email=el.value; }
+function syncAuth(){ const a=authState();
+  const el=$('#au-email'); if(el) a.email=el.value; }
 
 function authError(e){
   const m=(e&&e.message)||'';
@@ -698,6 +713,39 @@ function authError(e){
   if(/Email not confirmed/i.test(m)) return t('Confirm your email address first. Check your inbox.');
   if(/rate limit|too many/i.test(m)) return t('Too many attempts just now. Wait a minute and try again.');
   return m ? t(m) : t('Something went wrong. Try again.');
+}
+
+/* Move between the three sign-up steps. `dir` is +1 or -1.
+
+   Every step syncs its fields into state.me and saves before it moves,
+   so nothing typed is lost to the repaint — and so an abandoned sign-up
+   still has the answers waiting the next time this browser reaches for
+   one. The setup is a guest's own data until the account exists; it
+   never leaves the device before then.
+
+   The name is the one required answer: a profile row without one shows
+   as "Barista" to everybody else, and the owner is the last to find
+   out. The username is checked here rather than after the account is
+   created, which is the one thing the old order genuinely did better —
+   it could answer "that username is taken" while there was still a form
+   to correct. */
+async function signupStepper(dir){
+  const a=authState();
+  syncOb(); save();
+  const step=signupStep(a);
+  if(dir<0){ a.error=''; a.step=Math.max(1,step-1); renderView(); return; }
+
+  if(step===1){
+    if(!(state.me.name||'').trim()){ a.error=t('Tell us your name first.'); renderView(); return; }
+    const handle=(state.me.handle||'').trim();
+    if(handle){
+      a.busy=true; a.error=''; renderView();
+      const taken=await handleTaken(handle);
+      a.busy=false;
+      if(taken){ a.error=t('That username is taken. Try another.'); renderView(); return; }
+    }
+  }
+  a.error=''; a.step=Math.min(3,step+1); renderView();
 }
 
 async function doAuth(){
@@ -720,10 +768,14 @@ async function doAuth(){
   a.busy=true; a.error=''; a.notice=''; renderView();
   try{
     if(a.mode==='up'){
+      /* The last moment the setup is still only in this browser's guest
+         store: from here the store is about to be re-keyed to a user id
+         that has never seen it (keepSignupDraft, store/store.js). */
+      await keepSignupDraft();
       const { confirmationRequired } = await signUp(email,pw);
       if(confirmationRequired){
-        a.busy=false; a.mode='in';
-        a.notice=t('Account created. Confirm your email address, then sign in.');
+        a.busy=false; a.mode='in'; a.step=1;
+        a.notice=t('Account created. Confirm your email address, then sign in — your setup is waiting.');
         renderView(); return;
       }
     } else {
@@ -734,9 +786,15 @@ async function doAuth(){
 }
 
 async function doOAuth(provider){
-  syncAuth(); ui.auth.busy=true; ui.auth.error=''; renderView();
+  syncAuth(); const a=authState(); a.busy=true; a.error=''; renderView();
+  /* Same reason as doAuth: Google navigates away and comes back as a
+     cold boot with a session and an empty store, so the setup has to be
+     somewhere that boot can still find it. Kept on the sign-in side too
+     — it costs one localStorage write, and a first-ever Google sign-in
+     from that side creates the same brand-new profile row. */
+  await keepSignupDraft();
   try{ await signInWithOAuth(provider); }        // navigates away on success
-  catch(e){ ui.auth.busy=false; ui.auth.error=authError(e); renderView(); }
+  catch(e){ a.busy=false; a.error=authError(e); renderView(); }
 }
 
 async function doSignOut(){
@@ -772,9 +830,21 @@ async function syncProfile(){
     if(!me.name && localName) state.me.name=localName;
 
     /* An account whose profile has just been created has never been
-       through onboarding, whatever this browser happens to remember. */
-    if(created) state.onboarded=false;
+       through onboarding, whatever this browser happens to remember —
+       unless the row arrived already filled in, which since sign-up
+       asks for the setup first is the normal case. ensureProfile()
+       creates it FROM those answers (adoptSession moved them across),
+       so there is nothing left to ask and the onboarding sheet would be
+       a form full of what they just typed.
+
+       The sheet is still there for the account that reaches this with
+       nothing: a first Google sign-in from the "Sign in" side, a draft
+       that never made it, a row created before this order changed. */
+    if(created) state.onboarded=!!(me.name||'').trim();
     else if(state.me.name) state.onboarded=true;
+    /* True for exactly one repaint: whoever greets this person needs to
+       know they have just arrived rather than come back. */
+    ui.freshAccount=created;
     save(); applyMe();
 
     /* A row with no name is a row nobody else can put a name to: every
@@ -917,7 +987,16 @@ onAuthChange(async s=>{
        subscribed — reading as off when it is on. Never prompts. */
     initPush().catch(()=>{});
     if(!state.onboarded){ ui.obStep=1; pushOv({type:'onboard'}); }
+    else if(ui.freshAccount){
+      /* They set the whole thing up on the way in, so the app opens on
+         the feed rather than on a form. The what's-new card is marked
+         seen for the same reason onboarding marks it: a first morning
+         is not the moment to be told what changed. */
+      markSeen(DAILY_CHAMPION);
+      toast(t('Welcome to Crema ☕'));
+    }
     else toast(t('Signed in ☕'));
+    ui.freshAccount=false;
   }
   else toast(t('Signed out. You can still look around.'));
 });
