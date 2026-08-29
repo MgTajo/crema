@@ -1,0 +1,95 @@
+# ============================================================
+# CI — the green light Crema never had.
+#
+# Both test files existed before this workflow and both were run by
+# hand, which meant they were run when somebody remembered. Everything
+# here is a command you can also type yourself; nothing is CI-only.
+#
+# The SQL job is the one that matters. Migrations are applied to
+# production by hand against a database whose backups live on one
+# laptop, so the chain's first execution must never be the real one.
+# ============================================================
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # release.yml runs this whole file before it touches production. The
+  # tag might point at a commit that never went through a pull request.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22, not latest: `--experimental-strip-types` is documented and
+      # stable there, and the webpush test imports a .ts module.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: streak — 20 assertions
+        run: node src/domain/streak.test.mjs
+
+      - name: web push — RFC 8291 / 8292 vectors
+        run: node --experimental-strip-types platform/supabase/functions/send-push/webpush.test.mjs
+
+      # The push dictionary in step-1.32.sql is generated from
+      # src/i18n.de.js, never typed. This is the only thing that notices
+      # when the two drift apart.
+      - name: push dictionary matches src/i18n.de.js
+        run: node platform/supabase/gen-push-i18n.mjs --check
+
+  sql:
+    name: migration chain
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          # Berlin, deliberately not UTC. run.sh also sets PGTZ per
+          # session, which is what actually guarantees it.
+          TZ: Europe/Berlin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: psql version
+        run: psql --version
+
+      # The same script the founder runs on the laptop, pointed at the
+      # service container instead of a cluster it builds itself. It
+      # loads stub.sql, schema.sql and every step-*.sql in order, then
+      # gives each *-test.sql its own copy of the result.
+      - name: chain + every SQL test
+        working-directory: platform
+        env:
+          CREMA_TEST_HOST: localhost
+          CREMA_TEST_PORT: '5432'
+          CREMA_TEST_USER: postgres
+          PGPASSWORD: postgres
+        run: |
+          tests=$(cd supabase/local-test && ls *-test.sql | tr '\n' ' ')
+          echo "tests: $tests"
+          ./supabase/local-test/run.sh $tests
