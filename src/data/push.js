@@ -26,7 +26,7 @@
    on an iPhone in a Safari tab and will never get a single push.
    ============================================================ */
 import { VAPID_PUBLIC_KEY } from '../config.js';
-import { rest, optionalColumns } from './supabase.js';
+import { rest } from './supabase.js';
 import { lang } from '../i18n.js';
 
 export const pushSupported = () =>
@@ -108,16 +108,7 @@ export async function pushEnabled(){
   return !!(await currentSubscription());
 }
 
-/* `lang` arrives with step-1.32.sql. Until that has been run by hand
-   the column is not there, and PostgREST refuses the whole upsert rather
-   than ignoring the key it does not know — which would have taken push
-   registration down for everybody the moment this deployed. So it is
-   declared optional the same way avatar_key is: sent once, dropped for
-   the rest of the session if the backend says it has nowhere to put it,
-   and the device keeps its subscription either way. */
-const opt = optionalColumns(['lang']);
-
-function rowFrom(sub, uid, has){
+function rowFrom(sub, uid){
   const j=sub.toJSON();
   return {
     endpoint: sub.endpoint,
@@ -135,17 +126,14 @@ function rowFrom(sub, uid, has){
 
        The server composes push text in plpgsql and cannot ask the
        browser at send time, so this is the only way it can know —
-       step-1.32.sql. `has()` is what keeps it off the wire until that
-       migration has been run; see the note on `opt` above for why
-       sending it blind would not have been harmless. */
-    ...(has('lang') ? { lang } : {}),
+       step-1.32.sql. */
+    lang,
     last_seen: new Date().toISOString()
   };
 }
 
-const upsert = (sub, uid) => opt.run(has=>({
-  path:'push_subscriptions', method:'POST',
-  body: rowFrom(sub, uid, has), prefer:'resolution=merge-duplicates' }));
+const upsert = (sub, uid) => rest('push_subscriptions', { method:'POST',
+  body: rowFrom(sub, uid), prefer:'resolution=merge-duplicates' });
 
 /* Ask, subscribe, store. Returns a reason string on failure so the UI can
    say something truer than "didn't work". */

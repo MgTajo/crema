@@ -17,7 +17,7 @@
    ============================================================ */
 import { FEED_PAGE } from '../config.js';
 import { agoFrom } from '../core/util.js';
-import { rest, optionalColumns } from './supabase.js';
+import { rest } from './supabase.js';
 import { CAFES, registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
 import { noReactions } from './reactions.js';
@@ -26,18 +26,19 @@ const COLS = 'id,user_id,drink,art,pattern,quality,image_key,caption,cafe_id,rec
 /* The author embed MUST name the foreign key. posts↔profiles is reachable
    both directly (posts.user_id) and many-to-many via likes/saves/comments,
    so a bare `profiles(...)` is ambiguous and PostgREST answers 300. */
-const author = has => `profiles!posts_user_id_fkey(id,handle,name,city,bio,avatar_color,level,premium${has('avatar_key')?',avatar_key':''})`;
+const AUTHOR = 'profiles!posts_user_id_fkey(id,handle,name,city,bio,avatar_color,level,premium,avatar_key)';
 /* Counts come from PostgREST's aggregate embedding rather than counter
    columns — views/aggregates first, denormalize only if it measurably
    hurts. Which posts *you* liked or saved is a separate query, because
    it changes per viewer and would bust any shared cache. */
 const COUNTS = 'likes(count),comments(count)';
-/* All three optional columns arrive with hand-run migrations (step-1.12,
-   1.13, 1.15), so the select has to survive their absence — see
-   optionalColumns() in data/supabase.js. */
-const opt = optionalColumns(['edited_at','avatar_key','visibility','hidden_at','image_keys']);
-const select = has => `${COLS}${has('edited_at')?',edited_at':''}${has('visibility')?',visibility':''}${has('hidden_at')?',hidden_at':''}${has('image_keys')?',image_keys':''},${author(has)},${COUNTS}`;
-const q = build => opt.run(has=>build(select(has), has));
+/* edited_at, visibility, hidden_at and image_keys used to be optional:
+   they arrived with hand-run migrations while the app was already
+   deployed, so the select had to survive their absence. Since
+   .github/workflows/release.yml the schema is applied before the site
+   is, so a column the code names is a column the database has. */
+const SELECT = `${COLS},edited_at,visibility,hidden_at,image_keys,${AUTHOR},${COUNTS}`;
+const q = build => rest(build(SELECT));
 
 const countOf = agg => (Array.isArray(agg) && agg.length ? (agg[0].count|0) : 0);
 
@@ -99,16 +100,12 @@ export function postOf(row, myUid){
   };
 }
 
-/* ---------- the app's post shape → an insert row ----------
-   `withVisibility` is false only while step-1.15.sql is still unrun: the
-   column would be rejected outright, and a post that can't be written is
-   worse than a post that is public when the app has no way to store
-   anything else. */
-export function rowOf(p, uid, withVisibility=true, withImages=true){
+/* ---------- the app's post shape → an insert row ---------- */
+export function rowOf(p, uid){
   const cafe = p.cafe ? CAFES.find(c=>c.name===p.cafe) : null;
   const row = baseRow(p,uid,cafe);
-  if(withVisibility) row.visibility = p.visibility==='followers' ? 'followers' : 'public';
-  if(withImages) row.image_keys = keysOf(p);
+  row.visibility = p.visibility==='followers' ? 'followers' : 'public';
+  row.image_keys = keysOf(p);
   return row;
 }
 function baseRow(p, uid, cafe){
@@ -125,7 +122,7 @@ function baseRow(p, uid, cafe){
     recipe: p.recipe || null
   };
 }
-/* The photo list, only when the column exists — see step-1.28. Written
+/* The photo list — see step-1.28. Written
    as null rather than an empty array for a pour with no photo, so the
    column means "not applicable" rather than "an empty gallery". */
 const keysOf = p => {
@@ -165,7 +162,7 @@ export const newPostId = () =>
 export async function fetchFeed({ before=null, limit=FEED_PAGE, myUid=null, authors=null,
                                   blocked=null, since=null, publicOnly=false }={}){
   const list = ids => `(${ids.map(id=>`"${id}"`).join(',')})`;
-  const rows = await q((sel,has)=>{
+  const rows = await q(sel=>{
     let p = `posts?select=${sel}&order=created_at.desc&limit=${limit}`;
     if(before) p += `&created_at=lt.${encodeURIComponent(before)}`;
     /* Today is "since your local midnight", so the cut-off is computed
@@ -176,7 +173,7 @@ export async function fetchFeed({ before=null, limit=FEED_PAGE, myUid=null, auth
     if(blocked && blocked.length) p += `&user_id=not.in.${list(blocked)}`;
     /* Belt and braces: RLS already hides other people's private pours,
        so this is about not showing YOUR private pours in a public feed. */
-    if(publicOnly && has('visibility')) p += `&visibility=eq.public`;
+    if(publicOnly) p += `&visibility=eq.public`;
     return p;
   });
   return (rows||[]).map(r=>postOf(r,myUid));
@@ -209,8 +206,8 @@ export async function fetchPost(id, myUid=null){
 
 /* ---------- writes ---------- */
 export async function createPost(p, uid){
-  const rows = await opt.run(has=>({ path:'posts', method:'POST',
-    prefer:'return=representation', body:rowOf(p,uid,has('visibility'),has('image_keys')) }));
+  const rows = await rest('posts', { method:'POST',
+    prefer:'return=representation', body:rowOf(p,uid) });
   return rows && rows.length ? postOf(rows[0],uid) : null;
 }
 
@@ -226,12 +223,10 @@ export async function createPost(p, uid){
    but it stops it being shown again. */
 const EDITABLE = ['drink','art','pattern','cafe_id','caption','recipe','visibility'];
 export async function updatePost(id, p){
-  return opt.run(has=>{
-    const full = rowOf(p, null, has('visibility'), has('image_keys'));
-    const patch = {};
-    EDITABLE.forEach(k=>{ if(k in full) patch[k] = full[k]; });
-    return { path:`posts?id=eq.${id}`, method:'PATCH', body:patch };
-  });
+  const full = rowOf(p, null);
+  const patch = {};
+  EDITABLE.forEach(k=>{ if(k in full) patch[k] = full[k]; });
+  return rest(`posts?id=eq.${id}`, { method:'PATCH', body:patch });
 }
 
 export async function deletePost(id){

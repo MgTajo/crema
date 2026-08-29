@@ -10,7 +10,7 @@
    `activate` then purges every other cache. It is the lever for evicting
    a bad cache — an ordinary deploy does not need it, because the
    revalidation below picks the deploy up on its own. */
-const C = 'crema-v47';
+const C = 'crema-v48';
 /* './' is the URL a navigation actually asks for — the manifest's
    start_url is "." and the TWA launches the same address. Precaching
    './index.html' alone would have left the one request that matters
