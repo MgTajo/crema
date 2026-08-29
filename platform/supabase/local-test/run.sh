@@ -104,16 +104,27 @@ for f in "$SQL/schema.sql" $FILES; do
   echo "    ok  $(basename "$f")"
 done
 
-# Supabase grants these by default; without them a security_invoker view
-# is unreadable and RLS never gets a chance to be the thing that denies.
-run -c "grant usage on schema public to anon, authenticated;" \
-    -c "grant all on all tables in schema public to anon, authenticated;" \
-    -c "grant all on all sequences in schema public to anon, authenticated;" \
-    -c "revoke all on function podium_check() from public, anon, authenticated;" \
-    -c "revoke all on function podium_award_day(date) from public, anon, authenticated;" \
-    -c "revoke all on function podium_award_recent() from public, anon, authenticated;" \
-    -c "revoke all on table podium_places from anon, authenticated;" \
-    -c "revoke all on table push_i18n from anon, authenticated;"
+# Everything after the baseline lives in supabase/migrations/ and is
+# applied by the release workflow. The step files above are how
+# production got its schema; these are how it changes from now on, so
+# the harness has to load both or a new migration is untested.
+#
+# The baseline itself is skipped: it is a second route to the schema the
+# step files just built, not a step beyond it.
+MIGRATIONS=$(ls "$SQL"/migrations/*.sql 2>/dev/null | grep -v '_baseline\.sql$' | sort || true)
+for f in $MIGRATIONS; do
+  if ! run -f "$f" > "$DIR/.load.out" 2>&1; then
+    grep -v '^NOTICE' "$DIR/.load.out" >&2
+    echo "    FAILED  $(basename "$f")" >&2
+    exit 1
+  fi
+  echo "    ok  $(basename "$f")"
+done
+
+# Nothing here any more. Supabase's default privileges are set in
+# stub.sql, before the chain loads, which is when they apply. This block
+# used to grant them afterwards and then re-revoke two specific objects by
+# hand — a patch on the symptom of granting at the wrong time.
 
 n=0
 for t in "$@"; do
