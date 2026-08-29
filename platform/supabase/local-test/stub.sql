@@ -7,6 +7,23 @@ do $$ begin
   begin create role service_role;  exception when duplicate_object then null; end;
 end $$;
 
+-- Supabase's default privileges, and the reason `revoke ... from public`
+-- takes nothing away from anon: the grant anon holds is its OWN, handed
+-- out at creation time, not one inherited through PUBLIC. Documented in
+-- brain/03-platform.md against the gear_* RPCs.
+--
+-- These must be set BEFORE the chain loads, because default privileges
+-- apply when an object is created. run.sh used to grant the same thing
+-- AFTERWARDS instead, which is not the same thing at all: it silently
+-- re-granted every table a migration had revoked, so the harness tested
+-- a database more permissive than production and a missing revoke could
+-- not fail a test. That is how mod_record stayed callable by any signed-in
+-- account for eleven days without a single assertion noticing.
+grant usage on schema public to anon, authenticated, service_role;
+alter default privileges in schema public grant all     on tables    to anon, authenticated, service_role;
+alter default privileges in schema public grant all     on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
+
 create schema if not exists auth;
 create schema if not exists cron;
 create schema if not exists net;
