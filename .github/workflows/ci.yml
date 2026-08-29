@@ -75,8 +75,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: psql version
-        run: psql --version
+      # The runner ships psql/pg_dump 16, and pg_dump refuses a server
+      # newer than itself: "aborting because of server version mismatch".
+      # baseline-check.sh dumps the two databases it compares, so it needs
+      # a 17 client to talk to the 17 service container.
+      - name: postgresql client 17
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          psql --version
+          pg_dump --version
 
       # The same script the founder runs on the laptop, pointed at the
       # service container instead of a cluster it builds itself. It
