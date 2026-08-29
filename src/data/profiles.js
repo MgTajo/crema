@@ -7,15 +7,14 @@
    whatever this browser remembers — that is what makes an account
    portable between devices.
    ============================================================ */
-import { rest, optionalColumns } from './supabase.js';
+import { rest } from './supabase.js';
 import { registerUser } from './world.js';
 import { LEVELS } from './catalog.js';
 
 const levelName = n => (LEVELS.find(l=>l[0]===n)||LEVELS[0])[1];
-const opt = optionalColumns(['avatar_key']);
 
 /* the app's me-object → a profiles row */
-export function meToRow(me, uid, handle, withAvatar=true){
+export function meToRow(me, uid, handle){
   const row = {
     id: uid,
     handle,
@@ -35,10 +34,8 @@ export function meToRow(me, uid, handle, withAvatar=true){
        giving something up should never need a code. */
     premium: !!me.premium
   };
-  /* An R2 object key, never the image — same rule as posts.image_key.
-     Omitted entirely (rather than sent as null) when the column may not
-     exist yet, because a write naming it fails the same way a read does. */
-  if(withAvatar) row.avatar_key = me.avatar || null;
+  /* An R2 object key, never the image — same rule as posts.image_key. */
+  row.avatar_key = me.avatar || null;
   return row;
 }
 
@@ -91,21 +88,17 @@ export function rowToMe(row){
   };
 }
 
-/* The five notification switches, written on their own. Uses its own
-   optionalColumns() so that on a deploy where step-1.16.sql (or 1.20,
-   or 1.30) has not been run yet the toggles quietly do nothing instead
-   of failing the save — same contract as avatar_key above. */
-const notifyOpt = optionalColumns(['notify_social','notify_streak','notify_digest','notify_morning','notify_friends']);
+/* The five notification switches, written on their own. They arrived
+   across step-1.16, 1.20 and 1.30, and until the release workflow
+   existed each one had to be able to not be there yet. */
 export function setNotifyPrefs(uid, me){
-  return notifyOpt.run(has=>{
-    const body={};
-    if(has('notify_social')) body.notify_social = !!me.notifySocial;
-    if(has('notify_streak')) body.notify_streak = !!me.notifyStreak;
-    if(has('notify_digest')) body.notify_digest = !!me.notifyDigest;
-    if(has('notify_morning')) body.notify_morning = !!me.notifyMorning;
-    if(has('notify_friends')) body.notify_friends = !!me.notifyFriends;
-    return { path:`profiles?id=eq.${uid}`, method:'PATCH', body };
-  });
+  return rest(`profiles?id=eq.${uid}`, { method:'PATCH', body:{
+    notify_social:  !!me.notifySocial,
+    notify_streak:  !!me.notifyStreak,
+    notify_digest:  !!me.notifyDigest,
+    notify_morning: !!me.notifyMorning,
+    notify_friends: !!me.notifyFriends
+  }});
 }
 
 /* Which timezone this person's mornings happen in, as minutes east of
@@ -116,15 +109,10 @@ export function setNotifyPrefs(uid, me){
    and nothing else, so without this "log a coffee on five different
    days" and "before 8am" would be measured in UTC and be wrong for
    everyone outside it (platform/supabase/step-1.17.sql). Written on sign-in
-   rather than once at signup so it follows people who travel or move.
-
-   Its own optionalColumns(), so a deploy that lands before step-1.17
-   has been run silently skips it instead of failing the sync. */
-const tzOpt = optionalColumns(['tz_offset']);
+   rather than once at signup so it follows people who travel or move. */
 export function setTimezone(uid){
-  return tzOpt.run(has=>has('tz_offset')
-    ? { path:`profiles?id=eq.${uid}`, method:'PATCH', body:{ tz_offset: -new Date().getTimezoneOffset() } }
-    : { path:`profiles?id=eq.${uid}&select=id`, method:'GET' });
+  return rest(`profiles?id=eq.${uid}`,
+    { method:'PATCH', body:{ tz_offset: -new Date().getTimezoneOffset() } });
 }
 
 /* a remote profile → the shape ui/ expects in the USERS map.
@@ -212,8 +200,8 @@ export async function ensureProfile(uid, email, me){
   for(let attempt=0; attempt<5; attempt++){
     const handle = attempt===0 ? base : `${base}${Math.floor(Math.random()*9000)+1000}`;
     try{
-      const created = await opt.run(has=>({ path:'profiles', method:'POST',
-        prefer:'return=representation', body: meToRow(me, uid, handle, has('avatar_key')) }));
+      const created = await rest('profiles', { method:'POST',
+        prefer:'return=representation', body: meToRow(me, uid, handle) });
       return { me:rowToMe(created[0]), created:true };
     }catch(e){
       if(e.status===409) continue;      // handle taken, try another
@@ -226,11 +214,9 @@ export async function ensureProfile(uid, email, me){
 /* Push local profile edits up. A 409 means the username is taken — the
    caller surfaces that, because it is the user's to fix. */
 export async function pushProfile(uid, me){
-  return opt.run(has=>{
-    const row = meToRow(me, uid, clean(me.handle) || 'barista', has('avatar_key'));
-    delete row.id;
-    return { path:`profiles?id=eq.${uid}`, method:'PATCH', body:row };
-  });
+  const row = meToRow(me, uid, clean(me.handle) || 'barista');
+  delete row.id;
+  return rest(`profiles?id=eq.${uid}`, { method:'PATCH', body:row });
 }
 
 /* ---------- Premium ----------
@@ -244,21 +230,15 @@ export async function pushProfile(uid, me){
    Returns false for a wrong code rather than throwing: that is an
    answer, not a failure, and the caller says so in the field.
 
-   The migration is run by hand while the app is already live, so the
-   window where the function does not exist yet has to be survivable —
-   same contract optionalColumns() exists for. In that window the plain
-   write still works, because the guard trigger isn't there either. */
-export async function redeemPremium(uid, code){
-  try{
-    const ok = await rest('rpc/redeem_premium', { method:'POST', body:{ code } });
-    return ok===true || (Array.isArray(ok) && ok[0]===true);
-  }catch(e){
-    const missing = e.status===404 || /PGRST202|could not find the function/i.test(e.message||'');
-    if(!missing) throw e;
-    console.warn('redeem_premium is missing — run platform/supabase/step-1.21.sql');
-    await rest(`profiles?id=eq.${uid}`, { method:'PATCH', body:{ premium:true } });
-    return true;
-  }
+   There used to be a fallback here for a database where step-1.21 had
+   not been run: PATCH profiles.premium directly, which worked precisely
+   because the guard trigger was not there either. It went with
+   optionalColumns() and for the same reason — a client that can raise
+   its own Premium flag is worth keeping only while the alternative is a
+   broken screen, and that window no longer exists. */
+export async function redeemPremium(code){
+  const ok = await rest('rpc/redeem_premium', { method:'POST', body:{ code } });
+  return ok===true || (Array.isArray(ok) && ok[0]===true);
 }
 /* Giving it up. Always allowed, never a code, never a conversation. */
 export function dropPremium(uid){
@@ -279,10 +259,7 @@ export function pushName(uid, name){
    fields, and it must not be able to fail with a 409 on someone else's
    handle. `key` is an R2 object key, or null to go back to initials. */
 export function pushAvatar(uid, key){
-  return opt.run(has=>{
-    if(!has('avatar_key')) throw new Error('Profile photos need platform/supabase/step-1.13.sql');
-    return { path:`profiles?id=eq.${uid}`, method:'PATCH', body:{ avatar_key: key || null } };
-  });
+  return rest(`profiles?id=eq.${uid}`, { method:'PATCH', body:{ avatar_key: key || null } });
 }
 
 /* Points and level after something that moves them (a new pour, a
@@ -295,10 +272,7 @@ export async function fetchScore(uid){
 }
 
 /* ---------- reads about other people ---------- */
-/* `avatar_key` arrives with step-1.13.sql, run by hand while the app is
-   already live — so every query naming it has to survive its absence.
-   See optionalColumns() in data/supabase.js. */
-const card = has => `id,handle,name,city,bio,avatar_color,level,premium${has('avatar_key')?',avatar_key':''}`;
+const CARD = 'id,handle,name,city,bio,avatar_color,level,premium,avatar_key';
 
 /* Follower / following / pour counts, from the profile_counts view.
    Counted in Postgres rather than kept in columns, so they can't drift. */
@@ -311,7 +285,7 @@ export async function fetchProfileCounts(uid){
 /* One profile, with its counts, for the user sheet. */
 export async function fetchUserCard(uid){
   const [rows, counts] = await Promise.all([
-    opt.run(has=>`profiles?id=eq.${uid}&select=${card(has)}`),
+    rest(`profiles?id=eq.${uid}&select=${CARD}`),
     fetchProfileCounts(uid).catch(()=>({followers:0,following:0,pours:0}))
   ]);
   if(!rows || !rows.length) return null;
@@ -323,11 +297,9 @@ export async function fetchUserCard(uid){
 /* People to follow: the most recent accounts that aren't you and aren't
    blocked. Real accounts only — when Crema is empty, so is this list. */
 export async function fetchSuggestedProfiles(uid, blocked=[], limit=10){
-  const rows = await opt.run(has=>{
-    let q = `profiles?select=${card(has)}&id=neq.${uid}&order=created_at.desc&limit=${limit}`;
-    if(blocked.length) q += `&id=not.in.(${blocked.map(id=>`"${id}"`).join(',')})`;
-    return q;
-  });
+  let q = `profiles?select=${CARD}&id=neq.${uid}&order=created_at.desc&limit=${limit}`;
+  if(blocked.length) q += `&id=not.in.(${blocked.map(id=>`"${id}"`).join(',')})`;
+  const rows = await rest(q);
   return (rows||[]).map(r=>registerUser(rowToUser(r)));
 }
 
@@ -341,8 +313,8 @@ export async function fetchSuggestedProfiles(uid, blocked=[], limit=10){
 export async function fetchProfilesByHandles(handles, limit=20){
   const list=[...new Set((handles||[]).map(clean).filter(Boolean))].slice(0,limit);
   if(!list.length) return [];
-  const rows = await opt.run(has=>
-    `profiles?select=${card(has)}&handle=in.(${list.map(h=>`"${h}"`).join(',')})`);
+  const rows = await rest(
+    `profiles?select=${CARD}&handle=in.(${list.map(h=>`"${h}"`).join(',')})`);
   return (rows||[]).map(r=>registerUser(rowToUser(r)));
 }
 
@@ -351,10 +323,8 @@ export async function searchProfiles(uid, q, limit=8, blocked=[]){
   const term = q.trim().replace(/[%,()*]/g,'');
   if(!term) return [];
   const pat = `*${term}*`;
-  const rows = await opt.run(has=>{
-    let query = `profiles?select=${card(has)}&id=neq.${uid}&or=(handle.ilike.${pat},name.ilike.${pat},city.ilike.${pat})&limit=${limit}`;
-    if(blocked.length) query += `&id=not.in.(${blocked.map(id=>`"${id}"`).join(',')})`;
-    return query;
-  });
+  let query = `profiles?select=${CARD}&id=neq.${uid}&or=(handle.ilike.${pat},name.ilike.${pat},city.ilike.${pat})&limit=${limit}`;
+  if(blocked.length) query += `&id=not.in.(${blocked.map(id=>`"${id}"`).join(',')})`;
+  const rows = await rest(query);
   return (rows||[]).map(r=>registerUser(rowToUser(r)));
 }

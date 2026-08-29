@@ -62,12 +62,11 @@ export async function fetchReactions(postIds, myUid){
   const empty={ counts:{}, mine:{} };
   if(!postIds || !postIds.length) return empty;
   /* Never throws. This rides along with the like and save lookups in one
-     Promise.all, and a rejection there would take both of those down with
-     it — so on the deploy where step-1.19.sql has not been run yet, the
-     404 for a table that doesn't exist would cost every heart and
-     bookmark on the page its state. A missing TABLE is not something
-     optionalColumns() can shrug off the way it does a missing column, so
-     the shrug happens here instead: no reactions, everything else fine. */
+     Promise.all, and a rejection there would take both of those down
+     with it — one unreachable table would cost every heart and bookmark
+     on the page its state. Unlike the column-shaped version of that
+     problem, which the release workflow now rules out, this one is about
+     the request failing at all: no reactions, everything else fine. */
   let rows;
   try{ rows = await rest(`reactions?select=post_id,kind,user_id&post_id=in.${inList(postIds)}&limit=2000`); }
   catch(e){ console.warn('reactions unavailable — run platform/supabase/step-1.19.sql',e); return empty; }

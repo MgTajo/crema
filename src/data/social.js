@@ -12,17 +12,15 @@
    deletes nothing, and the local state stays authoritative.
    ============================================================ */
 import { agoFrom } from '../core/util.js';
-import { rest, optionalColumns } from './supabase.js';
+import { rest } from './supabase.js';
 import { registerUser } from './world.js';
 import { rowToUser } from './profiles.js';
 
-/* Added by hand-run migrations against a live app — see optionalColumns()
-   in data/supabase.js. `status` (step-1.15) is kept separate from the
-   profile columns because they sit on different tables and land in
-   different migrations. */
-const opt = optionalColumns(['avatar_key']);
-const optFollow = optionalColumns(['status','avatar_key']);
-const withAvatar = has => has('avatar_key') ? ',avatar_key' : '';
+/* `avatar_key` (step-1.13) and `follows.status` (step-1.15) were both
+   added by hand against a live app, so every query naming them used to
+   give them up on the first 42703 and retry without them. The release
+   workflow applies migrations before the site deploys; they are just
+   columns now. */
 
 /* PostgREST needs a quoted, comma-joined list for in.(…) */
 const inList = ids => `(${ids.map(id=>`"${id}"`).join(',')})`;
@@ -49,23 +47,19 @@ export function commentOf(row, myUid){
    so "who do I follow" is now two answers, and the UI needs both: an
    accepted follow shows Following, a pending one shows Requested. */
 export async function fetchMyFollows(uid){
-  return optFollow.run(has=>`follows?select=followee_id${has('status')?',status':''}&follower_id=eq.${uid}`)
-    .then(rows=>{
-      const accepted=[], pending=[];
-      (rows||[]).forEach(r=>{
-        /* no status column yet means every follow is a plain follow */
-        (r.status==='pending' ? pending : accepted).push(r.followee_id);
-      });
-      return { accepted, pending };
-    });
+  const rows = await rest(`follows?select=followee_id,status&follower_id=eq.${uid}`);
+  const accepted=[], pending=[];
+  (rows||[]).forEach(r=>{
+    (r.status==='pending' ? pending : accepted).push(r.followee_id);
+  });
+  return { accepted, pending };
 }
 
 /* People waiting on you, newest first, with enough of their profile to
    render a row without a second round trip. */
 export async function fetchFollowRequests(uid){
-  if(!optFollow.has('status')) return [];
-  const rows = await optFollow.run(has=>
-    `follows?select=follower_id,created_at,profiles!follows_follower_id_fkey(${fCard(has)})`
+  const rows = await rest(
+    `follows?select=follower_id,created_at,profiles!follows_follower_id_fkey(${FCARD})`
     + `&followee_id=eq.${uid}&status=eq.pending&order=created_at.desc&limit=100`);
   return (rows||[]).map(r=>{
     const u = r.profiles ? registerUser(rowToUser(r.profiles)) : null;
@@ -75,10 +69,8 @@ export async function fetchFollowRequests(uid){
 
 /* Asking. The database refuses anything but 'pending' here, so this is
    the only shape a follow can start in. */
-export const follow = (uid,target) => optFollow.run(has=>({
-  path:'follows', method:'POST',
-  body: has('status') ? { follower_id:uid, followee_id:target, status:'pending' }
-                      : { follower_id:uid, followee_id:target } }));
+export const follow = (uid,target) => rest('follows', { method:'POST',
+  body:{ follower_id:uid, followee_id:target, status:'pending' } });
 
 /* Covers unfollowing, withdrawing a request, and — from the other side —
    declining one or removing a follower. One row, one delete. */
@@ -90,16 +82,16 @@ export const declineFollow = (uid,follower) =>
 
 /* The two follower lists, as profiles. Both sides of `follows` reach
    profiles, so each embed has to name its foreign key. */
-const fCard = has => `id,handle,name,city,bio,avatar_color,level,premium${withAvatar(has)}`;
-async function followList(build, key){
-  const rows = await opt.run(build);
+const FCARD = 'id,handle,name,city,bio,avatar_color,level,premium,avatar_key';
+async function followList(path, key){
+  const rows = await rest(path);
   return (rows||[]).map(r=>r[key]).filter(Boolean).map(p=>registerUser(rowToUser(p)));
 }
 export const fetchFollowers = uid =>
-  followList(has=>`follows?select=profiles!follows_follower_id_fkey(${fCard(has)})&followee_id=eq.${uid}&limit=200`,
+  followList(`follows?select=profiles!follows_follower_id_fkey(${FCARD})&followee_id=eq.${uid}&limit=200`,
              'profiles');
 export const fetchFollowing = uid =>
-  followList(has=>`follows?select=profiles!follows_followee_id_fkey(${fCard(has)})&follower_id=eq.${uid}&limit=200`,
+  followList(`follows?select=profiles!follows_followee_id_fkey(${FCARD})&follower_id=eq.${uid}&limit=200`,
              'profiles');
 
 /* ---------- likes ---------- */
@@ -138,11 +130,11 @@ export const unfollowCafe = (uid,cafeId) => rest(`cafe_follows?user_id=eq.${uid}
 /* ---------- comments ---------- */
 /* Same foreign-key trap as posts: comments reaches profiles directly
    and again through comment_likes, so the embed must name the key. */
-const commentSelect = has =>
-  `id,body,created_at,user_id,profiles!comments_user_id_fkey(id,handle,name,avatar_color,level,premium${withAvatar(has)}),comment_likes(count)`;
+const COMMENT_SELECT =
+  'id,body,created_at,user_id,profiles!comments_user_id_fkey(id,handle,name,avatar_color,level,premium,avatar_key),comment_likes(count)';
 
 export async function fetchComments(postId){
-  return (await opt.run(has=>`comments?select=${commentSelect(has)}&post_id=eq.${postId}&order=created_at.asc`)) || [];
+  return (await rest(`comments?select=${COMMENT_SELECT}&post_id=eq.${postId}&order=created_at.asc`)) || [];
 }
 export async function addComment(uid, postId, body){
   const rows = await rest('comments',{ method:'POST', prefer:'return=representation',

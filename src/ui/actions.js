@@ -1430,7 +1430,7 @@ async function redeemCode(inputId){
   if(!u){ ui.premium.err=t('Sign in first — Premium lives on your account.'); renderOverlay(); return; }
   ui.premium.busy=true; ui.premium.err=''; renderOverlay();
   try{
-    const ok=await redeemPremium(u.id,code);
+    const ok=await redeemPremium(code);
     if(!ok){ ui.premium.busy=false; ui.premium.err=t('That code is not right. Check it against the mail, or ask for a new one.'); renderOverlay(); return; }
     state.me.premium=true; save(); applyMe();
     ui.premium={err:'',busy:false};

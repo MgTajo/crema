@@ -19,10 +19,10 @@
 
    The poller is not a temporary scaffold. Realtime needs `posts` and
    friends in the `supabase_realtime` publication (platform/supabase/
-   step-1.25.sql), migrations here are run by hand while main deploys
-   itself on push, and WebSockets are the first thing a corporate proxy
-   blocks. Same reasoning as optionalColumns() in data/supabase.js: the
-   feature turns itself down rather than off.
+   step-1.25.sql), and WebSockets are the first thing a corporate proxy
+   blocks. So the feature turns itself down rather than off — which is
+   about the socket being refused, not about the schema. The schema now
+   arrives before the code that needs it does.
 
    This layer owns state, never pixels — it is below ui/. It says what
    changed; ui/actions.js decides what that is allowed to repaint.
