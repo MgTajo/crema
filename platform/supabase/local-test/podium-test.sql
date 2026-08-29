@@ -55,7 +55,7 @@ do $$
 declare n int;
 begin
   select count(*) into n from podium_today;
-  assert n = 3, 'podium must hold exactly 3, got ' || n;
+  assert n = 99, 'podium must hold exactly 3, got ' || n;  -- DELIBERATELY BROKEN
   assert (select caption from podium_today where place = 1) = 'Ann today', '1st wrong';
   assert (select caption from podium_today where place = 2) = 'Bo today',  '2nd wrong';
   assert (select caption from podium_today where place = 3) = 'Cy today',  '3rd wrong';

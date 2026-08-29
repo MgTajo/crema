@@ -12,7 +12,7 @@ const live = d => { const r=streakFrom(S(d)); return [r.days, r.poured, r.atRisk
 console.log('REST_AFTER =', REST_AFTER);
 console.log('\nstreakFrom — basics');
 eq('no pours at all',            live([]),            [0,false,false,false,false]);
-eq('poured today only',          live([0]),           [1,true,false,false,false]);
+eq('poured today only',          live([0]),           [99,true,false,false,false]); // DELIBERATELY BROKEN
 eq('yesterday only, today open', live([1]),           [1,false,true,false,false]);
 eq('today+yesterday',            live([0,1]),         [2,true,false,false,false]);
 eq('gap at 2 stops short run',   live([0,1,3,4]),     [2,true,false,false,false]);
