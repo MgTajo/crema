@@ -93,3 +93,21 @@ jobs:
           tests=$(cd supabase/local-test && ls *-test.sql | tr '\n' ' ')
           echo "tests: $tests"
           ./supabase/local-test/run.sh $tests
+
+      # The baseline is a dump of production, so it is production by
+      # construction — as long as it still loads and still describes the
+      # same database the step files build. This is the Docker-free
+      # stand-in for `supabase db diff`.
+      - name: baseline still builds the same database
+        working-directory: platform
+        env:
+          CREMA_TEST_HOST: localhost
+          CREMA_TEST_PORT: '5432'
+          CREMA_TEST_USER: postgres
+          PGPASSWORD: postgres
+        run: |
+          if ! ls supabase/migrations/*.sql >/dev/null 2>&1; then
+            echo "no baseline yet — step 1.3 has not landed."
+            exit 0
+          fi
+          ./supabase/local-test/baseline-check.sh
