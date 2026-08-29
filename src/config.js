@@ -16,12 +16,91 @@
    can only show the sign-in screen and say it isn't configured.
    ============================================================ */
 
-export const SUPABASE_URL = 'https://diabtvahplwoipvrprvb.supabase.co';
-export const SUPABASE_KEY = 'sb_publishable_Dl-0fert2JgI005EaRauNw_ytYbmeVL';
+/* ------------------------------------------------------------
+   Which backend this page talks to.
+
+   There is no build step, so the environment cannot be injected at
+   deploy time — and a static site does not need it to be. The page
+   already knows where it is being served from, and the hostname is
+   exactly the fact we want to switch on. ~40 lines here buys the same
+   thing build-time injection would, and keeps the buildless property
+   (brain/13-infrastructure-plan.md, step 1.2).
+
+   Adding an environment is adding an entry below and a hostname to one
+   of the three lists. Nothing else in the app reads these directly:
+   everything imports SUPABASE_URL / SUPABASE_KEY / BACKEND, which are
+   resolved once, here.
+   ------------------------------------------------------------ */
+
+const ENVIRONMENTS = {
+  production: {
+    url: 'https://diabtvahplwoipvrprvb.supabase.co',
+    key: 'sb_publishable_Dl-0fert2JgI005EaRauNw_ytYbmeVL',
+  },
+  /* Staging. Fill both in from the staging project's dashboard
+     (Project Settings → API): the URL and the *publishable* key, never
+     the service_role one. While these are blank, localhost keeps using
+     production and says so in the console — see pickEnvironment(). */
+  staging: {
+    url: '',
+    key: '',
+  },
+};
+
+/* The live app. mgtajo.github.io is here because it still redirects to
+   crema-app.com and is in Supabase's redirect allowlist. */
+const PRODUCTION_HOSTS = ['crema-app.com', 'www.crema-app.com', 'mgtajo.github.io'];
+
+/* Hosts that must reach staging and must never quietly fall back to
+   production — an unconfigured staging host is a misconfiguration, and
+   the app is supposed to say so rather than write to the real database. */
+const STAGING_HOSTS = ['staging.crema-app.com'];
+
+/* devserver.py, and anything else served off this machine. */
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]', '0.0.0.0'];
+
+function pickEnvironment(){
+  const host = (typeof location !== 'undefined' && location.hostname) || '';
+  if(STAGING_HOSTS.includes(host)) return 'staging';
+  if(PRODUCTION_HOSTS.includes(host)) return 'production';
+  if(LOCAL_HOSTS.includes(host) || host.endsWith('.local')){
+    if(ENVIRONMENTS.staging.url && ENVIRONMENTS.staging.key) return 'staging';
+    /* Deliberate, and deliberately loud. Local development against
+       production is what this step exists to end, but breaking the dev
+       server on the day the switch lands — before the staging project
+       exists — would just get the switch reverted. This warning is the
+       whole remedy: fill in ENVIRONMENTS.staging above. */
+    if(typeof console !== 'undefined'){
+      console.warn('[crema] staging is not configured — this page is talking to PRODUCTION. Fill in ENVIRONMENTS.staging in src/config.js.');
+    }
+    return 'production';
+  }
+  /* An unlisted host — a fork, a preview domain, someone's own copy.
+     Production is what it resolved to before this switch existed, so it
+     is what it resolves to now. A new staging host goes in the list
+     above; it does not get here by accident. */
+  return 'production';
+}
+
+/* Which one this page picked. Exported so anything that needs to say it
+   out loud — a banner, a test, the console — reads it rather than
+   re-deriving it from the hostname. */
+export const ENV = pickEnvironment();
+
+export const SUPABASE_URL = ENVIRONMENTS[ENV].url;
+export const SUPABASE_KEY = ENVIRONMENTS[ENV].key;
+
+if(ENV !== 'production' && typeof console !== 'undefined'){
+  console.info(`[crema] backend: ${ENV} (${SUPABASE_URL || 'not configured'})`);
+}
 
 /* R2 custom domain, bound to the "coffee" bucket with Cloudflare
    Image Transformations enabled on the zone (roadmap step 1.6). Public
-   and read-only — safe to commit, same as the URL/key above. */
+   and read-only — safe to commit, same as the URL/key above.
+
+   ⚠️ One bucket, both environments: a photo uploaded from staging lands
+   next to the real ones. Harmless while staging is one person testing,
+   and a second bucket is the fix if that stops being true. */
 export const MEDIA_BASE = 'https://media.crema-app.com';
 
 /* Sanity check on the two values above. False means the app is
