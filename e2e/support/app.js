@@ -9,22 +9,23 @@
 
    ⚠️ Crema is optimistic about writes. submitPost() puts the pour on
    screen and calls createPost() afterwards; toggling a like paints
-   first too. So "it appeared" proves nothing about the database. Every
-   flow here therefore ends with a RELOAD and a second assertion — what
-   survives a reload came back from Postgres, and that is the only part
-   worth calling end to end.
+   first too. So "it appeared" proves nothing about the database, and
+   nothing in this file does. The assertions with teeth are in
+   support/db.js, which reads the row back over PostgREST; the reload()
+   below is the other half of the same question — that the app can read
+   its own write back and draw it.
    ============================================================ */
 import { expect } from '@playwright/test';
 import { BASE_URL, assertNotProductionUrl } from './env.js';
 
 /* ---------- opening the app ---------- */
 
-/* Two flags are seeded before any script runs, both so a card cannot
-   land on top of a click:
-     · crema.lang=en    — the assertions and the app agree on a language
+/* Two flags are seeded before any script runs:
+     · crema.lang=en — so the app and any text this suite ever reads
+       agree on a language, whatever locale the runner has
      · crema.seen.daily-champion — app.js raises the "what's new" sheet
-       1.4s after a signed-in boot, which is exactly long enough to
-       cover the button a test is about to press. */
+       1.4 s after a signed-in boot, which is exactly long enough to
+       land on top of a button a test is about to press. */
 export async function openApp(page, { path = '' } = {}) {
   await page.addInitScript(() => {
     try {
