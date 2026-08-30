@@ -51,9 +51,10 @@ jobs:
   verify:
     uses: ./.github/workflows/ci.yml
 
-  # The four flows, against staging. Inert until the repository variable
-  # CREMA_E2E is set to true — see e2e/README.md for the two things a
-  # human has to do to the staging project first.
+  # The four flows, against staging. It decides for itself whether it can
+  # run — it asks staging whether accounts can be minted — and warns
+  # rather than failing when it cannot, so an unready staging never
+  # blocks a release. CREMA_E2E=false is the deliberate off switch.
   e2e:
     needs: verify
     uses: ./.github/workflows/e2e.yml

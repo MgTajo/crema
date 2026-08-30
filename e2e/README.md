@@ -29,13 +29,26 @@ reason this needs no environment plumbing.
 ## What it needs from the staging project
 
 1. **Email auto-confirmation ON** — Authentication → Sign In / Providers →
-   Email → *Confirm email* **off**. Production already has it off. Without it
-   the suite cannot create the accounts it runs as, and the built-in mailer is
-   capped at a couple of messages an hour anyway (plan step 1b.4). The suite
-   checks this before it types anything and tells you exactly this.
+   Email → *Confirm email* **off**. Production already has it off. ✅ Done
+   2026-08-30. Without it the suite cannot create the accounts it runs as, and
+   the built-in mailer is capped at a couple of messages an hour anyway (plan
+   step 1b.4). The suite checks this before it types anything, and so does CI —
+   which is what decides whether the release runs the flows at all.
 2. **The schema up to date** — `supabase db push` against staging, from
    `platform/`. The flows themselves predate the last four migrations, but a
-   staging database that is behind is not staging.
+   staging database that is behind is not staging. In CI this happens on its
+   own once the repository secret `SUPABASE_STAGING_DB_PASSWORD` is set.
+
+## Switching it off
+
+There is no switch to turn it **on**: `.github/workflows/e2e.yml` asks staging
+whether it can mint accounts and runs if it can, because a variable somebody has
+to remember is the class of thing this whole phase exists to stop relying on.
+
+To turn it **off** for a release that has to go out regardless, set the
+repository variable `CREMA_E2E=false`. The job then succeeds with a warning
+rather than failing — a skipped job would skip everything downstream of it, and
+downstream of it is the production release.
 
 If auto-confirmation cannot be turned on, make two accounts by hand and point
 the suite at them instead:
