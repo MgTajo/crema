@@ -63,15 +63,20 @@ jobs:
       - name: should the flows run against staging?
         id: gate
         working-directory: e2e
+        # Through env rather than interpolated into the script. A secret
+        # with a quote in it would otherwise be pasted into shell source.
+        env:
+          SWITCH: ${{ vars.CREMA_E2E }}
+          SUPPLIED_EMAIL: ${{ secrets.CREMA_E2E_EMAIL }}
         run: |
           set -uo pipefail
-          if [ "${{ vars.CREMA_E2E }}" = "false" ]; then
+          if [ "${SWITCH:-}" = "false" ]; then
             echo "on=no" >> "$GITHUB_OUTPUT"
             echo "::warning::E2E is switched off (repository variable CREMA_E2E=false). This"
             echo "::warning::release is going to production without the four flows being run."
             exit 0
           fi
-          if [ -n "${{ secrets.CREMA_E2E_EMAIL }}" ]; then
+          if [ -n "${SUPPLIED_EMAIL:-}" ]; then
             echo "accounts are supplied by secret — nothing to mint."
             echo "on=yes" >> "$GITHUB_OUTPUT"
             exit 0
