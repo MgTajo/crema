@@ -399,3 +399,59 @@ select (select count(*) from recent)                                        as p
        (select count(*) from push_subscriptions)                            as devices_registered,
        (select count(*) from push_subscriptions s join profiles p on p.id = s.user_id
          where p.notify_friends)                                            as devices_a_friend_push_reaches;
+
+
+-- ============================================================
+-- BLOCK K — what broke, for whom, in which build
+-- ============================================================
+-- Added 2026-08-30 with the error log (D-2026-08-30-06). This is the
+-- whole of "how do I use it": there is no dashboard and no alert, so
+-- reading this block IS the monitoring. Run it after every release and
+-- whenever somebody says the app did something strange.
+--
+-- `client_errors` holds 30 days; the prune job takes the rest. An empty
+-- result is the expected result and means one of two things — nothing
+-- crashed, or the reporter is not catching what actually breaks. The
+-- known blind spot is signed-out visitors, who have no uid to write
+-- with, so a sign-up that crashes is invisible here by construction.
+--
+-- Requires an admin session (the select policy is `is_admin()`), or the
+-- SQL editor / service role, which bypasses RLS.
+
+-- K1 — the last 30 days, most common first. The one to read.
+select message,
+       count(*)                       as hits,
+       count(distinct user_id)        as people,
+       max(created_at)                as last_seen,
+       min(created_at)                as first_seen,
+       array_agg(distinct app_version) as builds,
+       array_agg(distinct lang)        as langs
+  from client_errors
+ group by message
+ order by hits desc, last_seen desc
+ limit 40;
+
+-- K2 — is it getting better or worse. A fix that worked shows as a
+-- build that stops appearing, which is why app_version is recorded.
+select date_trunc('day', created_at)::date as day,
+       app_version,
+       count(*)                as errors,
+       count(distinct user_id) as people
+  from client_errors
+ group by 1, 2
+ order by 1 desc, errors desc;
+
+-- K3 — one person or everybody. A crash that hits one account and no
+-- other is usually their data, not the code, and is a different job.
+select count(*)                                             as errors_30d,
+       count(distinct user_id)                              as people_affected,
+       (select count(*) from profiles)                      as accounts,
+       round(100.0 * count(distinct user_id)
+             / nullif((select count(*) from profiles), 0), 1) as pct_of_accounts
+  from client_errors;
+
+-- K4 — the newest twenty, with the stack. What you actually debug from.
+select created_at, message, source, app_version, lang, stack
+  from client_errors
+ order by created_at desc
+ limit 20;

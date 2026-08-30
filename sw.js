@@ -10,7 +10,7 @@
    `activate` then purges every other cache. It is the lever for evicting
    a bad cache — an ordinary deploy does not need it, because the
    revalidation below picks the deploy up on its own. */
-const C = 'crema-v49';
+const C = 'crema-v50';
 /* './' is the URL a navigation actually asks for — the manifest's
    start_url is "." and the TWA launches the same address. Precaching
    './index.html' alone would have left the one request that matters
@@ -21,7 +21,7 @@ const ASSETS = ['./','./manifest.webmanifest','./styles.css',
   './src/data/supabase.js','./src/data/profiles.js','./src/data/remote.js','./src/data/posts.js',
   './src/data/social.js','./src/data/challenges.js','./src/data/notifications.js','./src/data/media.js',
   './src/data/push.js','./src/data/reactions.js','./src/data/realtime.js','./src/data/gear.js',
-  './src/data/recap.js','./src/data/moderation.js',
+  './src/data/recap.js','./src/data/moderation.js','./src/data/errors.js',
   './src/domain/art.js','./src/domain/scoring.js','./src/domain/streak.js','./src/domain/premium.js','./src/domain/framing.js',
   './src/store/persistence.js','./src/store/store.js','./src/store/live.js',
   './src/ui/icons.js','./src/ui/components.js','./src/ui/views.js','./src/ui/overlays.js','./src/ui/actions.js','./src/ui/gate.js','./src/ui/history.js','./src/ui/recap.js','./src/ui/viewport.js','./src/ui/timeago.js',

@@ -31,6 +31,7 @@ import { startAgoTicker } from './ui/timeago.js';
 import { canInstallOnIOS } from './data/push.js';
 import { seen, markSeen, DAILY_CHAMPION } from './core/announce.js';
 import { applyLang, t } from './i18n.js';
+import { watchForErrors } from './data/errors.js';
 /* Side effect only: measures the window and keeps --app-h in step with it
    for the rest of the session. Module evaluation happens before anything
    below runs, so the shell is the right height for the first paint. */
@@ -40,6 +41,14 @@ import './ui/viewport.js';
    render is about to write, or the browser offers to translate a page
    that is already in the reader's language. */
 applyLang();
+
+/* Two listeners, no network, no work — installed before anything below
+   can throw, which is the only placement that makes it useful. A crash
+   during boot is exactly the crash nobody currently hears about.
+   Nothing is sent until something actually breaks, so this respects
+   the rule above it: nothing before the first paint touches the
+   network. See src/data/errors.js. */
+watchForErrors();
 
 /* ============================================================
    Nothing above the first paint may touch the network.
