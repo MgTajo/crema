@@ -232,7 +232,14 @@ document.addEventListener('click',e=>{
     case 'mod-act': modAct(el); break;
     case 'open-create': setCreate(freshCreate()); pushOv({type:'create'}); break;
     case 'close-ov': popOv(); break;
-    case 'clear-search':{ ui.searchQ=''; renderView(); break;}
+    /* The field is cleared here, not left to the repaint. ui/keepinput.js
+       carries typing across a repaint of the same screen, and it cannot
+       tell "the boot landed while somebody was typing" from "the person
+       asked for this to be emptied" — both are the same route painting
+       again with the same rendered value. So an action that deliberately
+       overwrites a field says so, in the DOM, the way addComment() has
+       always cleared #cmt-input. */
+    case 'clear-search':{ ui.searchQ=''; const s=$('#search-input'); if(s) s.value=''; renderView(); break;}
 
     case 'like': toggleLike(id); break;
     case 'react': toggleReaction(id,el.dataset.k); break;

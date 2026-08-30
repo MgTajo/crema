@@ -29,6 +29,7 @@ import { t, tn } from '../i18n.js';
 import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, selectOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, hiddenMark, followMini, followBtn, followState } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { agoTag } from './timeago.js';
+import { keepInput } from './keepinput.js';
 import { renderView, renderAppbar } from './views.js';
 import { arm } from './history.js';
 
@@ -79,7 +80,12 @@ export function renderOverlay(){
   painted=key;
   ov.className='overlay show'+(again?' again':'');
   const T=top.type;
-  ov.innerHTML =
+  /* `again` does a second job here. It already decides whether the
+     entrance animation may run; it is also exactly the condition under
+     which carrying typing across the repaint is safe — the same sheet
+     arriving again, rather than a different one whose #c-caption or
+     #sp-code means something else entirely. See ui/keepinput.js, Q17. */
+  keepInput(ov, again, () => { ov.innerHTML =
     T==='post'?overlayPost(top.id):
     T==='cafe'?overlayCafe(top.id):
     T==='bean'?overlayBean(top.id):
@@ -107,7 +113,7 @@ export function renderOverlay(){
     T==='ios'?overlayIosInstall():
     T==='whatsnew'?overlayWhatsNew():
     T==='picker'?overlayPicker():
-    T==='create'?overlayCreate():'';
+    T==='create'?overlayCreate():''; });
   if(keep){ const next=ov.querySelector('.ov-body'); if(next) next.scrollTop=keep; }
 }
 

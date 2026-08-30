@@ -26,7 +26,7 @@ import { BASE_URL, assertNotProductionUrl } from './env.js';
      · crema.seen.daily-champion — app.js raises the "what's new" sheet
        1.4 s after a signed-in boot, which is exactly long enough to
        land on top of a button a test is about to press. */
-export async function openApp(page, { path = '' } = {}) {
+export async function openApp(page, { path = '', wait = true } = {}) {
   await page.addInitScript(() => {
     try {
       localStorage.setItem('crema.lang', 'en');
@@ -36,7 +36,9 @@ export async function openApp(page, { path = '' } = {}) {
   await page.goto(BASE_URL + path);
   await expect(page.locator('#view')).toHaveAttribute('data-route', /guest|gate|home/, { timeout: 20000 });
   await assertNotProduction(page);
-  await settle(page);
+  /* `wait: false` is for 05-typing-survives-a-repaint.spec.js, which
+     exists to be typing exactly while the boot repaints. */
+  if (wait) await settle(page);
 }
 
 /* Wait until the app has stopped repainting itself.
@@ -49,12 +51,13 @@ export async function openApp(page, { path = '' } = {}) {
    password at all, and the same is true of the composer's caption and
    the Premium code field.
 
-   ⚠️ That is a real defect, not a test artifact — a visitor who taps
-   "Sign in" and starts typing inside the first second loses what they
-   typed. It is written down in brain/11-open-questions.md; it is not
-   this suite's to fix, and this suite is not the place to hide it
-   either. Waiting for the boot to finish is what a person does anyway.
-   Playwright is simply faster than one. */
+   `[FIXED 2026-08-30]` That used to be a real defect — Q17, found by
+   this suite on its first run — and ui/keepinput.js now carries values,
+   focus and the caret across a repaint. The wait stays anyway: these
+   specs are about sign-in, posting, liking and redeeming, and none of
+   them should be racing a boot to find out. **05-typing-survives-a-repaint.spec.js
+   is the one that deliberately does not wait**, and it is what would
+   notice if the fix were undone. */
 export async function settle(page, { quiet = 700, timeout = 20000 } = {}) {
   await page.evaluate(({ quiet, timeout }) => new Promise(resolve => {
     const view = document.getElementById('view');
