@@ -20,19 +20,33 @@ test.describe('typing survives the boot repaint', () => {
   const PW    = 'never-submitted-anywhere';
 
   test('the gate keeps the email and the password', async ({ page }) => {
-    await openApp(page, { wait: false });
+    /* Count wholesale replacements of #view from before the FIRST byte
+       of app.js runs, not from after openApp() returns. Attaching the
+       observer later left a window — clicking "Sign in" and waiting for
+       #au-email both cost time — in which the boot repaint could land
+       unobserved on a fast connection. It did, once, in CI: the run
+       reported zero repaints and the guard correctly refused to certify
+       it, but that made the whole spec flaky rather than meaningful.
 
+       #view is static markup in index.html, already parsed by the time
+       Playwright's init script runs (it fires after the document exists
+       and before the page's own scripts execute) — so this attaches
+       before app.js's first render() can fire, and the race is gone
+       rather than merely narrowed. */
+    await page.addInitScript(() => {
+      window.__repaints = 0;
+      const attach = () => {
+        const v = document.getElementById('view');
+        if (!v) { requestAnimationFrame(attach); return; } // belt and braces
+        new MutationObserver(rs => rs.forEach(r => { if (r.addedNodes.length) window.__repaints++; }))
+          .observe(v, { childList: true });
+      };
+      attach();
+    });
+
+    await openApp(page, { wait: false });
     await page.locator('[data-action="guest-signin"][data-m="in"]').first().click();
     await expect(page.locator('#au-email')).toBeVisible();
-
-    /* Count wholesale replacements of #view from here on. ⚠️ Without
-       this the test could pass by winning the race rather than by
-       surviving it, which is the same as not running at all. */
-    await page.evaluate(() => {
-      window.__repaints = 0;
-      new MutationObserver(rs => rs.forEach(r => { if (r.addedNodes.length) window.__repaints++; }))
-        .observe(document.getElementById('view'), { childList: true });
-    });
 
     await page.fill('#au-email', EMAIL);
     await page.fill('#au-pw', PW);
