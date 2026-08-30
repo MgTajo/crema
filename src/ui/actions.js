@@ -1320,7 +1320,12 @@ function bakeAndUpload(c, sh, announce){
     }).catch(err=>{
       console.warn('upload failed',err);
       if(ui.create===c){ sh.uploading=false; sh.failed=true; renderOverlay(); }
-      toast(t('That photo did not upload. Tap Post to retry.'));
+      /* 429 from upload-url is the rate limit (step 1b.1), not a
+         failure to retry — "tap Post to retry" is the one instruction
+         that makes a rate limit worse. */
+      toast(/too many photos/i.test((err&&err.message)||'')
+        ? t('That is a lot of photos at once. Give it a minute.')
+        : t('That photo did not upload. Tap Post to retry.'));
     });
   },'image/jpeg',0.82);
 }
@@ -2283,7 +2288,14 @@ async function submitPost(){
     console.warn('post failed',err);
     const i=state.posts.indexOf(np); if(i>=0) state.posts.splice(i,1);
     const j=mine.list.indexOf(np); if(j>=0) mine.list.splice(j,1);
-    save(); render(); toast(t('That did not post. Check your connection and try again.'));
+    /* The database can refuse a pour for a reason that is not the
+       network: check_post_rate() (step 1b.1) raises P0001 when ten
+       land inside ten minutes. Telling somebody to check a connection
+       that is working is how a rate limit turns into a bug report. */
+    save(); render();
+    toast(/too many pours|slow down/i.test((err&&err.message)||'')
+      ? t('That was a lot of coffee at once. Give it a minute.')
+      : t('That did not post. Check your connection and try again.'));
   });
 }
 

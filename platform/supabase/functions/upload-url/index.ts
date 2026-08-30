@@ -83,6 +83,36 @@ Deno.serve(async (req) => {
   const ext = EXT_OF[body.contentType];
   if (!ext) return json({ error: "Unsupported image type — use JPEG, PNG or WebP" }, 400);
 
+  // The rate limit. It runs after the request is checked — a caller
+  // who sent an unsupported type should not spend a slot on it — and
+  // BEFORE anything is signed: a limit that fires after the signature
+  // exists has already handed out the thing it was guarding — the
+  // presigned PUT stays valid for 15 minutes whether this function
+  // likes it or not.
+  //
+  // Counted in Postgres (migrations/20260830150000_rate_limits.sql),
+  // because a counter in this function is a counter in one instance's
+  // memory and instances are recycled and horizontal. Called with the
+  // caller's own JWT so `auth.uid()` inside claim_upload_slot() is them.
+  const slot = await fetch(`${SUPABASE_URL}/rest/v1/rpc/claim_upload_slot`, {
+    method: "POST",
+    headers: {
+      Authorization: auth,
+      apikey: SUPABASE_ANON_KEY,
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+  if (!slot.ok) {
+    const detail = await slot.json().catch(() => ({} as Record<string, string>));
+    // PostgREST turns a P0001 into 400 with the message in `message`.
+    // 429 is what the caller should see: this is not a bad request.
+    return json({
+      error: detail.message ||
+        "Too many photos at once — wait a minute and try again.",
+    }, 429);
+  }
+
   const key = `posts/${uid}/${crypto.randomUUID()}.${ext}`;
 
   // Setting X-Amz-Expires before signing is deliberate: aws4fetch only

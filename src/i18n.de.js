@@ -658,6 +658,7 @@ export const DE = {
   'That file could not be read':'Diese Datei ließ sich nicht lesen',
   'That photo did not upload. Try again.':'Das Foto wurde nicht hochgeladen. Probier es nochmal.',
   'That photo did not upload. Tap Post to retry.':'Das Foto wurde nicht hochgeladen. Tipp auf Posten, um es nochmal zu versuchen.',
+  'That is a lot of photos at once. Give it a minute.':'Das sind gerade viele Fotos auf einmal. Warte kurz.',
   'That photo did not come off. Try again.':'Das Foto ließ sich nicht entfernen. Probier es nochmal.',
   'Profile photos are not switched on yet':'Profilfotos sind noch nicht freigeschaltet',
 
@@ -858,6 +859,7 @@ export const DE = {
   'Posted. Streak kept 🔥':'Gepostet. Streak gehalten 🔥',
   'Posted ☕ · add a photo next time':'Gepostet ☕ · nächstes Mal mit Foto',
   'That did not post. Check your connection and try again.':'Das ging nicht raus. Prüf deine Verbindung und probier es nochmal.',
+  'That was a lot of coffee at once. Give it a minute.':'Das war gerade viel Kaffee auf einmal. Warte kurz.',
   'Changes saved':'Änderungen gespeichert',
   'That did not save. The pour is unchanged.':'Das wurde nicht gespeichert. Der Kaffee ist unverändert.',
   'Pours can only be edited on the day you posted them':'Kaffees lassen sich nur an dem Tag bearbeiten, an dem du sie gepostet hast',
