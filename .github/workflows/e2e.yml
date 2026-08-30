@@ -15,11 +15,18 @@
 # ⚠️ NEVER point this at production. e2e/support/env.js refuses, twice,
 # and that refusal is load-bearing: these tests sign up and post.
 #
-# Inert until the founder switches it on, deliberately. It needs two
-# things nobody but a human can do — see e2e/README.md — so rather than
-# failing every release until they are done, it says what is missing and
-# lets the release through. Set the repository variable CREMA_E2E=true
-# once staging is ready and it starts blocking releases properly.
+# It gates itself on its own prerequisite rather than on somebody
+# remembering a switch. The one thing it cannot work around is a staging
+# project that confirms email addresses by mail — it could not mint the
+# accounts it runs as — so it ASKS staging, using the same code the suite
+# uses, and skips with a warning if the answer is no. That is a condition
+# which can only become true deliberately, so "ready" is a fact rather
+# than a proxy for one.
+#
+# The off switch is the repository variable CREMA_E2E=false, for the day
+# this is in the way of a release that has to go out. There is no "on"
+# to set: a variable that has to be remembered is the class of thing this
+# whole phase exists to stop relying on.
 # ============================================================
 name: E2E
 
@@ -37,25 +44,45 @@ jobs:
     env:
       STAGING_REF: ${{ vars.SUPABASE_STAGING_PROJECT_REF || 'qqyurcqrikqvqgbjcjhg' }}
     steps:
-      - name: is this switched on yet?
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Two ways out, and neither of them is "somebody forgot".
+      #
+      #   · CREMA_E2E=false — the deliberate off switch.
+      #   · staging cannot mint accounts — asked, not assumed, using
+      #     assertAutoConfirm() from the suite itself so the check and
+      #     the requirement can never drift apart.
+      #
+      # Either way this job SUCCEEDS and warns. A skipped job would make
+      # every job downstream of it skip too, and downstream of here is
+      # the production release.
+      - name: should the flows run against staging?
         id: gate
+        working-directory: e2e
         run: |
-          if [ "${{ vars.CREMA_E2E }}" = "true" ]; then
+          set -uo pipefail
+          if [ "${{ vars.CREMA_E2E }}" = "false" ]; then
+            echo "on=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::E2E is switched off (repository variable CREMA_E2E=false). This"
+            echo "::warning::release is going to production without the four flows being run."
+            exit 0
+          fi
+          if [ -n "${{ secrets.CREMA_E2E_EMAIL }}" ]; then
+            echo "accounts are supplied by secret — nothing to mint."
+            echo "on=yes" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if node -e "import('./support/env.js').then(m=>m.assertAutoConfirm()).catch(e=>{console.error(e.message);process.exit(1)})"; then
             echo "on=yes" >> "$GITHUB_OUTPUT"
           else
             echo "on=no" >> "$GITHUB_OUTPUT"
-            echo "::warning::E2E is skipped. Set the repository variable CREMA_E2E=true once the"
-            echo "::warning::staging project auto-confirms email (see e2e/README.md). Until then"
-            echo "::warning::this release is going to production without the four flows being run."
+            echo "::warning::Staging cannot mint the accounts these flows need — see the message"
+            echo "::warning::above. Skipping, so this release goes to production unverified."
           fi
-
-      - uses: actions/checkout@v4
-        if: steps.gate.outputs.on == 'yes'
-
-      - uses: actions/setup-node@v4
-        if: steps.gate.outputs.on == 'yes'
-        with:
-          node-version: '22'
 
       # Staging gets the tag's schema before the tag's code is driven at
       # it — otherwise a release whose migration is the whole point would
