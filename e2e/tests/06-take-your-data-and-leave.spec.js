@@ -19,7 +19,7 @@
 */
 import { test, expect } from '@playwright/test';
 import { RUN_ID, EMAIL_DOMAIN, assertAutoConfirm } from '../support/env.js';
-import { signUpThroughUI, openSettings, postPour } from '../support/app.js';
+import { signUpThroughUI, openSettings, closeOverlays, postPour } from '../support/app.js';
 import { profileByHandle, pourByCaption, until } from '../support/db.js';
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -61,6 +61,10 @@ test('a person takes a copy of everything, then leaves, and nothing of theirs is
      them — so the pour that exists in Postgres has to be in the file. */
   expect(doc.posts.map(p => p.caption)).toContain(caption);
   expect(doc.posts.find(p => p.caption === caption).id).toBe(pour.id);
+
+  /* Settings is still open from the export, and openSettings() goes via
+     the tab bar — which a sheet covers. */
+  await closeOverlays(page);
 
   /* ---- and then the account ----
      Asked first, because deleting an account is not something to start
