@@ -89,6 +89,31 @@ jobs:
           supabase migration list --linked
           supabase db push --linked
 
+      # Edge Functions were not in this workflow until 2026-08-30, and
+      # the gap was found the only way gaps like this get found: a
+      # release shipped a migration and the site, both green, while the
+      # function that was supposed to CALL the new migration's RPC stayed
+      # on its old code in production. The schema said the upload limit
+      # existed; nothing was enforcing it.
+      #
+      # Deployed after the migrations and before the site, for the same
+      # reason the migrations come first: a function must never meet a
+      # column that is not there yet, and the browser must never meet a
+      # function that is still the old one.
+      #
+      # All of them, not the changed ones. Working out what changed means
+      # trusting a diff to be complete; redeploying four small functions
+      # from the tag costs seconds and makes the repo the only truth
+      # about what production is running.
+      - name: edge functions → production
+        working-directory: platform
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || 'diabtvahplwoipvrprvb' }}
+        run: |
+          set -euo pipefail
+          supabase functions deploy --project-ref "$PROJECT_REF"
+
   deploy:
     name: crema-app.com
     needs: migrate
