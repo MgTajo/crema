@@ -38,6 +38,19 @@ reason this needs no environment plumbing.
    `platform/`. The flows themselves predate the last four migrations, but a
    staging database that is behind is not staging. In CI this happens on its
    own once the repository secret `SUPABASE_STAGING_DB_PASSWORD` is set.
+   ✅ Caught up by hand 2026-08-30.
+3. **`pg_cron` enabled** — Database → Extensions → `pg_cron`. Production has
+   had it since before staging existed; the client-errors migration schedules
+   a 30-day prune with `cron.schedule(...)`, which has no schema to call into
+   without it. `local-test/stub.sql` fakes `cron.schedule` for the CI harness,
+   so a plain Postgres 17 container never catches this — staging is the first
+   *real* environment that isn't production, and it is where this surfaces.
+   `db push` fails cleanly and rolls the migration back whole when it is
+   missing; nothing is left half-applied. `pg_net` should already be there —
+   it is a base Supabase extension, not one that was added by hand — but it
+   is worth a glance on the same page while enabling `pg_cron`, since a
+   missing one fails the push triggers call silently at runtime rather than
+   at migration time. ✅ Enabled 2026-08-30, same day this was found.
 
 ## Switching it off
 
