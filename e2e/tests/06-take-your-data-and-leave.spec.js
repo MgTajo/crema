@@ -72,11 +72,16 @@ test('a person takes a copy of everything, then leaves, and nothing of theirs is
      credentials answers `no_storage` and nothing has been touched. */
   const ready = await page.evaluate(async () => {
     const m = await import('/src/data/account.js');
+    /* An empty confirmation. Whatever comes back, nothing is deleted:
+       the storage check and the typed-username check both sit in front
+       of the first destructive line. */
     try { await m.deleteMyAccount(''); return 'yes'; }
-    catch (e) { return /not configured/.test(e.message) ? 'no_storage' : 'yes'; }
+    catch (e) { return /not configured|\(404\)/.test(e.message) ? 'not_ready' : 'yes'; }
   });
-  test.skip(ready === 'no_storage',
-    'staging has no R2 credentials — set them there to test deletion end to end');
+  test.skip(ready === 'not_ready',
+    'staging cannot delete: no R2 credentials, or delete-account is not deployed there. ' +
+    'Everything up to here — including the export — did run. Set the four R2 secrets on the ' +
+    'staging project, against a STAGING bucket, and this half runs too.');
 
   await openSettings(page);
   await page.locator('[data-action="open-delete-account"]').click();

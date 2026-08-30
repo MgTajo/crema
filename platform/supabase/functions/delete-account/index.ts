@@ -72,12 +72,23 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const r2 = new AwsClient({
-  accessKeyId: R2_ACCESS_KEY_ID,
-  secretAccessKey: R2_SECRET_ACCESS_KEY,
-  service: "s3",
-  region: "auto",
-});
+/* Built on demand, never at module load.
+   ⚠️ `new AwsClient({accessKeyId: undefined})` throws, and a throw at
+   module scope means the function fails to boot — Supabase answers 500
+   with no CORS headers, and the browser reports it as "Failed to
+   fetch". Every check below, including the one that exists to say
+   "storage is not configured", would then be unreachable, and the
+   clean refusal this function was written to give would arrive as a
+   network error instead. Found on staging, which has no R2 credentials
+   — the only environment that could find it. */
+let _r2: AwsClient | null = null;
+const r2 = () =>
+  (_r2 ??= new AwsClient({
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
+    service: "s3",
+    region: "auto",
+  }));
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -100,7 +111,7 @@ async function listPage(prefix: string, token?: string) {
   u.searchParams.set("max-keys", "1000");
   if (token) u.searchParams.set("continuation-token", token);
 
-  const res = await r2.fetch(u.toString(), { method: "GET" });
+  const res = await r2().fetch(u.toString(), { method: "GET" });
   if (!res.ok) throw new Error(`R2 list failed (${res.status})`);
   const xml = await res.text();
 
@@ -124,7 +135,7 @@ async function deleteKeys(keys: string[]) {
   // aws4fetch signs the body, so a rejected batch is a real failure
   // rather than a signature problem. No Content-MD5: R2 does not
   // require it and WebCrypto has no MD5 to compute it with.
-  const res = await r2.fetch(`https://${R2_HOST}/${R2_BUCKET}?delete`, {
+  const res = await r2().fetch(`https://${R2_HOST}/${R2_BUCKET}?delete`, {
     method: "POST",
     headers: { "Content-Type": "application/xml" },
     body,

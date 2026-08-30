@@ -163,12 +163,24 @@ export async function openSettings(page) {
   await expect(page.locator('#overlay [data-action="sign-out"]')).toBeVisible();
 }
 
+/* The X in the sheet's own bar, not the backdrop.
+   `.ov-back` comes first in the DOM and is what `.first()` used to
+   find — but a bottom sheet covers it, so the click lands on whatever
+   row of the sheet happens to be underneath and the overlay never
+   closes. It went unnoticed because the sheets this was used on were
+   small enough to leave backdrop showing. */
 export async function closeOverlays(page) {
-  const close = page.locator('#overlay [data-action="close-ov"]').first();
-  while (await close.count()) {
-    await close.click();
+  const close = () => {
+    const bar = page.locator('#overlay .ov-bar [data-action="close-ov"]');
+    return bar;
+  };
+  for (let i = 0; i < 6; i++) {
+    const bar = close();
+    if (await bar.count()) await bar.first().click();
+    else if (await page.locator('#overlay [data-action="close-ov"]').count())
+      await page.locator('#overlay [data-action="close-ov"]').first().click();
+    else break;
     await page.waitForTimeout(150);
-    if (!(await page.locator('#overlay [data-action="close-ov"]').count())) break;
   }
 }
 
