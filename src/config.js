@@ -42,8 +42,8 @@ const ENVIRONMENTS = {
      the service_role one. While these are blank, localhost keeps using
      production and says so in the console — see pickEnvironment(). */
   staging: {
-    url: '',
-    key: '',
+    url: 'https://qqyurcqrikqvqgbjcjhg.supabase.co',
+    key: 'sb_publishable_oucpi3Bkw-bxQS_gUnp8Xg_lctghGb2',
   },
 };
 
