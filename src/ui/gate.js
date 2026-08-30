@@ -34,10 +34,10 @@ import { state, ui } from '../store/store.js';
 import { MILK_LIST } from '../data/catalog.js';
 import { t } from '../i18n.js';
 import { machinePicker, drinkOptions, selectOptions } from './components.js';
-import { logoMark } from './icons.js';
+import { logoMark, icon } from './icons.js';
 
 export function authState(){
-  if(!ui.auth) ui.auth={ mode:'in', step:1, email:'', error:'', notice:'', busy:false };
+  if(!ui.auth) ui.auth={ mode:'in', step:1, email:'', error:'', notice:'', busy:false, showPw:false };
   /* Anything that set ui.auth before the sign-up gained steps — and a
      session restored from an older tab — still has to land on step 1. */
   if(!ui.auth.step) ui.auth.step=1;
@@ -74,9 +74,23 @@ export function renderGate(){
   const emailField=`<div class="field"><label>${t('Email')}</label>
     <input id="au-email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false"
       placeholder="${t('you@example.com')}" value="${esc(a.email||'')}" data-enter="auth-submit"></div>`;
-  const pwField=`<div class="field"><label>${t('Password')}</label>
-    <input id="au-pw" type="password" autocomplete="${up?'new-password':'current-password'}"
-      placeholder="${up?t('At least 8 characters'):t('Your password')}" data-enter="auth-submit"></div>`;
+  /* The eye. A password you cannot read is a password you retype, and on
+     a phone keyboard that is where people give up — so both sides of
+     this screen get one, the one being chosen and the one being
+     remembered.
+
+     `a.showPw` only decides how the field is PAINTED. The toggle itself
+     never repaints: the typed password lives in the DOM and nowhere
+     else, so `showPw` is carried in ui.auth purely so that a repaint for
+     some other reason — an error banner — doesn't re-mask what somebody
+     was in the middle of reading. See togglePw() in ui/actions.js. */
+  const pwField=`<div class="field pw"><label>${t('Password')}</label>
+    <input id="au-pw" type="${a.showPw?'text':'password'}" autocomplete="${up?'new-password':'current-password'}"
+      placeholder="${up?t('At least 8 characters'):t('Your password')}" data-enter="auth-submit">
+    <button type="button" class="pw-eye" data-action="toggle-pw" data-i="au-pw"
+      aria-pressed="${a.showPw?'true':'false'}"
+      aria-label="${a.showPw?t('Hide password'):t('Show password')}"
+      title="${a.showPw?t('Hide password'):t('Show password')}">${icon(a.showPw?'eyeOff':'eye',18)}</button></div>`;
 
   const oauth=`
     <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:11.5px">

@@ -41,6 +41,8 @@ export const DE = {
   'Password':'Passwort',
   'Your password':'Dein Passwort',
   'At least 8 characters':'Mindestens 8 Zeichen',
+  'Show password':'Passwort anzeigen',
+  'Hide password':'Passwort verbergen',
   'or':'oder',
   'Continue with Google':'Weiter mit Google',
   'Sending…':'Wird gesendet…',
@@ -1028,9 +1030,11 @@ export const DE = {
   'First coffee in Crema wins the morning':'Der erste Kaffee in Crema gewinnt den Morgen',
   'Every day, the very first coffee logged in the whole app pays {n} points towards your level. One a day, for one person. Log yours early enough and it is yours.':'Jeden Tag bringt der allererste Kaffee, der in der ganzen App eingetragen wird, {n} Punkte für dein Level. Einer pro Tag, für eine Person. Trag deinen früh genug ein, und er gehört dir.',
   'And you will hear about it when someone you follow logs their first coffee of the day. You can turn that off in Settings.':'Und du erfährst es, wenn jemand, dem du folgst, seinen ersten Kaffee des Tages einträgt. In den Einstellungen kannst du das ausschalten.',
+  'And you will hear about it whenever someone you follow logs a coffee. You can turn that off in Settings.':'Und du erfährst es, sobald jemand, dem du folgst, einen Kaffee einträgt. In den Einstellungen kannst du das ausschalten.',
   'Got it':'Alles klar',
   'When friends pour':'Wenn Freunde Kaffee machen',
   'Their first coffee of the day, once a morning':'Ihr erster Kaffee des Tages, einmal pro Morgen',
+  'Every coffee they log':'Jeder Kaffee, den sie eintragen',
   /* The bodies of the inbox rows themselves, written in English by
      notify_on_daily_first() and notify_daily_champion() in
      platform/supabase/step-1.31.sql and translated on the way out — the

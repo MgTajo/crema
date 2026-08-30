@@ -219,7 +219,7 @@ function overlayWhatsNew(){
       <div style="font-size:42px;line-height:1">🥇</div>
       <h2 style="font-family:var(--serif);font-weight:400;font-size:24px;letter-spacing:-.02em;margin:10px 0 6px">${t('First coffee in Crema wins the morning')}</h2>
       <p style="color:var(--ink2);font-size:13.5px;line-height:1.55;margin:0 auto 16px;max-width:300px">${t('Every day, the very first coffee logged in the whole app pays {n} points towards your level. One a day, for one person. Log yours early enough and it is yours.',{n:bonus})}</p>
-      <p style="color:var(--muted);font-size:12.5px;line-height:1.5;margin:0 auto 18px;max-width:300px">${t('And you will hear about it when someone you follow logs their first coffee of the day. You can turn that off in Settings.')}</p>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.5;margin:0 auto 18px;max-width:300px">${t('And you will hear about it whenever someone you follow logs a coffee. You can turn that off in Settings.')}</p>
       <button class="btn block" data-action="dismiss-whatsnew">${t('Got it')}</button>
     </div></div>`;
 }
@@ -846,7 +846,7 @@ function remindersBlock(){
 
     return `${sw('toggle-notify-morning',state.me.notifyMorning,t('Morning coffee nudge'),t('If you have not logged one yet that day'))}
       ${sw('toggle-notify-social',state.me.notifySocial,t('Likes, comments &amp; follows'),t('When someone reacts to your coffee'))}
-      ${sw('toggle-notify-friends',state.me.notifyFriends,t('When friends pour'),t('Their first coffee of the day, once a morning'))}
+      ${sw('toggle-notify-friends',state.me.notifyFriends,t('When friends pour'),t('Every coffee they log'))}
       ${sw('toggle-notify-streak',state.me.notifyStreak,t('Streak reminder'),t('Evenings, only when your streak is at risk'))}
       ${sw('toggle-notify-digest',state.me.notifyDigest,t('Your week in coffee'),
            state.me.premium?t('Sunday at 4pm, when your card is ready'):t('Sunday afternoon, if you poured that week'))}

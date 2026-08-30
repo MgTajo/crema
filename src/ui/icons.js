@@ -61,7 +61,14 @@ export const I={
      already doing something else when you tap it. Same 24 grid and
      weight as the rest; the dot is a 1px stroke rather than a fill so
      it holds up at 16px, which is the only size it is ever drawn at. */
-  info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.6v.6"/>'
+  info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.6v.6"/>',
+  /* the eye — "let me read what I just typed", inside a password field.
+     Drawn on the same 24 grid at the same weight as the rest, and
+     nothing fills: the state is carried by the slash, not by a fill.
+     eyeOff is the same lid with the pupil cut down to the arc a stroke
+     can still read at 18px, which is the only size either is drawn at. */
+  eye:'<path d="M2.6 12S6.2 5.8 12 5.8 21.4 12 21.4 12 17.8 18.2 12 18.2 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="3.1"/>',
+  eyeOff:'<path d="M9.7 6.1A9.7 9.7 0 0 1 12 5.8c5.8 0 9.4 6.2 9.4 6.2a17.3 17.3 0 0 1-3.4 4.1"/><path d="M6.3 7.8A17 17 0 0 0 2.6 12S6.2 18.2 12 18.2a9.9 9.9 0 0 0 3.7-.7"/><path d="M9.9 9.9a3.1 3.1 0 0 0 4.3 4.3"/><path d="M4.2 4.2l15.6 15.6"/>'
 };
 export const icon=(n,w=24)=>`<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
 export const pin=color=>`<svg viewBox="0 0 24 30" aria-hidden="true"><path d="M12 0C6 0 2 4.2 2 10c0 7 10 20 10 20s10-13 10-20C22 4.2 18 0 12 0z" fill="${color}"/><circle cx="12" cy="10" r="4.4" fill="#FFFDF9"/></svg>`;

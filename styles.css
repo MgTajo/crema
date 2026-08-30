@@ -821,6 +821,17 @@
   .field input, .field textarea, .field select{width:100%; border:1px solid var(--line2); background:var(--surface); border-radius:var(--r-sm); padding:13px 15px; font-family:var(--sans); font-size:14.5px; outline:0; color:var(--ink); -webkit-appearance:none; appearance:none; transition:border-color .15s, box-shadow .15s}
   .field input:focus, .field textarea:focus, .field select:focus{border-color:var(--crema); box-shadow:0 0 0 3px var(--crema-soft)}
   .field textarea{resize:none; height:66px}
+  /* a password field with an eye in it. The button sits over the input's
+     own right-hand padding rather than beside it, so the field keeps the
+     width every other field on the screen has. */
+  .field.pw{position:relative}
+  .field.pw input{padding-right:48px}
+  .pw-eye{position:absolute; right:4px; bottom:4px; width:42px; height:39px; display:grid; place-items:center;
+          background:none; border:0; padding:0; cursor:pointer; color:var(--muted); border-radius:var(--r-sm);
+          transition:color .15s}
+  .pw-eye[aria-pressed="true"]{color:var(--crema-deep)}
+  @media(hover:hover){ .pw-eye:hover{color:var(--ink)} }
+  .pw-eye:focus-visible{outline:2px solid var(--crema); outline-offset:-2px}
   .field.sel{position:relative}
   .field.sel:after{content:"▾"; position:absolute; right:15px; bottom:13px; color:var(--muted); pointer-events:none; font-size:13px}
   /* a field whose value comes from the searchable picker sheet — looks
