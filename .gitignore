@@ -41,3 +41,11 @@ platform/android-twa/*.idsig
 
 # unzipped AAB module, left behind when inspecting a bundle
 platform/android-twa/base/
+
+# Playwright (e2e/) — everything a run produces, none of which belongs in a
+# repo whose root is the web root. .auth/ is the one that matters: it holds
+# the throwaway staging accounts' passwords and their live session tokens.
+e2e/.auth/
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
