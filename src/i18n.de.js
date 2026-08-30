@@ -1318,6 +1318,33 @@ export const DE = {
   'Could not claim a username — try a different one in Settings.':
     'Der Benutzername ließ sich nicht vergeben — probier in den Einstellungen einen anderen.',
 
+  /* ---------- your data: export and deletion (step 3.3) ----------
+     `du` throughout, and no softening. Somebody on this screen has
+     decided something; a sentence that hedges reads as an app trying
+     to talk them out of it. */
+  'Your data':'Deine Daten',
+  'Download your data':'Deine Daten herunterladen',
+  'One file with every pour, comment and setting':'Eine Datei mit jedem Kaffee, Kommentar und jeder Einstellung',
+  'Putting it together…':'Wird zusammengestellt…',
+  'Saved — that is everything we hold 📦':'Gespeichert — mehr haben wir nicht über dich 📦',
+  'That did not download. Try again.':'Der Download hat nicht geklappt. Versuch es noch mal.',
+  'Delete your account':'Konto löschen',
+  'Everything goes. This cannot be undone.':'Alles wird gelöscht. Das lässt sich nicht rückgängig machen.',
+  'Your pours, photos, comments, likes, streak, level and settings are deleted straight away. Comments other people left on your pours go with them.':
+    'Deine Kaffees, Fotos, Kommentare, Likes, dein Streak, dein Level und deine Einstellungen werden sofort gelöscht. Kommentare, die andere unter deinen Kaffees hinterlassen haben, gehen mit.',
+  'What stays: any moderation decision about you, with your name removed. Nothing else.':
+    'Was bleibt: eine Moderationsentscheidung über dich, ohne deinen Namen. Sonst nichts.',
+  'Download your data first':'Lade dir vorher deine Daten herunter',
+  'You cannot get it back afterwards':'Danach bekommst du sie nicht mehr',
+  'Type {handle} exactly, and it is gone.':'Tippe genau {handle} — dann ist es weg.',
+  'Delete my account for good':'Mein Konto endgültig löschen',
+  'Deleting…':'Wird gelöscht…',
+  'Keep my account':'Konto behalten',
+  'Your account is gone. Take care ☕':'Dein Konto ist gelöscht. Mach\'s gut ☕',
+  'That did not work. Try again.':'Das hat nicht geklappt. Versuch es noch mal.',
+  'Type your username to confirm':'Tippe deinen Benutzernamen zum Bestätigen',
+  'No profile to delete':'Kein Profil zum Löschen',
+
   /* ---------- misc ---------- */
   'Challenge complete: {title} · +{n} 🎯':'Challenge geschafft: {title} · +{n} 🎯',
   '{n} challenges complete 🎯':'{n} Challenges geschafft 🎯',

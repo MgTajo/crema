@@ -30,12 +30,13 @@ import * as social from '../data/social.js';
    deletePost() of its own and the two must not be confusable. */
 import * as mod from '../data/moderation.js';
 import { logRecapExport } from '../data/recap.js';
+import { exportMyData, deleteMyAccount } from '../data/account.js';
 import { markAllRead, fetchNotifications } from '../data/notifications.js';
 import { state, ui, save, applyMe, findPost, freshCreate, useSession, cachePosts, mine,
          saved, loadSaved, loadFeed, loadMoreFeed, loadFriendsToday, social as storeSocial, loadChallenges, canEdit,
          feed, hydrateReactions, myMachines, myCoffees, togglePin, setGearNote, rememberOwn,
          weekRecap, toggleRecapPick,
-         applyArrivals, dropArrivals, admin, loadQueue, keepSignupDraft } from '../store/store.js';
+         applyArrivals, dropArrivals, admin, loadQueue, keepSignupDraft, clearSaved } from '../store/store.js';
 import { onLive, whileAnsweringRequest } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
@@ -413,6 +414,9 @@ document.addEventListener('click',e=>{
     case 'sign-out': doSignOut(); break;
     case 'open-password': ui.pw={error:'',busy:false}; pushOv({type:'password'}); break;
     case 'pw-save': savePassword(); break;
+    case 'export-data': downloadMyData(); break;
+    case 'open-delete-account': ui.del={error:'',busy:false}; pushOv({type:'delaccount'}); break;
+    case 'delete-account': deleteAccount(); break;
     case 'toast': toast(el.dataset.msg||t('Coming soon')); break;
     default: break;
   }
@@ -423,6 +427,7 @@ document.addEventListener('keydown',e=>{ if(e.key!=='Enter') return;
   else if(el.dataset.enter==='auth-submit') doAuth();
   else if(el.dataset.enter==='signup-next') signupStepper(1);
   else if(el.dataset.enter==='pw-save') savePassword();
+  else if(el.dataset.enter==='delete-account') deleteAccount();
   else if(el.dataset.enter==='redeem') redeemCode(el.dataset.i||'pm-code'); });
 /* Recipe fields wear their unit as you type — "18" becomes "18g" the
    moment you type it, not just after you've moved on. Reapplied on
@@ -845,6 +850,69 @@ async function savePassword(){
   p.busy=true; p.error=''; renderOverlay();
   try{ await updatePassword(a); popOv(); toast(t('Password changed 🔑')); }
   catch(e){ p.busy=false; p.error=authError(e); renderOverlay(); }
+}
+
+/* ---------- your data, in your hands and out of ours ----------
+   Step 3.3 of brain/13-infrastructure-plan.md. */
+
+/* One RPC, one file. The database assembles the whole document because
+   it is the only party that can see all of it — RLS hides a person's
+   own error reports and the moderation decisions about them from the
+   person themselves, by design, and an export that quietly skipped
+   those would be the wrong answer to Art. 15.
+
+   Named with the date rather than with a counter: the interesting
+   question about an export is always when it was taken. */
+async function downloadMyData(){
+  if(ui.exporting) return;
+  ui.exporting=true; renderOverlay();
+  try{
+    const doc=await exportMyData();
+    const name=`crema-${(USERS.me.handle||'you').replace(/^@/,'')}-${new Date().toISOString().slice(0,10)}.json`;
+    const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    toast(t('Saved — that is everything we hold 📦'));
+  }catch(e){
+    console.warn('export failed',e);
+    toast(t('That did not download. Try again.'));
+  }finally{ ui.exporting=false; renderOverlay(); }
+}
+
+/* Irreversible, and the only thing in the app that is. The typed
+   username is checked again server-side; what happens here is the part
+   afterwards, which matters more than it looks:
+
+   the local state blob is keyed by user id (store/persistence.js), so
+   without clearSaved() this browser would keep a cached copy of the
+   feed, the shelf and the create-sheet defaults of an account that no
+   longer exists — and hand it straight back to the next person who
+   signs in on this device if the id were ever reissued. Deleting is
+   deleting here too. */
+async function deleteAccount(){
+  const d=ui.del||(ui.del={error:'',busy:false});
+  if(d.busy) return;
+  const typed=(($('#del-confirm')||{}).value||'').trim();
+  const handle=(USERS.me.handle||'').replace(/^@/,'');
+  if(typed.replace(/^@/,'').toLowerCase()!==handle.toLowerCase()){
+    d.error=t('Type {handle} exactly, and it is gone.',{handle}); renderOverlay(); return;
+  }
+  d.busy=true; d.error=''; renderOverlay();
+  try{
+    await deleteMyAccount(typed);
+    await clearSaved();
+    popOv();
+    await signOut();
+    toast(t('Your account is gone. Take care ☕'));
+  }catch(e){
+    console.warn('account deletion failed',e);
+    /* The Edge Function's messages are English sentences, and they are
+       keys in i18n.de.js like every other string in the app; t() falls
+       back to the sentence itself for anything it does not know. */
+    d.busy=false; d.error=t(e.message||'That did not work. Try again.'); renderOverlay();
+  }
 }
 
 /* Pull the profile row down (creating it on first sign-in) and merge it

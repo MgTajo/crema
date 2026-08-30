@@ -12,12 +12,14 @@
    CREMA_E2E_EMAIL/PASSWORD and CREMA_E2E_EMAIL_2/PASSWORD_2 to two
    accounts somebody made by hand and this signs in with those instead.
 
-   ⚠️ Nothing here can clean up after itself: deleting an auth user
-   needs the service-role key, and account deletion does not exist in
-   the app yet (Phase 3.3). So a minted run leaves two accounts on
-   staging, for ever. They are named for the run that made them so the
-   pile stays readable, and staging is the only place this is allowed to
-   happen — see support/env.js.
+   ⚠️ A minted run leaves A and B on staging for ever. Deleting an auth
+   user needs the service-role key, and these two are signed up through
+   the app, which does not hold one. Since step 3.3 the app CAN delete
+   an account — 06-take-your-data-and-leave.spec.js mints a third and
+   removes it — but A and B are shared by every spec and cannot be
+   deleted while the run is still using them. They are named for the run
+   that made them so the pile stays readable, and staging is the only
+   place this is allowed to happen — see support/env.js.
    ============================================================ */
 import fs from 'fs';
 import path from 'path';

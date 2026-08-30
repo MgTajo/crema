@@ -109,6 +109,7 @@ export function renderOverlay(){
     T==='recap'?overlayRecap():
     T==='onboard'?overlayOnboard():
     T==='password'?overlayPassword():
+    T==='delaccount'?overlayDeleteAccount():
     T==='signin'?overlaySignin(top.why):
     T==='ios'?overlayIosInstall():
     T==='whatsnew'?overlayWhatsNew():
@@ -985,9 +986,55 @@ function overlaySettings(){
       <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">${t('Signed in · your pours live in your account')}</div>
       ${state.me.isAdmin?`<div class="rlabel" style="margin-top:18px">Moderation</div>
       <div class="mrow" data-action="open-admin"><div class="mi">⚖️</div>Reports &amp; decisions</div>`:''}
+      <div class="rlabel" style="margin-top:18px">${t('Your data')}</div>
+      <div class="mrow" data-action="export-data"><div class="mi">📦</div>
+        <div style="flex:1">${ui.exporting?t('Putting it together…'):t('Download your data')}
+          <div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('One file with every pour, comment and setting')}</div></div></div>
+      <div class="mrow danger" data-action="open-delete-account"><div class="mi">🗑️</div>
+        <div style="flex:1">${t('Delete your account')}
+          <div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('Everything goes. This cannot be undone.')}</div></div></div>
       <div class="rlabel" style="margin-top:18px">${t('Legal')}</div>
       <a class="mrow" href="/impressum/" target="_blank" rel="noopener"><div class="mi">📄</div>Impressum</a>
       <a class="mrow" href="/privacy/" target="_blank" rel="noopener"><div class="mi">🔒</div>${t('Datenschutz / Privacy Policy')}</a>
+    </div></div>`;
+}
+
+/* ---------- deleting an account ----------
+   The last screen anybody sees, so it is written to be read rather than
+   dismissed: what goes, what stays, and a field that will not accept
+   anything except their own username typed out.
+
+   The typed handle is not theatre. Every other destructive control in
+   the app is one tap away from an undo — a hidden post can be unhidden,
+   a like can be given back — and this one is not, so the confirmation
+   has to cost more than a tap that a thumb can make by accident. The
+   Edge Function checks the same string server-side; this side is where
+   it is explained. */
+function overlayDeleteAccount(){
+  const d=ui.del||(ui.del={error:'',busy:false});
+  const handle=(USERS.me.handle||'').replace(/^@/,'');
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Delete your account')}">
+    <div class="grab"></div>
+    <div class="ov-bar" style="border:0"><b>${t('Delete your account')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
+    <div class="ov-body" style="padding:0 16px 18px">
+      ${d.error?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;margin-bottom:12px">${esc(d.error)}</div>`:''}
+      <p style="font-size:13.5px;line-height:1.55;color:var(--muted);margin:2px 0 10px">
+        ${t('Your pours, photos, comments, likes, streak, level and settings are deleted straight away. Comments other people left on your pours go with them.')}</p>
+      <p style="font-size:13.5px;line-height:1.55;color:var(--muted);margin:0 0 14px">
+        ${t('What stays: any moderation decision about you, with your name removed. Nothing else.')}</p>
+      <div class="mrow" data-action="export-data" style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px">
+        <div class="mi">📦</div><div style="flex:1">${ui.exporting?t('Putting it together…'):t('Download your data first')}
+        <div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('You cannot get it back afterwards')}</div></div></div>
+      <!-- The label is generic and the username is the placeholder, not
+           the label: .field label is uppercased in styles.css, and a
+           handle rendered as DELCHECK33 above a field that wants
+           delcheck33 asks people to type the wrong thing. -->
+      <div class="field"><label>${t('Type your username to confirm')}</label>
+        <input id="del-confirm" value="" placeholder="${esc(handle)}" autocomplete="off" autocapitalize="off" spellcheck="false" data-enter="delete-account"></div>
+      <button class="btn block"${d.busy?' disabled':''} style="background:var(--terra);border-color:var(--terra)" data-action="delete-account">
+        ${d.busy?t('Deleting…'):t('Delete my account for good')}</button>
+      <button class="btn ghost block" style="margin-top:8px" data-action="close-ov">${t('Keep my account')}</button>
+      <div style="height:6px"></div>
     </div></div>`;
 }
 
