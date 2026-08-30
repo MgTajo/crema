@@ -49,11 +49,20 @@ begin
   assert (select count(*) = 0 from information_schema.columns
            where table_name='daily_firsts' and column_name='points'),
     'daily_firsts must no longer carry points';
-  assert (select count(*) = 0 from pg_trigger
+  -- [2026-08-30] These two used to assert the opposite: step-1.31's
+  -- correction 2 was that the friend notification came OFF posts and
+  -- onto daily_firsts, once a morning. It has since been put back —
+  -- migrations/20260830103000_friend_pour_every_pour.sql — because
+  -- following somebody should mean hearing about the coffee they make,
+  -- all of it. Everything else in this file is untouched by that: the
+  -- race, the two notions of "first", and the scores it re-judged are
+  -- what step-1.31 is actually for.
+  assert (select count(*) = 1 from pg_trigger
            where tgname='posts_friend_notify' and not tgisinternal),
-    'the every-pour friend notification must be gone';
-  assert (select count(*) = 0 from pg_proc where proname='notify_on_post'),
-    'and so must its function';
+    'the friend notification fires off posts again (see friend-pour-test.sql)';
+  assert (select count(*) = 0 from pg_trigger
+           where tgname='daily_firsts_notify' and not tgisinternal),
+    'and no longer off daily_firsts as well';
   assert crema_day('2026-08-19 21:30+00') = date '2026-08-19',
     '23:30 Berlin is still the 19th';
   assert crema_day('2026-08-19 22:30+00') = date '2026-08-20',
@@ -157,7 +166,13 @@ begin
 end $$;
 \echo 'T4 PASS'
 
-\echo '--- T5: a friend hears about the FIRST pour of the day and nothing after ---'
+\echo '--- T5: daily_firsts marks the first cup of each person\'s own day ---'
+-- [2026-08-30] This test used to be "a friend hears about the FIRST
+-- pour and nothing after". That is no longer what daily_firsts is for:
+-- the friend notification moved back onto every pour, and what it
+-- proves lives in friend-pour-test.sql now. What is left is the part
+-- step-1.31 owns and still owns — one row per person per their OWN day,
+-- pointing at the cup that opened it.
 delete from notifications;
 insert into follows (follower_id, followee_id, status) values
   ('33333333-3333-3333-3333-333333333333','11111111-1111-1111-1111-111111111111','accepted');
@@ -171,23 +186,28 @@ insert into posts (user_id, drink, created_at) values
   ('11111111-1111-1111-1111-111111111111','Macchiato','2026-08-22 14:00+00');
 do $$
 begin
-  assert (select count(*) = 1 from notifications
+  assert (select count(*) = 1 from daily_firsts
+           where user_id='11111111-1111-1111-1111-111111111111' and day = date '2026-08-22'),
+    'THREE pours, ONE first — the marker is per person per day, got '
+      || (select count(*) from daily_firsts
+           where user_id='11111111-1111-1111-1111-111111111111' and day = date '2026-08-22')::text;
+  assert (select p.drink = 'Cortado' from daily_firsts f join posts p on p.id = f.post_id
+           where f.user_id='11111111-1111-1111-1111-111111111111' and f.day = date '2026-08-22'),
+    'and it points at the cup that opened the day, not the last one';
+  -- Every pour is news now, so Cem heard about all three.
+  assert (select count(*) = 3 from notifications
            where type='friend_pour' and user_id='33333333-3333-3333-3333-333333333333'),
-    'THREE pours, ONE notification — this is the whole of correction 2, got '
-      || (select count(*) from notifications where type='friend_pour')::text;
-  assert (select body = 'poured the first coffee of the day' from notifications
-           where type='friend_pour' and user_id='33333333-3333-3333-3333-333333333333'),
-    'and it should say which pour it is about';
+    'a follower hears about each pour — asserted properly in friend-pour-test.sql';
 end $$;
 
--- The next day is news again.
+-- The next day is a new first.
 insert into posts (user_id, drink, created_at) values
   ('11111111-1111-1111-1111-111111111111','Filter','2026-08-23 05:00+00');
 do $$
 begin
-  assert (select count(*) = 2 from notifications
-           where type='friend_pour' and user_id='33333333-3333-3333-3333-333333333333'),
-    'a new morning is news again';
+  assert (select count(*) = 1 from daily_firsts
+           where user_id='11111111-1111-1111-1111-111111111111' and day = date '2026-08-23'),
+    'a new morning is a new first';
 end $$;
 \echo 'T5 PASS'
 
@@ -275,7 +295,9 @@ begin
     'a browser must not be able to award itself a championship';
   assert not has_function_privilege('authenticated','notify_daily_champion()','execute'),
     'nor announce one';
-  assert not has_function_privilege('authenticated','notify_on_daily_first()','execute'),
+  -- [2026-08-30] notify_on_daily_first() itself is gone; the fan-out it
+  -- did is notify_on_post()'s again, and locked the same way.
+  assert not has_function_privilege('authenticated','notify_on_post()','execute'),
     'nor fan out notifications';
 end $$;
 

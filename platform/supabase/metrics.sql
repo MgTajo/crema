@@ -45,7 +45,7 @@ acts as (
 ),
 p as (select id, (created_at at time zone 'Europe/Berlin')::date as d0 from profiles)
 select * from (
-  select 1 as n, 'accounts' as metric,
+  select 1::numeric as n, 'accounts' as metric,
          (select count(*)::text from profiles) as value,
          'rows in profiles — not people, not installs' as note
   union all select 2, 'accounts that ever poured',
@@ -66,11 +66,23 @@ select * from (
          'the amplification trigger is 30+/day — see brain/07-growth.md'
   union all select 7, 'pours per day, last 7 days',
          (select round(count(*)/7.0, 1)::text from posts where created_at >= now() - interval '7 days'), ''
-  union all select 8, 'pours per poster per week, last 4 weeks (median)',
-         (select coalesce(round(percentile_cont(0.5) within group (order by n)::numeric, 1)::text,'—')
-            from (select count(*)/4.0 as n from posts
-                   where created_at >= now() - interval '28 days'
-                   group by user_id) x),
+  union all select 8, 'pours per poster per week, last 4 weeks (median, tenure-corrected)',
+         -- ⚠️ Divided by weeks SINCE THAT ACCOUNT SIGNED UP, floored at
+         -- one week — not by a fixed 4.0. The fixed divisor was the bug
+         -- behind the 2026-08-18 reading of "3.7": it charges somebody
+         -- who joined on Friday for the three weeks before they existed,
+         -- so it understates every recent signup and the whole median
+         -- with them. Both the 2026-08-29 and 2026-08-30 readings were
+         -- taken in this corrected form by hand; on 2026-08-30 the file
+         -- itself was fixed, so the two now agree. On that day the old
+         -- query returned 0.5 and this one returns 1.04, from the same
+         -- rows. See brain/14-measurements.md.
+         (select coalesce(round(percentile_cont(0.5) within group (order by n)::numeric, 2)::text,'—')
+            from (select count(*) / greatest(
+                           extract(epoch from (now() - min(pr.created_at))) / 604800.0, 1.0) as n
+                    from posts p join profiles pr on pr.id = p.user_id
+                   where p.created_at >= now() - interval '28 days'
+                   group by p.user_id) x),
          'red-team falsifier A fires below 2'
   union all select 9, 'responses per pour, last 30 days',
          coalesce((
@@ -82,7 +94,26 @@ select * from (
              / nullif((select count(*) from posts
                         where created_at >= now() - interval '30 days'), 0)
            , 2)::text), '—'),
-         'likes + comments per pour. Falsifier B fires below 1.0'
+         'likes + comments per pour, ALL accounts. Falsifier B fires below 1.0 — but read row 9b'
+  -- Row 9 with the admin's OWN likes and comments taken out. One person
+  -- answering everything looks identical to a live community from row 9,
+  -- and that was the open worry on 2026-08-18. It is the responses BY
+  -- the admin that are removed, not pours BY the admin — removing the
+  -- latter answers a different question and gives a different number
+  -- (3.09 rather than 2.40 on 2026-08-30).
+  union all select 9.5, 'responses per pour, last 30 days, excluding responses by the admin',
+         coalesce((
+           select round(
+             ((select count(*) from likes l    join posts p2 on p2.id = l.post_id
+                where p2.created_at >= now() - interval '30 days'
+                  and l.user_id not in (select id from profiles where is_admin))
+            + (select count(*) from comments c join posts p2 on p2.id = c.post_id
+                where p2.created_at >= now() - interval '30 days'
+                  and c.user_id not in (select id from profiles where is_admin)))::numeric
+             / nullif((select count(*) from posts
+                        where created_at >= now() - interval '30 days'), 0)
+           , 2)::text), '—'),
+         'this is the one to quote internally'
   union all select 10, 'pours with at least one response, last 30 days',
          (select coalesce(round(100.0 * count(*) filter (
                     where (select count(*) from likes l where l.post_id = p2.id)
@@ -311,3 +342,60 @@ select created_at,
  where action = 'delete_post'
    and evidence->>'image_key' is not null
  order by created_at desc;
+
+
+-- ============================================================
+-- BLOCK J — the notification switches, and what friend_pour costs
+-- ============================================================
+-- Added 2026-08-30, the day `friend_pour` went from once a morning to
+-- every pour (D-2026-08-30-01). That decision's falsifier is "people
+-- turn the switch off", and a falsifier with no BEFORE number is a
+-- sentence, not a test. This is the before number, and the query the
+-- after number has to be taken with — same file, same words, so two
+-- readings a week apart are comparable rather than merely similar.
+--
+-- `notify_friends` is the row to watch. The other four are here so a
+-- rise in it can be read against the general willingness to be
+-- notified: everybody turning everything off is churn, not a verdict on
+-- one feature.
+select 'notify_friends' as switch,
+       count(*) filter (where notify_friends)     as on_,
+       count(*) filter (where not notify_friends) as off_,
+       count(*)                                   as accounts,
+       round(100.0*count(*) filter (where not notify_friends)/nullif(count(*),0),1)::text||'%' as off_pct
+  from profiles
+union all select 'notify_social', count(*) filter (where notify_social), count(*) filter (where not notify_social), count(*),
+       round(100.0*count(*) filter (where not notify_social)/nullif(count(*),0),1)::text||'%' from profiles
+union all select 'notify_morning', count(*) filter (where notify_morning), count(*) filter (where not notify_morning), count(*),
+       round(100.0*count(*) filter (where not notify_morning)/nullif(count(*),0),1)::text||'%' from profiles
+union all select 'notify_streak', count(*) filter (where notify_streak), count(*) filter (where not notify_streak), count(*),
+       round(100.0*count(*) filter (where not notify_streak)/nullif(count(*),0),1)::text||'%' from profiles
+union all select 'notify_digest', count(*) filter (where notify_digest), count(*) filter (where not notify_digest), count(*),
+       round(100.0*count(*) filter (where not notify_digest)/nullif(count(*),0),1)::text||'%' from profiles
+ order by 1;
+
+-- ---------- the volume, and what it would have been ----------
+-- `friend_pour_rows_every_pour_7d` recomputes the fan-out from `posts`,
+-- `follows` and `blocks` the way notify_on_post() does — so BEFORE the
+-- change it is a forecast, and AFTER it is a check that the trigger is
+-- doing what the arithmetic says. The two columns converge on the day
+-- the migration lands; if they ever diverge again, the trigger and the
+-- follow graph disagree and one of them is wrong.
+with recent as (select id, user_id from posts where created_at >= now() - interval '7 days'),
+fan as (
+  select r.id,
+         (select count(*) from follows f
+           where f.followee_id = r.user_id and f.status = 'accepted'
+             and f.follower_id <> r.user_id
+             and not exists (select 1 from blocks b
+                              where (b.blocker_id = f.follower_id and b.blocked_id = r.user_id)
+                                 or (b.blocker_id = r.user_id and b.blocked_id = f.follower_id))) as n
+    from recent r)
+select (select count(*) from recent)                                        as pours_7d,
+       (select sum(n) from fan)                                             as friend_pour_rows_every_pour_7d,
+       (select count(*) from notifications
+         where type='friend_pour' and created_at >= now()-interval '7 days') as friend_pour_rows_actual_7d,
+       (select round(avg(n),1) from fan)                                    as avg_followers_per_pour,
+       (select count(*) from push_subscriptions)                            as devices_registered,
+       (select count(*) from push_subscriptions s join profiles p on p.id = s.user_id
+         where p.notify_friends)                                            as devices_a_friend_push_reaches;

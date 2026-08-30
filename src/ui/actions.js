@@ -400,6 +400,7 @@ document.addEventListener('click',e=>{
       a.mode=el.dataset.m||'in'; a.step=1; a.error=''; a.notice=''; renderView(); break;}
     case 'signup-next': signupStepper(1); break;
     case 'signup-back': signupStepper(-1); break;
+    case 'toggle-pw': togglePw(el); break;
     case 'auth-submit': doAuth(); break;
     case 'auth-oauth': doOAuth(el.dataset.p); break;
     case 'sign-out': doSignOut(); break;
@@ -703,6 +704,33 @@ document.addEventListener('mouseout',e=>{const ab=e.target.closest('.actbars .ab
 /* Keep typed values across the re-render that follows every state change. */
 function syncAuth(){ const a=authState();
   const el=$('#au-email'); if(el) a.email=el.value; }
+
+/* Show / hide the password, from the eye inside the field.
+   Flipped in the DOM rather than through renderView(), because the gate
+   deliberately keeps the password out of state — a repaint would empty
+   the field at the exact moment somebody asked to read it. So the
+   attribute, the glyph and the label are all changed in place, and
+   ui.auth only REMEMBERS the choice so that a repaint for another
+   reason paints it back the way it was.
+
+   The caret is saved and put back: changing `type` under an input drops
+   the selection in Safari and moves it to the end in Chrome, which is
+   maddening in the middle of a typo you opened the eye to find. */
+function togglePw(btn){
+  const inp=$('#'+(btn.dataset.i||'au-pw')); if(!inp) return;
+  const show=inp.type==='password';
+  authState().showPw=show;
+  const from=inp.selectionStart, to=inp.selectionEnd;
+  inp.type=show?'text':'password';
+  btn.setAttribute('aria-pressed',show?'true':'false');
+  btn.setAttribute('aria-label',show?t('Hide password'):t('Show password'));
+  btn.setAttribute('title',show?t('Hide password'):t('Show password'));
+  btn.innerHTML=icon(show?'eyeOff':'eye',18);
+  /* Focus goes back to the field, not the button that was tapped: the
+     eye is something you use in the middle of typing, and on a phone
+     leaving focus on the button drops the keyboard. */
+  try{ inp.focus(); inp.setSelectionRange(from??inp.value.length, to??inp.value.length); }catch(_){}
+}
 
 function authError(e){
   const m=(e&&e.message)||'';

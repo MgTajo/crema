@@ -185,9 +185,15 @@ begin
   assert (select count(*) = 0 from information_schema.columns
            where table_name='daily_firsts' and column_name='points'),
     'the chain must end on step-1.31''s shape, not step-1.30''s';
-  assert (select count(*) = 1 from pg_trigger
+  -- [2026-08-30] Was: "the friend notification must hang off
+  -- daily_firsts, not posts". It hangs off posts again —
+  -- migrations/20260830103000_friend_pour_every_pour.sql — because a
+  -- follower should hear about every pour, not one a morning. What this
+  -- block is for is unchanged: the end of the chain, not step-1.30's
+  -- own shape.
+  assert (select count(*) = 0 from pg_trigger
            where tgname='daily_firsts_notify' and not tgisinternal),
-    'the friend notification must hang off daily_firsts, not posts';
+    'and daily_firsts notifies nobody — that is friend-pour-test.sql''s subject now';
   assert (select count(*) = 0 from pg_trigger
            where tgname='daily_firsts_score' and not tgisinternal),
     'and a daily_firsts row must no longer move anybody''s score';
