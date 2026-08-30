@@ -19,6 +19,7 @@ import { t, tn, lang, locale, LANGS } from '../i18n.js';
 import { postCard, searchHTML, avatar, podiumRow, gcell, followBtn } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { agoTag } from './timeago.js';
+import { keepInput } from './keepinput.js';
 import { hhmm } from './recap.js';
 import { renderOverlay, challengeCard } from './overlays.js';
 import { renderGate } from './gate.js';
@@ -588,8 +589,13 @@ export function renderView(){
      sign-in gate they can step into and back out of. */
   const v=$('#view'), route=session?ui.route:(ui.gate?'gate':'guest');
   const reset=v.dataset.route!==route; v.dataset.route=route;
-  v.innerHTML = !session?(ui.gate?renderGate():renderHome())
+  const html = !session?(ui.gate?renderGate():renderHome())
     : ui.route==='home'?renderHome() : ui.route==='explore'?renderExplore() : ui.route==='cafes'?renderCafes() : renderProfile();
+  /* Not `v.innerHTML = html` any more. The same screen painting again —
+     which is what every background repaint is, and there are several a
+     minute — used to empty whatever was being typed into it. `!reset`
+     is exactly "the same screen": see ui/keepinput.js, and Q17. */
+  keepInput(v, !reset, () => { v.innerHTML = html; });
   if(reset) v.scrollTop=0;
 }
 export function render(){renderAppbar();renderTabbar();renderView();renderOverlay();arm();}
