@@ -1,0 +1,102 @@
+# ============================================================
+# End-to-end — the four flows, against staging, before production.
+#
+# This is the step that makes "staging first" mean something. Until it
+# existed, staging was a database nobody looked at: the migrations were
+# applied to it and that was the end of the verification. Here the tag's
+# schema goes to staging, and then the tag's actual code is driven
+# through sign-in, posting a pour, liking someone else's and redeeming
+# Premium against it — in a browser, over the network, reading the rows
+# back out of Postgres afterwards.
+#
+# Called by release.yml between CI and the production migration, so a
+# red run means production is never touched.
+#
+# ⚠️ NEVER point this at production. e2e/support/env.js refuses, twice,
+# and that refusal is load-bearing: these tests sign up and post.
+#
+# Inert until the founder switches it on, deliberately. It needs two
+# things nobody but a human can do — see e2e/README.md — so rather than
+# failing every release until they are done, it says what is missing and
+# lets the release through. Set the repository variable CREMA_E2E=true
+# once staging is ready and it starts blocking releases properly.
+# ============================================================
+name: E2E
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flows:
+    name: four flows → staging
+    runs-on: ubuntu-latest
+    env:
+      STAGING_REF: ${{ vars.SUPABASE_STAGING_PROJECT_REF || 'qqyurcqrikqvqgbjcjhg' }}
+    steps:
+      - name: is this switched on yet?
+        id: gate
+        run: |
+          if [ "${{ vars.CREMA_E2E }}" = "true" ]; then
+            echo "on=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "on=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::E2E is skipped. Set the repository variable CREMA_E2E=true once the"
+            echo "::warning::staging project auto-confirms email (see e2e/README.md). Until then"
+            echo "::warning::this release is going to production without the four flows being run."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.on == 'yes'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.on == 'yes'
+        with:
+          node-version: '22'
+
+      # Staging gets the tag's schema before the tag's code is driven at
+      # it — otherwise a release whose migration is the whole point would
+      # be tested against last week's database. Skipped, loudly, if the
+      # password to do it with is not set: a stale staging is worth
+      # knowing about but is not worth failing a release over.
+      - name: migrations → staging
+        if: steps.gate.outputs.on == 'yes'
+        working-directory: platform
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] || [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "::warning::SUPABASE_STAGING_DB_PASSWORD is not set — staging keeps whatever schema it has."
+            exit 0
+          fi
+          curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz \
+            | tar -xz -C /usr/local/bin supabase
+          supabase link --project-ref "$STAGING_REF"
+          supabase migration list --linked
+          supabase db push --linked
+
+      - name: playwright
+        if: steps.gate.outputs.on == 'yes'
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      # devserver.py is started by playwright.config.js itself, from the
+      # repo root. python3 is on the runner already.
+      - name: the four flows
+        if: steps.gate.outputs.on == 'yes'
+        working-directory: e2e
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.gate.outputs.on == 'yes'
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 14

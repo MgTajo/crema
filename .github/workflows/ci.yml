@@ -52,6 +52,13 @@ jobs:
       - name: push dictionary matches src/i18n.de.js
         run: node platform/supabase/gen-push-i18n.mjs --check
 
+      # sw.js's precache list and cache name are generated, for the same
+      # reason: a file that is missing from ASSETS is never precached and
+      # never revalidated, and neither failure shows up anywhere. This is
+      # what notices that somebody added a module and did not re-run it.
+      - name: sw.js precache list is current
+        run: node platform/gen-sw-assets.mjs --check
+
   sql:
     name: migration chain
     runs-on: ubuntu-latest

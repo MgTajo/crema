@@ -1,0 +1,14 @@
+{
+  "name": "crema-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests. Deliberately the only npm project in the repo — the app itself stays buildless and dependency-free.",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report",
+    "install-browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

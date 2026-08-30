@@ -8,18 +8,25 @@
 #
 # Ordering is the point, and it is one-way:
 #
-#   verify  →  migrate (production)  →  deploy (crema-app.com)
+#   verify  →  e2e (staging)  →  migrate (production)  →  deploy (crema-app.com)
 #
 # Old code must never meet a new column it does not know about, and new
 # code must never meet a missing one. Migrations therefore run first;
 # a failed migration means the site is not deployed at all, so the live
 # app keeps talking to the schema it was written against.
 #
+# e2e sits in front of both. It applies the tag's schema to STAGING and
+# drives the tag's code through sign-in, posting, liking and redeeming
+# against it, in a browser. Production is not touched until that is
+# green — which is the difference between a staging project and a
+# database nobody looks at.
+#
 # ⚠️ The standing rule from brain/13-infrastructure-plan.md still holds:
 #    take a fresh dump immediately before every migration against
 #    production. `~/crema-backups/daily-dump.sh`, about twelve seconds.
-#    Put a required reviewer on the `production` environment and that
-#    approval click becomes the place you do it.
+#    There is no approval click to hang that on — under D-2026-08-30-04
+#    the `production` environment carries no reviewer, deliberately, so
+#    the dump belongs to whoever mints the tag. It is not optional.
 #
 #   git tag -a v1.33 -m "what changed"   &&   git push origin v1.33
 # ============================================================
@@ -44,13 +51,21 @@ jobs:
   verify:
     uses: ./.github/workflows/ci.yml
 
+  # The four flows, against staging. Inert until the repository variable
+  # CREMA_E2E is set to true — see e2e/README.md for the two things a
+  # human has to do to the staging project first.
+  e2e:
+    needs: verify
+    uses: ./.github/workflows/e2e.yml
+    secrets: inherit
+
   migrate:
     name: migrations → production
-    needs: verify
+    needs: [verify, e2e]
     runs-on: ubuntu-latest
-    # Put a required reviewer on this environment in the GitHub UI. It is
-    # the last stop before production and the natural place to take the
-    # dump. Without a reviewer it simply runs.
+    # No required reviewer, on purpose (D-2026-08-30-04): an environment
+    # gate would pause every release for ever waiting for a click nobody
+    # makes. The line stays because it is where the secrets are scoped.
     environment: production
     steps:
       - uses: actions/checkout@v4
