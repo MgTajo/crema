@@ -85,8 +85,25 @@ jobs:
       # ios/ and android/ are git-ignored, so there is nothing to patch
       # here — this asserts the script parses and its version maths is
       # right, which is what CI can see.
+      #
+      # ⚠️ No apostrophes in this JavaScript, and no shell escaping around
+      # them. The first version said "must exceed the TWA'\''s 5", which
+      # bash unwraps to a stray quote INSIDE a single-quoted JS string.
+      # That was latent for a day: node parsed it as an unterminated
+      # string in a position it happened to tolerate, until node 22.23
+      # started sending `-e` through the TypeScript parser and it became
+      # a hard SyntaxError. A YAML block scalar keeps the quoting flat,
+      # and the explicit catch turns a rejection into one readable line
+      # instead of an unhandled-rejection trace.
       - name: capacitor — the native configurator is sound
-        run: node -e "import('./platform/capacitor/configure-native.mjs').then(m=>{const v=m.version();if(!(v.code>5))throw new Error('versionCode '+v.code+' must exceed the TWA'\'s 5');console.log('versionCode',v.code,'from',v.name)})"
+        run: |
+          node -e "import('./platform/capacitor/configure-native.mjs')
+            .then(m => {
+              const v = m.version();
+              if (!(v.code > 5)) throw new Error('versionCode ' + v.code + ' does not clear the TWA at 5');
+              console.log('versionCode', v.code, 'from', v.name);
+            })
+            .catch(e => { console.error(e.message || e); process.exit(1); })"
 
   sql:
     name: migration chain
