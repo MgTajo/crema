@@ -341,6 +341,44 @@ function ios(){
    process.exit() as a side effect. Same guard, same reason, as
    platform/gen-sw-assets.mjs.
    ============================================================ */
+/* ============================================================
+   The one invariant that is a crash rather than a wrong pixel.
+
+   @capacitor/push-notifications' Android register() calls
+   FirebaseMessaging.getInstance(). Without google-services.json in the
+   app module that throws, Capacitor's Bridge rethrows it out of a
+   Runnable on its task handler, and an uncaught exception on any thread
+   ends the process — which is exactly what the Play alpha did when a
+   tester tapped "Remind me". src/config.js's NATIVE_PUSH_PLATFORMS is
+   the web layer's promise never to make that call, and this is the check
+   that the promise still matches the binary.
+
+   Both directions are a failure, and they fail differently:
+     · listed but no google-services.json → the app closes on a tap.
+     · google-services.json but not listed → push silently does nothing,
+       and somebody spends an afternoon on the Edge Function.
+
+   Not part of android(): it patches nothing and it is true or false
+   about a file this script must never create — the Firebase config
+   carries a project's API keys and is downloaded, not generated. */
+function pushCredentials(){
+  const gs = fs.existsSync(path.join(AND, 'app/google-services.json'));
+  const cfg = fs.readFileSync(path.join(APP, 'src/config.js'), 'utf8');
+  const m = cfg.match(/export const NATIVE_PUSH_PLATFORMS\s*=\s*\[([^\]]*)\]/);
+  if(!m){
+    problems.push('src/config.js no longer exports NATIVE_PUSH_PLATFORMS — data/push.js needs it to know whether it may call register()');
+    return;
+  }
+  const listed = /['"]android['"]/.test(m[1]);
+  if(listed && !gs) problems.push(
+    "src/config.js lists 'android' in NATIVE_PUSH_PLATFORMS but platform/capacitor/android/app/google-services.json does not exist.\n" +
+    "    That combination CLOSES THE APP when someone taps Remind me. Add the file from the Firebase\n" +
+    "    project (package com.crema_app.android), or take 'android' back out.");
+  if(!listed && gs) problems.push(
+    "platform/capacitor/android/app/google-services.json exists but src/config.js does not list 'android'\n" +
+    "    in NATIVE_PUSH_PLATFORMS, so the app will never ask for a token and no push can ever arrive.");
+}
+
 const isMain = process.argv[1]
   && import.meta.url === pathToFileURL(process.argv[1]).href;
 if(!isMain) { /* imported for version(); do nothing */ }
@@ -349,6 +387,7 @@ else main();
 function main(){
 android();
 ios();
+pushCredentials();
 
 if(problems.length){
   console.error(CHECK ? 'native projects are not configured:' : 'configure-native failed:');

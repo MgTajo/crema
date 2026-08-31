@@ -55,6 +55,8 @@
    silent, global one this module exists to end.
    ============================================================ */
 
+import { dressSelects } from './selectsheet.js';
+
 const FIELDS = 'input[id], textarea[id], select[id]';
 
 /* What the renderer produced last time, per container. A WeakMap so a
@@ -117,6 +119,13 @@ export function keepInput(el, same, paint) {
   const where = same ? focusIn(el) : null;
 
   paint();
+
+  /* Every <select> in the app has just been rebuilt from a string, so
+     every one of them needs its tap target back. This is the only place
+     #view's or #overlay's HTML is replaced, which is why it is called
+     from here rather than from the two renderers — a screen added next
+     year gets it without anyone remembering. See ui/selectsheet.js. */
+  dressSelects(el);
 
   const now = fields(el);
   const fresh = valuesOf(now);

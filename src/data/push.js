@@ -25,7 +25,7 @@
    notification inbox), because a meaningful share of the audience is
    on an iPhone in a Safari tab and will never get a single push.
    ============================================================ */
-import { VAPID_PUBLIC_KEY } from '../config.js';
+import { VAPID_PUBLIC_KEY, NATIVE_PUSH_PLATFORMS } from '../config.js';
 import { rest } from './supabase.js';
 import { lang } from '../i18n.js';
 import { native, platform, plugin, call } from '../core/native.js';
@@ -44,20 +44,54 @@ import { native, platform, plugin, call } from '../core/native.js';
    different plumbing underneath, which is exactly what the plan means
    by "replacing Web Push on native only".
 
-   ⚠️ WHAT DOES NOT WORK YET, said plainly so nobody reads this as
-   finished: a token can be obtained and stored, and NOTHING SENDS TO IT.
-   The sender needs an APNs signing key from an Apple Developer account
-   and an FCM service account from a Firebase project — step 4.2, and
-   the plan lists both under what an agent cannot do. So on native the
-   reminders toggle turns on, is honest about being on, and no push
-   arrives until that credential exists. The table it writes to
-   (`native_push_tokens`, migration 20260831090000) is deliberately
-   separate from `push_subscriptions` so that Web Push — which is live,
-   in production, for everyone on the web today — cannot be affected by
-   any of this.
+   ⚠️ WHAT IS AND IS NOT WIRED UP, said plainly so nobody reads this as
+   finished. The road is now complete except for one credential:
+
+     · storing a token          — here, since step 4.1.
+     · fanning a notification out to it — migration 20260831140000:
+       `push_devices` unions native_push_tokens with push_subscriptions
+       and all four senders read it.
+     · delivering it            — functions/send-push/fcm.ts, FCM HTTP v1.
+     · ANDROID ASKING FOR A TOKEN AT ALL — blocked. It needs
+       google-services.json in the app module, and without it the
+       register() call does not fail, it CLOSES THE APP (see
+       nativePushReady() below). So NATIVE_PUSH_PLATFORMS is empty,
+       nothing here asks, and the reminders block says so.
+     · sending                  — needs FCM_SERVICE_ACCOUNT as an Edge
+       Function secret. Without it send-push skips native rows.
+
+   Both of those are step 4.2 and both are downloads from a Firebase
+   project, which the plan lists under what an agent cannot do. iOS is
+   further back still: the shell has never been compiled (Q19).
+
+   The table this writes to (`native_push_tokens`, migration
+   20260831090000) is deliberately separate from `push_subscriptions` so
+   that Web Push — which is live, in production, for everyone on the web
+   today — cannot be affected by any of this.
    ============================================================ */
 
 const TOKENS = 'native_push_tokens';
+
+/* ⚠️ Can this shell be asked for a push token at all?
+
+   Not a preference and not a feature flag: on Android, calling
+   PushNotifications.register() without a google-services.json in the
+   binary ENDS THE PROCESS. FirebaseMessaging.getInstance() throws,
+   Capacitor's Bridge rethrows it as a RuntimeException from its task
+   handler, and an uncaught exception on any thread kills the app. That
+   is the "I tap Remind me and the app closes" bug from the Play alpha,
+   and it cannot be caught here — the throw happens in Java, after the
+   bridge call this side has already returned from.
+
+   So the rule is: never make the call unless the shell has the
+   credential. NATIVE_PUSH_PLATFORMS in config.js is the list, it is
+   empty until Firebase exists, and configure-native.mjs --check keeps it
+   honest against what is actually in the Android project.
+
+   Everything downstream treats false as "this device cannot be reached",
+   which is the truth, and which the reminders block in ui/overlays.js
+   now says out loud rather than offering a button. */
+const nativePushReady = () => native() && NATIVE_PUSH_PLATFORMS.includes(platform());
 
 /* One row per device, keyed on the token, upserted — the same contract
    push_subscriptions has with `endpoint`, for the same reason: APNs and
@@ -120,6 +154,10 @@ export function watchNativeTaps(onHash){
 }
 
 async function enableNativePush(uid){
+  /* Before the permission dialog, not after: asking someone to allow
+     notifications and then telling them the app cannot send any is worse
+     than never asking. */
+  if(!nativePushReady()) return { ok:false, reason:'native-unconfigured' };
   const perm = await call('PushNotifications', 'checkPermissions');
   let status = perm.ok && perm.value ? perm.value.receive : 'prompt';
   if(status === 'prompt' || status === 'prompt-with-rationale'){
@@ -156,18 +194,25 @@ async function disableNativePush(){
 }
 
 async function nativePushEnabled(){
+  /* A shell that cannot send is not "on" no matter what Android says
+     about the permission — and answering true here would send syncPush()
+     into register() on the next boot, which is the crash again, this time
+     with nobody having tapped anything. */
+  if(!nativePushReady()) return false;
   const perm = await call('PushNotifications', 'checkPermissions');
   if(!perm.ok || !perm.value || perm.value.receive !== 'granted') return false;
   return true;
 }
 
 export const pushSupported = () =>
-  /* The shell always can: notifications are an OS capability there, not
-     a browser one, and none of the four conditions below apply to it. */
-  native() ||
+  /* Inside the shell this is an OS capability rather than a browser one,
+     so none of the four web conditions below apply — but it is still only
+     true if the shell was built with the push credential. It was not,
+     until step 4.2; see nativePushReady() above. */
+  (native() ? nativePushReady() :
   (typeof navigator!=='undefined' && 'serviceWorker' in navigator
   && typeof window!=='undefined' && 'PushManager' in window && 'Notification' in window
-  && !!VAPID_PUBLIC_KEY);
+  && !!VAPID_PUBLIC_KEY));
 
 /* Running from the Home Screen / as an installed app rather than a tab. */
 export const standalone = () =>
@@ -330,7 +375,11 @@ export async function syncPush(uid){
     /* Same job as the web branch below — restate where this device is,
        once per launch, because the token may have rotated while the app
        was closed. register() is safe to call again: permission is
-       already granted, so nothing prompts. */
+       already granted, so nothing prompts. Unreachable unless
+       pushEnabled() said yes, which already requires nativePushReady();
+       stated again because this is the boot path and the cost of being
+       wrong here is an app that closes on launch. */
+    if(!nativePushReady()) return;
     const token = awaitToken();
     await call('PushNotifications', 'register');
     const value = await token;

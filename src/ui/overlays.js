@@ -23,6 +23,7 @@ import { notifBody } from '../data/notifications.js';
 import { objectPosition } from '../domain/framing.js';
 import { recapSVG, shotPhotos } from './recap.js';
 import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
+import { native } from '../core/native.js';
 import { art, artSet, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { t, tn } from '../i18n.js';
@@ -30,6 +31,7 @@ import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, mac
 import { icon, logoMark } from './icons.js';
 import { agoTag } from './timeago.js';
 import { keepInput } from './keepinput.js';
+import { paintSelectSheet, clearSelectSheet } from './selectsheet.js';
 import { renderView, renderAppbar } from './views.js';
 import { arm } from './history.js';
 
@@ -45,6 +47,17 @@ const ovKey=o=>o.type+':'+(o.id||'');
 
 export function renderOverlay(){
   const ov=$('#overlay'), top=ui.ovStack[ui.ovStack.length-1];
+  /* The dropdown is the one sheet that does NOT replace #overlay. It
+     paints into its own layer so the sheet it was opened from keeps its
+     DOM — the gear-details sheet holds its roaster and notes nowhere but
+     in its own inputs, and a dropdown is also simply the wrong thing to
+     hide the field you are changing behind. It is still a real entry on
+     the stack, so back and the backdrop close it as usual.
+     Returning here also leaves `painted` untouched, which is what makes
+     the pop below a repaint of the SAME sheet — so ui/keepinput.js
+     carries everything that was typed into it. See ui/selectsheet.js. */
+  if(top&&top.type==='select'){ paintSelectSheet(); return; }
+  clearSelectSheet();
   if(!top){ov.className='overlay'; ov.innerHTML=''; painted=null; scrolls.clear(); return;}
   /* Replacing the sheet's HTML destroys the element that was scrolled,
      and a fresh one always starts at the top — which is why picking a
@@ -822,6 +835,13 @@ function remindersBlock(){
 
   if(iosNeedsInstall()) return note(
     t('Add Crema to your Home Screen to get reminders: tap Share, then <b>Add to Home Screen</b>. Safari cannot send notifications from a browser tab on iPhone.'));
+  /* Inside the app, "this browser" is the wrong noun and the wrong
+     explanation. A shell built before its push credential existed cannot
+     be reached at all, and the honest thing is to say so — the button
+     that used to be here asked Android for a token the app had no way to
+     receive, which closed it (see nativePushReady() in data/push.js). */
+  if(native() && !pushSupported()) return note(
+    t('Reminders are not switched on in this version of the app yet. Everything still lands in your inbox here, and the streak nudge is on Home.'));
   if(!pushSupported()) return note(
     t('This browser cannot send notifications. The streak nudge still appears on Home when you open Crema.'));
   /* A live subscription outranks anything Notification.permission says.
@@ -956,6 +976,21 @@ function overlayGearPassport(){
       </div></div></div>`;
 }
 
+/* ⚠️ The two legal links below name `index.html` and have to keep naming
+   it. Capacitor's Android local server routes any path whose last segment
+   has no dot back to the app's own index.html — html5mode, in
+   WebViewLocalServer.handleLocalRequest — so in the Play build
+   "/impressum/" served the APP at that URL, and the relative styles.css
+   and src/app.js it asks for then resolved under /impressum/ and 404'd.
+   What the tester saw was Crema's landing markup with no stylesheet and
+   no JavaScript, where tapping anything did nothing. Naming the file is
+   what makes the request an asset request; the documents themselves ship
+   in the bundle (platform/capacitor/sync.mjs) so they also open with no
+   network, which is what App Review follows the privacy link with.
+
+   https://crema-app.com/impressum/ is untouched and still works — this
+   changes which of two URLs for the same document the app asks for, not
+   where the document lives. */
 function overlaySettings(){
   const m=state.me, th=state.theme||'auto';
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Settings')}">
@@ -994,8 +1029,8 @@ function overlaySettings(){
         <div style="flex:1">${t('Delete your account')}
           <div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('Everything goes. This cannot be undone.')}</div></div></div>
       <div class="rlabel" style="margin-top:18px">${t('Legal')}</div>
-      <a class="mrow" href="/impressum/" target="_blank" rel="noopener"><div class="mi">📄</div>Impressum</a>
-      <a class="mrow" href="/privacy/" target="_blank" rel="noopener"><div class="mi">🔒</div>${t('Datenschutz / Privacy Policy')}</a>
+      <a class="mrow" href="/impressum/index.html" target="_blank" rel="noopener"><div class="mi">📄</div>Impressum</a>
+      <a class="mrow" href="/privacy/index.html" target="_blank" rel="noopener"><div class="mi">🔒</div>${t('Datenschutz / Privacy Policy')}</a>
     </div></div>`;
 }
 
@@ -1558,9 +1593,26 @@ function visibilityPicker(c){
    it, retaking it — is the same for everyone. On a free account the
    tile is still there and still tappable; it says what it would do and
    how to get it, rather than being hidden so the possibility is never
-   discovered. */
+   discovered.
+
+   THE STRIP IS ALSO THERE WHILE EDITING, and that is the whole of the
+   plus-on-an-edit feature. A pour is posted in a hurry — one photo,
+   before the coffee goes cold — and the second and third are the ones
+   you think of afterwards. Refusing them forever because the sheet was
+   dismissed was an arbitrary line, so the rule is now the narrower,
+   honest one:
+
+     an edit may ADD a photo; it may never change or remove one that is
+     already there.
+
+   Which is why a cell rendered from the post carries no remove button and
+   no reframe — its pixels are on R2, not in this browser — while a shot
+   added in THIS sitting behaves exactly like one on a new pour. The cover
+   (image_keys[1], which is also `image_key`, which is what the OG card
+   and the week recap read) therefore cannot move. See EDITABLE and
+   updatePost() in data/posts.js for the half of this the server sees. */
 function photoStrip(c,pics,n,editing){
-  if(!n||editing) return '';
+  if(!n) return '';
   const cell=(sh,i)=>`<button class="pstrip-i${i===c.photoI?' on':''}" data-action="photo-pick" data-i="${i}" aria-label="${t('Photo {n}',{n:i+1})}">
     <img src="${esc(sh.preview||imageUrl(sh.img,'thumb'))}" alt="">
     ${sh.uploading?`<i class="pstrip-up"></i>`:''}${sh.failed?`<i class="pstrip-bad">!</i>`:''}
@@ -1594,7 +1646,7 @@ function overlayCreate(){
   /* A picked photo can be reframed while the sheet is open: only while
      its pixels are still here (preview), and only if it isn't already
      square — a square has exactly one crop. */
-  const framing=!!(sh&&sh.preview&&sh.adjustable);
+  const framing=!!(sh&&sh.preview&&sh.adjustable&&(!editing||sh.added));
   const anyFailed=pics.some(x=>x.failed);
   const pats=[['heart',t('Heart')],['rosetta',t('Rosetta')],['tulip',t('Tulip')],['swan',t('Swan')],['abstract',t('Abstract art')]];
   const mkList=(base,cur)=>{const l=base.slice(); if(cur&&!l.includes(cur))l.push(cur); return l;};
@@ -1619,15 +1671,19 @@ function overlayCreate(){
         :cupSVG(isArt&&c.pattern?c.pattern:'none',.85,999)}
         ${sh?(sh.uploading?`<span class="up-hint">${t('Uploading…')}</span>`:(sh.failed?`<span class="up-hint" style="background:rgba(168,84,74,.9)">${t('Upload failed')}</span>`:''))
           :(editing?'':`<label class="up-hint tap" for="c-photo-cam">${icon('cam',15)} ${t('Add a photo')}</label>`)}
-        ${sh&&!editing?`<button class="prev-x" data-action="photo-remove" data-i="${c.photoI}" aria-label="${t('Remove this photo')}">${icon('x',15)}</button>`:''}
+        ${sh&&(!editing||sh.added)?`<button class="prev-x" data-action="photo-remove" data-i="${c.photoI}" aria-label="${t('Remove this photo')}">${icon('x',15)}</button>`:''}
       </div>
       ${photoStrip(c,pics,n,editing)}
-      ${!editing&&anyFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
-        ${t('That photo could not reach the server. Tap Post to try again, or drop it and post without a photo.')}
-        <button class="btn ghost sm" style="margin-top:8px" data-action="drop-photo">${t('Post without the photo')}</button></div>`:''}
-      ${editing?`<div style="font-size:11.5px;color:var(--muted);margin:10px 2px 12px">${tn(n,'The photo stays as it was poured. Everything else is yours to fix.','The photos stay as they were poured. Everything else is yours to fix.')}</div>`
-      :`${framing?`<div class="frame-hint">${t('Drag the photo to pick what stays in the square.')}</div>`:''}
-      <div class="photo-actions">
+      ${anyFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
+        ${editing?t('That photo could not reach the server. Tap Save to try again, or drop it and keep the pour as it was.')
+                 :t('That photo could not reach the server. Tap Post to try again, or drop it and post without a photo.')}
+        <button class="btn ghost sm" style="margin-top:8px" data-action="drop-photo">${editing?t('Drop it'):t('Post without the photo')}</button></div>`:''}
+      ${framing?`<div class="frame-hint">${t('Drag the photo to pick what stays in the square.')}</div>`:''}
+      ${editing?(n?`<div style="font-size:11.5px;color:var(--muted);margin:10px 2px 12px">${
+        state.me.premium&&n<PHOTOS_PREMIUM
+          ? t('The photos already here stay as they were poured — you can still add one.')
+          : tn(n,'The photo stays as it was poured. Everything else is yours to fix.','The photos stay as they were poured. Everything else is yours to fix.')}</div>`:'')
+      :`<div class="photo-actions">
         <label class="btn ghost sm"><input type="file" id="c-photo-cam" accept="image/*" capture="environment" hidden>${icon('cam',16)} ${n?t('Retake'):t('Take photo')}</label>
         <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>🖼️ ${n?t('Change'):t('Gallery')}</label>
       </div>`}

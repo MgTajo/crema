@@ -1,8 +1,20 @@
 // ============================================================
-// send-push — delivers Web Push notifications (roadmap step 1.16).
+// send-push — delivers a notification to a browser or to a phone.
 //
 // Called by Postgres (pg_net) from push_send(), never by a browser.
-// Body: { rows: [{ endpoint, p256dh, auth, title, body, url, tag }] }
+// Body: { rows: [ … ] }, where a row is one of two shapes:
+//
+//   { endpoint, p256dh, auth, title, body, url, tag }   Web Push
+//   { token, platform,          title, body, url, tag } FCM (the shell)
+//
+// Which one it is, is decided by which key is present, and nothing else.
+// The two halves are separate all the way down — separate tables
+// (push_subscriptions / native_push_tokens), separate protocols
+// (./webpush.ts / ./fcm.ts), separate credentials, separate dead-address
+// cleanup — because Web Push is live for everyone on crema-app.com right
+// now and the native half arrived years later in this codebase's terms.
+// A native row cannot change what a web row does, which is the property
+// worth having.
 //
 // The crypto lives in ./webpush.ts, verified against the RFC 8291 §5
 // test vector (./webpush.test.mjs). This file is transport: authenticate
@@ -18,6 +30,12 @@
 //                      the repo: it is the authority to send
 //                      notifications that appear to come from Crema.
 //   VAPID_SUBJECT      mailto: or https: contact, required by RFC 8292.
+//   FCM_SERVICE_ACCOUNT  the Firebase service-account JSON, verbatim, for
+//                      the phone half. Optional and absent today: while
+//                      it is unset every native row is SKIPPED and the
+//                      web half behaves exactly as it always has. See
+//                      ./fcm.ts for where to get it and what it is not
+//                      (it is not google-services.json).
 //   PUSH_HOOK_SECRET   shared with Postgres (app.push_secret). This
 //                      function is deployed --no-verify-jwt so pg_net
 //                      can reach it, so the header check below is the
@@ -27,6 +45,7 @@
 // which are by definition not the caller's own rows.
 // ============================================================
 import { authHeader, encryptPayload, utf8 } from "./webpush.ts";
+import { configured as fcmConfigured, deliverFcm, type NativeRow } from "./fcm.ts";
 
 const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY") ?? "";
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
@@ -37,12 +56,15 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const TTL_SECONDS = 12 * 60 * 60; // hold for half a day if the device is off
 
-type Row = {
+type WebRow = {
   endpoint: string; p256dh: string; auth: string;
   title?: string; body?: string; url?: string; tag?: string;
 };
+type Row = WebRow | NativeRow;
+const isNative = (r: Row): r is NativeRow =>
+  typeof (r as NativeRow).token === "string" && !!(r as NativeRow).token;
 
-async function deliver(row: Row): Promise<"ok" | "gone" | "failed"> {
+async function deliver(row: WebRow): Promise<"ok" | "gone" | "failed"> {
   const audience = new URL(row.endpoint).origin;
   const payload = utf8(JSON.stringify({
     title: row.title ?? "Crema",
@@ -83,6 +105,19 @@ async function dropDead(endpoints: string[]) {
   }).catch(() => {});
 }
 
+// The same job for the phone half, against the other table. Separate
+// function rather than a parameter because getting the table wrong here
+// deletes live subscriptions, and a `table` argument is exactly the kind
+// of thing that gets passed wrong once.
+async function dropDeadTokens(tokens: string[]) {
+  if (!tokens.length) return;
+  const list = tokens.map((t) => `"${encodeURIComponent(t)}"`).join(",");
+  await fetch(`${SUPABASE_URL}/rest/v1/native_push_tokens?token=in.(${list})`, {
+    method: "DELETE",
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+  }).catch(() => {});
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   // Constant-time comparison would be nicer, but the secret is
@@ -99,16 +134,36 @@ Deno.serve(async (req) => {
   const { rows } = await req.json().catch(() => ({ rows: [] })) as { rows?: Row[] };
   if (!Array.isArray(rows) || !rows.length) return Response.json({ sent: 0 });
 
+  // A native row with no FCM credential is skipped, not failed: the
+  // senders in Postgres include phone tokens unconditionally, and until
+  // step 4.2's service account exists that is a normal, expected,
+  // uninteresting outcome that must not colour the web half's result.
+  const canNative = fcmConfigured();
+  let skipped = 0;
+
   // One slow or hanging push service must not hold up the rest.
-  const results = await Promise.allSettled(rows.map(deliver));
+  const results = await Promise.allSettled(rows.map((r) => {
+    if (!isNative(r)) return deliver(r);
+    if (!canNative) { skipped++; return Promise.resolve("skipped" as const); }
+    return deliverFcm(r);
+  }));
+
   const gone: string[] = [];
+  const goneTokens: string[] = [];
   let sent = 0;
   results.forEach((r, i) => {
-    if (r.status === "fulfilled" && r.value === "ok") sent++;
-    else if (r.status === "fulfilled" && r.value === "gone") gone.push(rows[i].endpoint);
-    else if (r.status === "rejected") console.warn("push threw:", r.reason);
+    const row = rows[i];
+    if (r.status === "rejected") { console.warn("push threw:", r.reason); return; }
+    if (r.value === "ok") sent++;
+    else if (r.value === "gone") {
+      if (isNative(row)) goneTokens.push(row.token); else gone.push(row.endpoint);
+    }
   });
-  await dropDead(gone);
+  await Promise.all([dropDead(gone), dropDeadTokens(goneTokens)]);
 
-  return Response.json({ sent, gone: gone.length, failed: rows.length - sent - gone.length });
+  const dead = gone.length + goneTokens.length;
+  return Response.json({
+    sent, gone: dead, skipped,
+    failed: rows.length - sent - dead - skipped,
+  });
 });

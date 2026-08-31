@@ -74,10 +74,16 @@
       <h1 data-t>A cup a day.</h1>
       <p data-t>Crema is where people keep a record of the coffee they make, and see what everyone else made this morning. The beans are ones you can buy, and the streaks are built from real timestamps.</p>
       <div class="tags"><span data-t>Log every cup</span><span data-t>Keep the streak</span><span data-t>See the morning</span><span data-t>Beans you can actually buy</span></div>
+      <!-- index.html spelled out, not "impressum/". Capacitor's Android
+           local server sends any path whose last segment has no dot to
+           the app's own index.html, so the bare directory URL served
+           Crema-without-its-stylesheet inside the Play build. The public
+           URL https://crema-app.com/impressum/ still works; this is the
+           one link that has to survive both roofs. -->
       <footer class="site-footer">
-        <a href="impressum/">Impressum</a>
+        <a href="impressum/index.html">Impressum</a>
         <span aria-hidden="true">·</span>
-        <a href="privacy/" data-t>Datenschutz / Privacy</a>
+        <a href="privacy/index.html" data-t>Datenschutz / Privacy</a>
       </footer>
     </div>
 

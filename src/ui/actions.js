@@ -46,6 +46,7 @@ import { t, tn, setLang } from '../i18n.js';
 import { render, renderView, renderAppbar, CAFE_MAIL } from './views.js';
 import { authState, signupStep } from './gate.js';
 import { pushOv, popOv, renderOverlay, pickerList } from './overlays.js';
+import { openSelect, applySelect, writeSelect } from './selectsheet.js';
 import { initHistory } from './history.js';
 import { markSeen, DAILY_CHAMPION } from '../core/announce.js';
 
@@ -357,6 +358,23 @@ document.addEventListener('click',e=>{
     /* The ＋ tile on a free account: the one place the photo limit is
        met, so the offer names it rather than saying "Premium". */
     case 'photo-premium': openPremium(t('Up to three photos on a pour')); break;
+
+    /* ---------- the dropdown ----------
+       The <select> is still the control and still holds the value; all
+       this does is put a sheet in front of the OS one. Nothing is synced
+       first, deliberately — unlike openPicker() and openPremium(), this
+       sheet does not replace the DOM of the form underneath, so there is
+       nothing to rescue. See ui/selectsheet.js. */
+    case 'open-select':{
+      if(!openSelect(el.dataset.for)) break;
+      pushOv({type:'select', id:el.dataset.for}); break;}
+    case 'select-pick':{
+      const r=applySelect(el.dataset.v);
+      popOv();
+      /* After the pop, not before: popOv() repaints the sheet underneath
+         from state, so the element to write to is the fresh one. */
+      if(r && r.changed) writeSelect(r.id, r.value);
+      break;}
 
     case 'set-theme': state.theme=el.dataset.t; save(); applyTheme(); renderOverlay(); break;
     /* Language is a whole-app repaint, not a patch: every screen, sheet
@@ -1092,6 +1110,11 @@ async function turnPushOn(){
     r.reason==='denied'      ? t('Notifications are blocked in your browser settings')
   : r.reason==='ios-install' ? t('Add Crema to your Home Screen first')
   : r.reason==='dismissed'   ? t('No reminders. You can turn them on any time.')
+  /* The shell was built without the push credential — see
+     nativePushReady() in data/push.js. Unreachable from the UI, because
+     remindersBlock() does not draw the button in that case; here so that
+     the one code path that can still produce it says something true. */
+  : r.reason==='native-unconfigured' ? t('Reminders are not switched on in this version of the app yet.')
   : t('Reminders would not turn on. Try again.'));
 }
 
@@ -1500,6 +1523,10 @@ function handleUpload(file, mode){
       toast(t('Three photos is the most a pour can carry')); return;
     }
   }
+  /* An edit may only ADD. Everything else about the sheet is the same, so
+     this is the one place that has to say so — the UI already offers no
+     way in, and this is what makes that a rule rather than a layout. */
+  if(c.editId && mode!=='add') return;
   const reader=new FileReader();
   reader.onload=ev=>{const img=new Image();
     img.onload=()=>{
@@ -1523,7 +1550,7 @@ function handleUpload(file, mode){
       }
       let sh=mode==='replace'?shotAt(c):null;
       if(sh){ sources.delete(sh.sid); }
-      else { sh={sid:0,img:null,preview:'',uploading:false,failed:false}; c.photos.push(sh); c.photoI=c.photos.length-1; }
+      else { sh={sid:0,img:null,preview:'',uploading:false,failed:false,added:true}; c.photos.push(sh); c.photoI=c.photos.length-1; }
       sh.sid=++sidN; sh.w=w; sh.h=h; sh.focus=focus; sh.adjustable=adjustable;
       /* The preview is the whole photo — the square is CSS, and CSS is
          what makes the drag live. */
@@ -1543,6 +1570,11 @@ function handleUpload(file, mode){
 function removeShot(i){
   syncCreate();
   const c=ui.create, sh=shots(c)[i]; if(!sh) return;
+  /* On an edit, only a shot added in this sitting can come back out. The
+     ones the pour arrived with are already on R2 and already in
+     image_keys, and deleting one would rewrite what somebody shot — which
+     is the line the whole edit path is drawn on. */
+  if(c.editId && !sh.added) return;
   c.photos.splice(i,1);
   if(c.photoI>=c.photos.length) c.photoI=Math.max(0,c.photos.length-1);
   sources.delete(sh.sid);
@@ -2296,11 +2328,16 @@ function editMyPost(id){
   const r=p.recipe||{}, c=freshCreate();
   const cafe=p.cafe?CAFES.find(x=>x.name===p.cafe):null;
   Object.assign(c,{
-    /* The photos ride along read-only: an edit rewrites what the author
-       said, never what they shot (see EDITABLE in data/posts.js), so the
-       sheet shows them and offers no way to change them. */
+    /* The photos the pour already carries ride along read-only: an edit
+       rewrites what the author said, never what they shot. `added:false`
+       is what says so, and it is the only thing separating them from a
+       shot taken in this sitting — which IS the author's to keep or drop,
+       and is how the second and third photo arrive on a pour that was
+       posted with one. See photoStrip() in ui/overlays.js and updatePost()
+       in data/posts.js. `kept` is the count that must survive the save. */
     editId:p.id, photos:(p.imgs&&p.imgs.length?p.imgs:(p.img?[p.img]:[]))
-      .map(k=>({sid:0,img:k,preview:'',w:0,h:0,focus:.5,adjustable:false,uploading:false,failed:false})),
+      .map(k=>({sid:0,img:k,preview:'',w:0,h:0,focus:.5,adjustable:false,uploading:false,failed:false,added:false})),
+    kept:(p.imgs&&p.imgs.length?p.imgs.length:(p.img?1:0)),
     photoI:0,
     /* the pour's own audience, not the remembered default */
     visibility:p.visibility==='followers'?'followers':'public',
@@ -2325,10 +2362,29 @@ async function saveEdit(c){
   const p=findPost(c.editId);
   if(!p){ ui.ovStack=[]; render(); toast(t('That pour is gone')); return; }
   if(!canEdit(p)){ ui.ovStack=[]; render(); toast(t('Pours can only be edited on the day you posted them')); return; }
+
+  /* A photo added in this sitting has to be on R2 before the row can name
+     it — the same two guards submitPost() runs, in the same order, for
+     the same reason: `image_keys` rejects a data: URI (step-1.28's check
+     constraint), so a half-uploaded photo would lose the whole edit. Both
+     are no-ops on an edit that added nothing, which is most of them. */
+  if(shotsBusy(c)){ toast(t('The photo is still uploading. One moment.')); return; }
+  if(!(await ensureUploaded(c))) return;
+  /* ensureUploaded() awaits the network, so re-check what it came back to. */
+  if(ui.create!==c) return;
+
   const copies=postCopies(p.id);
-  const KEYS=['drink','art','pattern','cafe','caption','recipe','edited','visibility'];
+  const KEYS=['drink','art','pattern','cafe','caption','recipe','edited','visibility','img','imgs'];
   const before=copies.map(x=>{ const o={}; KEYS.forEach(k=>o[k]=x[k]); return o; });
+  const keys=shotKeys(c);
+  /* Added, never rewritten: the kept photos are the first `c.kept` of
+     these and are byte-identical to what the row already holds, so a
+     shorter list can only mean something went wrong and is dropped rather
+     than written. `img` (the cover) is untouched either way — it is
+     keys[0], and keys[0] is the photo the pour was posted with. */
+  const grew = keys.length > (c.kept|0);
   const next={ ...composeFromSheet(c), edited:true };
+  if(grew){ next.imgs=keys; next.img=keys[0]||p.img||null; }
   copies.forEach(x=>Object.assign(x,next));
   setCreate(null); ui.ovStack=[]; save(); render(); toast(t('Changes saved'));
 
@@ -2336,7 +2392,7 @@ async function saveEdit(c){
   /* An edit can move the score now: filling in dose and yield earns the
      exact-recipe points, and naming a coffee you've never logged earns
      the new-bean ones (step-1.14.sql). */
-  try{ await updatePost(p.id,p); refreshScore(); }
+  try{ await updatePost(p.id,p,{ photos:grew }); refreshScore(); }
   catch(err){
     console.warn('edit failed',err);
     copies.forEach((x,i)=>Object.assign(x,before[i]));

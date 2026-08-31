@@ -101,7 +101,7 @@ export let state;
    brand-new arrival apart from a returning one — the welcome toast, and
    the what's-new card that must not greet somebody on their first
    morning with news about what changed. */
-export const ui={route:'home', filter:'today', gate:false, ovStack:[], navStack:[], profTab:'stats', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false, premium:null, freshAccount:false};
+export const ui={route:'home', filter:'today', gate:false, ovStack:[], navStack:[], profTab:'stats', searchQ:'', obStep:1, cafeF:{open:false,promo:false,top:false}, create:null, avatarBusy:false, premium:null, select:null, freshAccount:false};
 
 /* A brand-new account: nothing invented, nothing borrowed. Everything
    visible after this comes from the user or from the backend. */
@@ -768,7 +768,7 @@ export const canEdit = p => !!p && p.user==='me' && isToday(p.createdAt);
 export function freshCreate(){
   return{editId:null,visibility:state.lastVisibility||'public',drink:state.me.favDrink||'Cappuccino',drinkCustom:'',pattern:null,caption:'',source:'home',cafe:'',
   /* The photos, before they are squares. One entry per picture:
-       { sid, img, preview, w, h, focus, adjustable, uploading, failed }
+       { sid, img, preview, w, h, focus, adjustable, uploading, failed, added }
      `preview` is the whole picture as picked, `focus` where the 1:1 crop
      sits along it (domain/framing.js), `adjustable` whether there is any
      choice to make. Only `img` becomes a post; the rest is sheet-local.
@@ -776,8 +776,15 @@ export function freshCreate(){
      An array rather than one field because Premium may attach up to
      three (step-1.28). It is still one photo for almost everybody, and
      the first one is still the pour: it is what the feed card, the
-     profile grid, the week card and the link preview all show. */
-  photos:[],photoI:0,
+     profile grid, the week card and the link preview all show.
+
+     `added` is only meaningful on an edit, where it separates a photo the
+     pour already carries — which the sheet may show but never change —
+     from one picked in this sitting, which behaves exactly as it does on
+     a new pour. `kept` is how many of the former there are, and is what
+     saveEdit() checks the saved list against. See editMyPost() in
+     ui/actions.js. */
+  photos:[],photoI:0,kept:0,
   /* Closed by default — most people posting a coffee are not tracking
      dose/yield/time/temp, and a form full of espresso-nerd fields reads
      as "this app is not for me". The bean/machine are still prefilled

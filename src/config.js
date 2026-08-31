@@ -177,3 +177,42 @@ export const LIVE_POLL_MS = 60 * 1000;
    in Settings hides itself, and the in-app nudges carry on unaffected. */
 export const VAPID_PUBLIC_KEY = 'BG6-xot5uE9TXxaK4JkMntrlmbGCRO1SXZG6_zDWJ9J7I7vGQ60aorseelDTIEoJrOd6SAWwyABMOvgtDJCZZnk';
 export const VAPID_SUBJECT = 'mailto:hello@crema-app.com';
+
+/* ------------------------------------------------------------
+   Native push: which shells can actually deliver one.
+
+   ⚠️ THIS CONSTANT EXISTS BECAUSE THE ALTERNATIVE IS A CRASH, not
+   because it is a nice place for a feature flag.
+
+   @capacitor/push-notifications' Android `register()` is one line:
+   `FirebaseMessaging.getInstance()`. With no google-services.json in the
+   project that throws IllegalStateException — and Capacitor's
+   Bridge.callPluginMethod rethrows a plugin failure as a RuntimeException
+   from a Runnable posted to its task handler, where nothing catches it.
+   An uncaught exception on any thread ends the process. So tapping
+   "Remind me" in the Play alpha did not fail: it closed the app, exactly
+   as reported, and no try/catch in JavaScript can prevent that, because
+   the throw happens in Java after the bridge call has already returned.
+
+   The only defence a web layer has is not to make the call. That is what
+   this is: a list of the platforms whose shell has the credential its
+   push service needs. Empty means "ask nobody", and data/push.js then
+   reports the reminders toggle as unavailable and says so honestly
+   instead of offering a button that kills the app.
+
+   TO TURN ANDROID ON, in this order — both halves or neither:
+     1. platform/capacitor/android/app/google-services.json, from the
+        Firebase project (Project settings → Your apps → Android, package
+        com.crema_app.android). app/build.gradle already applies the
+        google-services plugin the moment that file exists.
+     2. add 'android' here.
+   `node platform/capacitor/configure-native.mjs --check` fails when
+   those two disagree in either direction, so this cannot rot into a
+   crash again.
+
+   iOS stays out until the shell has been compiled at all and an APNs key
+   exists (brain/11-open-questions.md Q19).
+
+   Falsy in a browser by construction: nothing reads this unless
+   core/native.js says the app is running inside a shell. */
+export const NATIVE_PUSH_PLATFORMS = [];

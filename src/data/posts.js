@@ -212,7 +212,7 @@ export async function createPost(p, uid){
 }
 
 /* An edit rewrites what the author *said*, never what they shot: the
-   photo (`image_key`), the author and the timestamp are deliberately not
+   cover (`image_key`), the author and the timestamp are deliberately not
    in this list, so a PATCH can't touch them even if the caller asks.
    `edited_at` is stamped by the database trigger, not by the client — a
    client that sets its own marker is a client that can also unset it.
@@ -222,10 +222,35 @@ export async function createPost(p, uid){
    fix as a typo. It can't unring the bell for anyone who already saw it,
    but it stops it being shown again. */
 const EDITABLE = ['drink','art','pattern','cafe_id','caption','recipe','visibility'];
-export async function updatePost(id, p){
+
+/* `image_keys` is the one column that is neither always editable nor never
+   editable, and the distinction is worth stating precisely because the
+   name of the rule ("photos can't be edited") stopped being true.
+
+   An edit may APPEND a photo — the second and third of a Premium pour,
+   which nobody has in the thirty seconds before the coffee goes cold. It
+   may not replace, reorder or remove one. So the column is sent only when
+   the caller says a photo was added (`photos:true`), and what it sends is
+   the kept keys in their original order with the new one after them —
+   assembled by the sheet, which is the only thing that knows which is
+   which (saveEdit() in ui/actions.js).
+
+   `image_key` stays out of the patch, and that is the invariant rather
+   than an omission: image_keys[1] is image_key, so leaving the cover
+   alone and only ever appending is what keeps the two in step. The OG
+   card, the week recap and every client older than step-1.28 read
+   image_key and nothing else.
+
+   The server is not taking the client's word for the part that matters:
+   `posts_photo_cap` is a BEFORE INSERT **OR UPDATE OF image_keys**
+   trigger (step-1.28), so a free account that sends three keys through
+   this path has two of them trimmed in Postgres, exactly as on insert.
+   The check constraint on the array is the other half. */
+export async function updatePost(id, p, { photos = false } = {}){
   const full = rowOf(p, null);
   const patch = {};
   EDITABLE.forEach(k=>{ if(k in full) patch[k] = full[k]; });
+  if(photos && full.image_keys) patch.image_keys = full.image_keys;
   return rest(`posts?id=eq.${id}`, { method:'PATCH', body:patch });
 }
 

@@ -162,6 +162,8 @@ export const DE = {
   'Not poured today':'Heute noch nichts gemacht',
   'Search':'Suchen',
   'Close':'Schließen',
+  /* the dropdown sheet's heading, used only when a field has no label */
+  'Choose':'Auswählen',
   'Cancel':'Abbrechen',
   'Language':'Sprache',
 
@@ -587,6 +589,10 @@ export const DE = {
   'A nudge in the morning to log today\'s coffee, and one in the evening if your streak is about to lapse. Nothing else unless you ask for it.':
     'Ein Hinweis am Morgen, den heutigen Kaffee einzutragen, und einer am Abend, wenn deine Streak zu reißen droht. Sonst nichts, außer du willst es.',
   'Remind me':'Erinnere mich',
+  'Reminders are not switched on in this version of the app yet. Everything still lands in your inbox here, and the streak nudge is on Home.':
+    'Erinnerungen sind in dieser App-Version noch nicht freigeschaltet. Alles landet trotzdem in deinem Postfach hier, und der Streak-Hinweis steht auf der Startseite.',
+  'Reminders are not switched on in this version of the app yet.':
+    'Erinnerungen sind in dieser App-Version noch nicht freigeschaltet.',
   'Morning coffee nudge':'Morgen-Erinnerung',
   'If you have not logged one yet that day':'Wenn du an dem Tag noch keinen eingetragen hast',
   'Likes, comments &amp; follows':'Likes, Kommentare &amp; Follower',
@@ -816,7 +822,12 @@ export const DE = {
   'That photo could not reach the server. Tap Post to try again, or drop it and post without a photo.':
     'Das Foto hat den Server nicht erreicht. Tipp auf Posten, um es nochmal zu versuchen, oder lass es weg und poste ohne Foto.',
   'Post without the photo':'Ohne Foto posten',
+  'That photo could not reach the server. Tap Save to try again, or drop it and keep the pour as it was.':
+    'Das Foto hat den Server nicht erreicht. Tipp auf Speichern, um es nochmal zu versuchen, oder lass es weg und alles bleibt, wie es war.',
+  'Drop it':'Weglassen',
   'The photo stays as it was poured. Everything else is yours to fix.':'Das Foto bleibt, wie es war. Alles andere kannst du ändern.',
+  'The photos already here stay as they were poured — you can still add one.':
+    'Die Fotos, die schon da sind, bleiben, wie sie waren — eins kannst du noch dazulegen.',
   'Retake':'Neu aufnehmen',
   'Take photo':'Foto aufnehmen',
   'Gallery':'Galerie',

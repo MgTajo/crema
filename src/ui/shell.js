@@ -136,10 +136,33 @@ function paintStatusBar(){
   call('StatusBar', 'setStyle', { style: dark ? 'LIGHT' : 'DARK' });
   if(isAndroidNative()){
     call('StatusBar', 'setBackgroundColor', { color: dark ? '#17100B' : '#F7F1E7' });
-    /* The app draws its own background under the bar (viewport-fit=cover
-       plus the .appbar padding rule in styles.css), so the bar overlays
-       rather than pushing the layout down. */
-    call('StatusBar', 'setOverlaysWebView', { overlay: true });
+    /* ⚠️ overlay:FALSE on Android, and this line used to say true.
+       Reported from the Play alpha as "the back button at the top is not
+       clickable — the clock and the battery are in front of it", which is
+       exactly what it sounds like: the whole top row of the app was
+       underneath the system status bar and every tap went to the bar.
+
+       Overlaying only works if the app is told how tall the bar is, and
+       on Android it is not reliably told. env(safe-area-inset-top) in a
+       WebView comes from the DISPLAY CUTOUT, not from the status bar, so
+       it is 0 on any phone without a notch. Capacitor 8's own SystemBars
+       plugin fills that gap — but only from Android 15 (API 35), where
+       edge-to-edge is enforced and it either pads the WebView's parent or
+       passes the insets through to env(). Below 15 it deliberately
+       publishes ZERO, because below 15 a window is laid out below the
+       bars unless something asks otherwise. This line was that something.
+
+       So Crema stops asking. Android lays the WebView out under the
+       status bar, the bar is painted with the theme colour above, and the
+       .appbar / .ov-bar padding in styles.css keeps working on the two
+       platforms where env() is real (iOS, and Android 15 with a current
+       WebView) while costing nothing where it is 0. On Android 15+ this
+       call is a no-op — the deprecated flag it clears is ignored there —
+       which is correct, because SystemBars is already handling it.
+
+       iOS is deliberately not included: WKWebView with viewport-fit=cover
+       reports a true safe area, so the overlay there is the good kind. */
+    call('StatusBar', 'setOverlaysWebView', { overlay: false });
   }
 }
 

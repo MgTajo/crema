@@ -7,7 +7,20 @@ body.legal-body{
   display:block; padding:0; min-height:100vh;
 }
 .legal-page{
-  max-width:640px; margin:0 auto; padding:48px 20px 80px;
+  max-width:640px; margin:0 auto;
+  /* Belt and braces for the shell. These documents also open inside the
+     Capacitor app, straight from the bundle, where the page IS the window
+     and there is no appbar above it holding the notch's space open —
+     and whether the runtime hands a page the insets or absorbs them
+     itself depends on the WebView version and on a viewport-fit the
+     legal pages deliberately do not declare. env() is 0 in every case
+     where the platform has already inset the page, so this costs nothing
+     on the web and on every path that is already right, and catches the
+     one where the text would otherwise start under the clock. */
+  padding:calc(48px + env(safe-area-inset-top,0px))
+          calc(20px + env(safe-area-inset-right,0px))
+          calc(80px + env(safe-area-inset-bottom,0px))
+          calc(20px + env(safe-area-inset-left,0px));
 }
 .legal-mark{
   display:flex; align-items:center; gap:10px; text-decoration:none;

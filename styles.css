@@ -664,6 +664,17 @@
   .ov-back{position:absolute; inset:0; background:rgba(36,23,15,.24); backdrop-filter:blur(1px)}
   .sheet{position:absolute; inset:0; background:var(--cream); display:flex; flex-direction:column; animation:slideup .3s cubic-bezier(.2,.7,.3,1)}
   .sheet.bottom{top:auto; height:auto; max-height:94%; border-radius:var(--r-lg) var(--r-lg) 0 0; box-shadow:0 -24px 60px rgba(36,23,15,.26); animation:slideup2 .32s cubic-bezier(.2,.7,.3,1)}
+  /* A full-screen sheet covers the appbar, and with it the only rule that
+     was holding the status bar's space open — which is why the back button
+     in every sheet sat underneath the notch, and on the Play alpha
+     underneath the clock and the battery. The padding goes on the sheet
+     rather than on .ov-bar because one sheet (onboarding) has no bar at
+     all, and because box-sizing:border-box means inset:0 still describes
+     the same rectangle either way. `.bottom` is excluded: it starts
+     partway down the glass and never reaches the top. env() is 0 wherever
+     there is nothing to clear, so this changes nothing on the desktop
+     mockup, on a phone with no notch, or on any browser today. */
+  @media(max-width:520px){ .sheet:not(.bottom){padding-top:env(safe-area-inset-top,0px)} }
   @keyframes slideup{from{transform:translateY(14px); opacity:0} to{transform:none; opacity:1}}
   @keyframes slideup2{from{transform:translateY(100%)} to{transform:none}}
   /* A sheet animates when it ARRIVES, never when it repaints in place.
@@ -834,6 +845,39 @@
   .pw-eye:focus-visible{outline:2px solid var(--crema); outline-offset:-2px}
   .field.sel{position:relative}
   .field.sel:after{content:"▾"; position:absolute; right:15px; bottom:13px; color:var(--muted); pointer-events:none; font-size:13px}
+  /* ---------- the dropdown, in Crema's handwriting ----------
+     A transparent button lying over the whole field, so a tap never
+     reaches the <select> and the OS never opens its own menu — which on
+     Android is a grey system dialog with none of this in it, and which
+     no amount of CSS can reach. ui/selectsheet.js puts one of these on
+     every .field.sel and opens the sheet below instead.
+
+     The <select> keeps its place in the tab order and keeps its native
+     popup for anyone driving Crema from a keyboard or a screen reader:
+     this button is aria-hidden and untabbable, so it is a pointer
+     affordance and nothing else. It covers the <label> too, on purpose —
+     tapping the word above a field to open it is what people try. */
+  .selhit{position:absolute; inset:0; background:none; border:0; padding:0; margin:0;
+    -webkit-appearance:none; appearance:none; cursor:pointer; border-radius:var(--r-sm)}
+  #overlay2{z-index:24}
+  .sheet.bottom.selsheet{max-height:74%}
+  .selsheet .ov-body{padding:0 6px 6px}
+  .sellist{display:flex; flex-direction:column}
+  .selrow{display:flex; align-items:center; gap:11px; width:100%; text-align:left;
+    padding:14px 12px; border:0; border-bottom:1px solid var(--line); background:none;
+    font-family:var(--sans); font-size:15px; font-weight:500; color:var(--ink); cursor:pointer;
+    border-radius:10px}
+  .selrow:last-child{border-bottom:0}
+  @media(hover:hover){ .selrow:hover{background:var(--surface2)} }
+  .selrow:active{background:var(--surface2)}
+  .selrow.on{background:var(--crema-soft); font-weight:600}
+  /* The empty option — "Optional", "Choose a café…". Still offered,
+     because unfilling a field you filled by mistake is a thing people
+     do, and drawn as the aside it is rather than as a coffee. */
+  .selrow.none{color:var(--muted); font-weight:500}
+  .selrow[disabled]{opacity:.45; cursor:default}
+  .selrow-t{flex:1; min-width:0}
+  .selrow-c{flex:none; color:var(--crema-deep); font-weight:700}
   /* a field whose value comes from the searchable picker sheet — looks
      like the inputs around it, behaves like a button */
   .pickfield{width:100%; display:flex; align-items:center; gap:10px; text-align:left; border:1px solid var(--line2); background:var(--surface); border-radius:var(--r-sm); padding:11px 13px 11px 15px; font-family:var(--sans); font-size:14.5px; color:var(--muted); cursor:pointer; transition:border-color .15s, box-shadow .15s}
