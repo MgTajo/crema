@@ -100,6 +100,18 @@ function json(body: unknown, status = 200) {
 const xmlEscape = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/* R2 answers a failed S3 call with an XML body carrying <Code> and
+   <Message> — AccessDenied, SignatureDoesNotMatch, NoSuchBucket are all
+   the same HTTP 403/404 and completely different problems. A bare
+   status code was enough to know something was wrong and useless for
+   knowing what: this pulls the two fields the response already has. */
+async function r2Error(res: Response): Promise<string> {
+  const body = await res.text().catch(() => "");
+  const code = body.match(/<Code>([^<]+)<\/Code>/)?.[1];
+  const message = body.match(/<Message>([^<]+)<\/Message>/)?.[1];
+  return code || message ? `${res.status} ${code ?? ""} ${message ?? ""}`.trim() : `${res.status}`;
+}
+
 /* One page of keys under a prefix. R2 speaks S3, so this is
    ListObjectsV2 — and the continuation token is what makes an account
    with more than a thousand photos delete completely rather than
@@ -112,7 +124,13 @@ async function listPage(prefix: string, token?: string) {
   if (token) u.searchParams.set("continuation-token", token);
 
   const res = await r2().fetch(u.toString(), { method: "GET" });
-  if (!res.ok) throw new Error(`R2 list failed (${res.status})`);
+  /* bucket/host are not secrets — R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY
+     are the only two of the four env vars that are. Included here
+     because AccessDenied has more than one cause (wrong bucket name,
+     token scoped to a different bucket, wrong jurisdiction) and this
+     is the fact that tells them apart without a trip to the function
+     logs. */
+  if (!res.ok) throw new Error(`R2 list failed on ${R2_BUCKET}@${R2_HOST} (${await r2Error(res)})`);
   const xml = await res.text();
 
   const keys = [...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) =>
@@ -140,7 +158,7 @@ async function deleteKeys(keys: string[]) {
     headers: { "Content-Type": "application/xml" },
     body,
   });
-  if (!res.ok) throw new Error(`R2 delete failed (${res.status})`);
+  if (!res.ok) throw new Error(`R2 delete failed (${await r2Error(res)})`);
 }
 
 Deno.serve(async (req) => {
