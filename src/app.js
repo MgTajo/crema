@@ -28,7 +28,7 @@ import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap } from './ui/actions.js';
 import { startAgoTicker } from './ui/timeago.js';
-import { canInstallOnIOS } from './data/push.js';
+import { canInstallOnIOS, watchNativeTaps } from './data/push.js';
 import { seen, markSeen, DAILY_CHAMPION } from './core/announce.js';
 import { applyLang, t } from './i18n.js';
 import { watchForErrors } from './data/errors.js';
@@ -36,6 +36,11 @@ import { watchForErrors } from './data/errors.js';
    for the rest of the session. Module evaluation happens before anything
    below runs, so the shell is the right height for the first paint. */
 import './ui/viewport.js';
+/* The native shell's own boot: status bar, splash, back button, deep
+   links, keyboard. Imported unconditionally and inert in a browser —
+   see the header of src/ui/shell.js. */
+import { startShell, onDeepLink, onAuthReturn } from './ui/shell.js';
+import { native } from './core/native.js';
 
 /* Before anything paints: <html lang> has to match the copy the first
    render is about to write, or the browser offers to translate a page
@@ -190,6 +195,35 @@ function openFromHash(h){
    once, a long time ago, so without this the link does nothing. */
 addEventListener('hashchange', ()=>{ openFromHash(takeHash()); });
 
+/* The same event, arriving the native way.
+
+   A tapped crema-app.com link, or a tapped notification, reaches the
+   shell as an appUrlOpen with the whole URL rather than as a hashchange
+   — the WebView never navigates, so nothing above fires. ui/shell.js
+   listens for it and hands the fragment here, which is why openFromHash
+   was already factored out as "the one place that turns a hash into a
+   screen". Universal Links and App Links both land here, and so does
+   crema://p/<id>. */
+onDeepLink(hash => { openFromHash(hash); });
+
+/* A tapped push, native-side. The web equivalent is the service
+   worker's `navigate` message further down; this is the same event
+   arriving through the OS instead, and it lands in the same function. */
+watchNativeTaps(hash => { openFromHash(hash); });
+
+/* Coming back from Google in the system browser. The web equivalent is
+   a page load; native has no page load, so completeOAuthCode() stores
+   the session and emits, and ui/actions.js's onAuthChange does the rest
+   — profile sync, overlay reset, repaint — exactly as it does for a
+   password sign-in. There is nothing to do here but report a failure,
+   which is the one thing that path cannot say. */
+onAuthReturn(err => { if(err) toast(t(err)); });
+
+/* The shell's own start-up. No-op in a browser. Called before the boot
+   below so the splash and the status bar are right for the first paint;
+   it hides the splash itself once render() has run. */
+startShell();
+
 if(auth.session){
   /* The profile row is the truth about who this is, and whether the
      account is new enough to still need onboarding. */
@@ -267,7 +301,16 @@ function takeUpdate(){
   location.reload();
 }
 
-if('serviceWorker' in navigator && (location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname))){
+/* The service worker is a WEB thing, and inside the shell it is a wrong
+   thing. Its two jobs are serving the app offline and receiving Web Push;
+   in a native build the assets are already in the binary and the pushes
+   come from APNs/FCM. Registering it anyway would put a
+   stale-while-revalidate cache in front of local files and have it
+   revalidate against capacitor://localhost, which can only ever be
+   noise — and a `stale` message from it would reload the app to swap
+   bundled code for the same bundled code. See platform/capacitor/sync.mjs,
+   which is why sw.js is not in the native bundle at all. */
+if(!native() && 'serviceWorker' in navigator && (location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname))){
   let _reloading=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_reloading)return; _reloading=true; location.reload(); });
 

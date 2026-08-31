@@ -49,3 +49,30 @@ e2e/.auth/
 e2e/test-results/
 e2e/playwright-report/
 e2e/blob-report/
+
+# Capacitor shell (platform/capacitor/) — step 4.1.
+#
+# www/ is GENERATED: `node platform/capacitor/sync.mjs` stages the web
+# app into it from the same rules that build sw.js's precache list. It is
+# ignored for the reason every generated directory is, and for one more
+# that is specific to this repo — the root is the web root, so a
+# committed www/ would publish a second, silently diverging copy of the
+# entire app at crema-app.com/platform/capacitor/www/.
+platform/capacitor/www/
+platform/capacitor/node_modules/
+
+# The native projects. `npx cap add ios|android` regenerates both from
+# capacitor.config.json and package.json, and they hold absolute paths,
+# Pods/, build output and (on iOS) the team id. What must be kept by hand
+# is tracked deliberately: see platform/capacitor/README.md.
+platform/capacitor/ios/
+platform/capacitor/android/
+
+# Signing material, again, matched under the new directory too. The
+# patterns above are already depth-independent; this is here so that
+# deleting one of them does not quietly widen the blast radius.
+platform/capacitor/**/*.keystore
+platform/capacitor/**/*.p8
+platform/capacitor/**/*.p12
+platform/capacitor/**/GoogleService-Info.plist
+platform/capacitor/**/google-services.json

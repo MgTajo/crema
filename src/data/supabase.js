@@ -14,6 +14,7 @@
    The seam this sits behind: nothing above data/ imports fetch.
    ============================================================ */
 import { SUPABASE_URL, SUPABASE_KEY, BACKEND } from '../config.js';
+import { native, call } from '../core/native.js';
 
 const SESSION_KEY  = 'crema_session';
 const VERIFIER_KEY = 'crema_pkce_verifier';
@@ -149,6 +150,34 @@ async function completeOAuthRedirect(){
   }catch(e){ return e.message; }
 }
 
+/* The native half of the redirect above.
+
+   A web redirect comes back as a page load and completeOAuthRedirect()
+   reads the code out of location.search. A native one comes back as
+   crema://auth?code=… through appUrlOpen, where there is no navigation
+   and no location to read — so the code is handed in directly and the
+   rest of the exchange is the same three lines it always was.
+
+   Returns an error string or null, exactly like completeOAuthRedirect(),
+   so ui/ has one shape to handle. */
+export async function completeOAuthCode(code){
+  const pending = takeVerifier();
+  if(!pending) return 'Sign-in could not be completed — please try again.';
+  try{
+    store(shape(await authPost('token?grant_type=pkce',
+      { auth_code:code, code_verifier:pending.v })));
+    /* emit(), which completeOAuthRedirect() does NOT do — and correctly
+       so: it runs during initAuth(), before any listener exists, and the
+       boot in app.js picks the session up itself. This one arrives on a
+       running app with listeners already attached, so the sign-in has to
+       be announced or nothing repaints. ui/actions.js's onAuthChange is
+       what then adopts it, syncs the profile, resets the overlay stack
+       and re-renders — the same path a password sign-in takes. */
+    emit();
+    return null;
+  }catch(e){ return e.message; }
+}
+
 /* ---------- public auth API ---------- */
 /* Restore the stored session, if there is one, and finish any redirect
    we were sent back from. This is what "no need to sign in again
@@ -245,15 +274,50 @@ export async function updatePassword(password){
 
 const appUrl = () => location.href.split('#')[0].split('?')[0];
 
+/* Where the provider sends the browser back to.
+
+   On the web that is this page, which is what it has always been. In the
+   native shell it cannot be: `location.href` is capacitor://crema-app.com
+   /index.html or a binary-served https://crema-app.com/index.html, and
+   neither is a URL Google will redirect to or Supabase will accept in
+   its allowlist. So native uses a custom scheme that the OS routes back
+   into the app — the same scheme the deep links use, which is why the
+   shell already knows how to receive it (ui/shell.js).
+
+   ⚠️ ONE MANUAL STEP goes with this, and there is no way to do it from
+   code: `crema://auth` has to be added to Supabase → Authentication →
+   URL Configuration → Redirect URLs. Until it is, Supabase falls back to
+   the project's Site URL and the sign-in lands in a browser tab that
+   cannot hand the session back — the exact failure completeOAuthRedirect()
+   below already knows how to describe. */
+const NATIVE_REDIRECT = 'crema://auth';
+const oauthRedirect = () => native() ? NATIVE_REDIRECT : appUrl();
+
 export async function signInWithOAuth(provider){
   const verifier = randomVerifier();
   try{ localStorage.setItem(VERIFIER_KEY, JSON.stringify({ v:verifier, at:Date.now() })); }
   catch(e){ throw new Error('Sign-in needs browser storage — check your privacy settings.'); }
   const challenge = await challengeOf(verifier);
-  const redirect = appUrl();
-  location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=${encodeURIComponent(provider)}`
-    + `&redirect_to=${encodeURIComponent(redirect)}`
+  const url = `${SUPABASE_URL}/auth/v1/authorize?provider=${encodeURIComponent(provider)}`
+    + `&redirect_to=${encodeURIComponent(oauthRedirect())}`
     + `&code_challenge=${challenge}&code_challenge_method=s256`;
+
+  if(native()){
+    /* The system browser, not the WebView, and this is a requirement
+       rather than a preference: Google refuses OAuth in an embedded
+       WebView (the "disallowed_useragent" error), because an app that
+       renders the login form can also read it. @capacitor/browser opens
+       SFSafariViewController / a Custom Tab, which is the sanctioned
+       surface and carries the user's existing Google session.
+
+       The redirect comes back as a deep link, is picked up by
+       ui/shell.js, and lands in openFromHash() — which passes the code
+       to completeOAuthRedirect() the same way a web redirect does. */
+    const r = await call('Browser', 'open', { url, presentationStyle:'popover' });
+    if(!r.ok) throw new Error('Sign-in could not open. Try email and password.');
+    return;
+  }
+  location.href = url;
 }
 
 export async function signOut(){

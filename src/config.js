@@ -59,7 +59,44 @@ const STAGING_HOSTS = ['staging.crema-app.com'];
 /* devserver.py, and anything else served off this machine. */
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]', '0.0.0.0'];
 
+/* ------------------------------------------------------------
+   The native shell, before anything else is asked.
+
+   `[CANON]` A store build must talk to production, always, and it must
+   not be able to reach staging by accident. This branch is the reason
+   the whole function is not just the hostname.
+
+   Capacitor serves the bundled app from a LOCAL origin — http://
+   localhost on Android, capacitor://localhost on iOS, unless
+   capacitor.config.json sets `server.hostname`, which ours does. Read
+   the hostname rules below with that in mind: 'localhost' is in
+   LOCAL_HOSTS, staging is now configured, and so a native build that
+   fell through to them would resolve to STAGING and ship to the App
+   Store writing every pour into the test database. Nothing about that
+   failure is visible from inside the app — it looks like a working
+   Crema with an empty feed.
+
+   So the shell is asked first and answered flatly. Two independent
+   guards, because this is a mistake you only get to make once:
+
+     1. this branch, which does not consult the hostname at all;
+     2. `server.hostname: "crema-app.com"` in capacitor.config.json,
+        which makes the native origin's hostname a PRODUCTION_HOST even
+        if somebody deletes this branch.
+
+   The check is inlined rather than imported from core/native.js on
+   purpose. config.js is the deepest module in the app — data/ imports
+   it and it imports nothing — and giving it an import to satisfy the
+   layering rule would be the wrong trade for six lines. */
+function isNativeShell(){
+  const c = (typeof window !== 'undefined' && window.Capacitor) || null;
+  if(!c) return false;
+  try{ return typeof c.isNativePlatform === 'function' ? c.isNativePlatform() : !!c.isNative; }
+  catch(e){ return false; }
+}
+
 function pickEnvironment(){
+  if(isNativeShell()) return 'production';
   const host = (typeof location !== 'undefined' && location.hostname) || '';
   if(STAGING_HOSTS.includes(host)) return 'staging';
   if(PRODUCTION_HOSTS.includes(host)) return 'production';

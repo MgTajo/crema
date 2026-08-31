@@ -340,6 +340,9 @@ export const DE = {
   'Removed from saved':'Aus Gemerkt entfernt',
   'Your collection did not update':'Deine Sammlung wurde nicht aktualisiert',
   'Link copied 🔗':'Link kopiert 🔗',
+  /* The shell's offline strip (ui/shell.js) — native builds only. */
+  'Offline':'Offline',
+  'Crema will catch up when you are back':'Crema holt auf, sobald du wieder online bist',
   'Maps link copied 🔗':'Karten-Link kopiert 🔗',
   'Copied ✓':'Kopiert ✓',
   'Copying is not available here. Long-press the post instead.':'Kopieren geht hier nicht. Halt den Beitrag stattdessen lang gedrückt.',
