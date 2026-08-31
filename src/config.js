@@ -215,4 +215,4 @@ export const VAPID_SUBJECT = 'mailto:hello@crema-app.com';
 
    Falsy in a browser by construction: nothing reads this unless
    core/native.js says the app is running inside a shell. */
-export const NATIVE_PUSH_PLATFORMS = [];
+export const NATIVE_PUSH_PLATFORMS = ['android'];
