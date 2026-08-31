@@ -76,3 +76,9 @@ platform/capacitor/**/*.p8
 platform/capacitor/**/*.p12
 platform/capacitor/**/GoogleService-Info.plist
 platform/capacitor/**/google-services.json
+
+# The Play upload key's passwords, read by android/app/build.gradle.
+# keystore.properties.example is the tracked template; this is the real
+# one and it must never be committed — the repo root is the web root, so
+# a committed copy would be downloadable from crema-app.com.
+platform/capacitor/keystore.properties

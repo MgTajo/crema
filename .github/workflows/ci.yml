@@ -76,6 +76,18 @@ jobs:
       - name: capacitor — the shell stages, and stages nothing secret
         run: node platform/capacitor/sync.mjs
 
+      # configure-native.mjs re-applies Crema's own settings to the
+      # generated native projects — deep links, permissions, icons,
+      # version, signing. It replaced a README checklist, so the thing
+      # that has to hold is that it is IDEMPOTENT: running it twice must
+      # change nothing, or --check is permanently red and the diff grows
+      # forever. That is exactly the bug the first version had.
+      # ios/ and android/ are git-ignored, so there is nothing to patch
+      # here — this asserts the script parses and its version maths is
+      # right, which is what CI can see.
+      - name: capacitor — the native configurator is sound
+        run: node -e "import('./platform/capacitor/configure-native.mjs').then(m=>{const v=m.version();if(!(v.code>5))throw new Error('versionCode '+v.code+' must exceed the TWA'\'s 5');console.log('versionCode',v.code,'from',v.name)})"
+
   sql:
     name: migration chain
     runs-on: ubuntu-latest

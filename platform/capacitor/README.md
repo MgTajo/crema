@@ -14,13 +14,24 @@ static PWA served from the repo root, it still deploys on a tag, and every nativ
 
 ```bash
 cd platform/capacitor
-npm install          # once
-npm run sync         # stage www/ from the repo root, then `cap sync`
-npm run ios          # sync, then open Xcode
-npm run android      # sync, then open Android Studio
+npm install                # once
+npm run sync               # stage www/, cap sync, re-apply Crema's native config
+npm run build:android      # ...and produce a signed .aab
+npm run verify:android     # check the .aab before it goes near Play
+npm run ios                # sync, then open Xcode
+npm run android            # sync, then open Android Studio
+npm run check              # is everything current? (what CI runs)
 ```
 
-`node sync.mjs --check` answers "is `www/` current?" and is what CI runs.
+⚠️ **Android needs JDK 21.** Capacitor 8's plugins declare a Java 21 toolchain
+and Gradle will not fall back:
+
+```bash
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export ANDROID_HOME=$HOME/Library/Android/sdk
+```
+
+`android/local.properties` (git-ignored, generated once) holds `sdk.dir`.
 
 ---
 
@@ -50,19 +61,44 @@ when `native()` is true).
 `ios/` and `android/` are **generated** and git-ignored. `npx cap add ios|android` recreates
 both from `capacitor.config.json` and `package.json`.
 
-⚠️ **Three things in them were edited by hand and will not come back on their own.** If
-either project is ever recreated, restore these:
+✅ **They are no longer hand-edited.** After 4.1 this section carried a three-row checklist of
+edits that "will not come back" if the projects were regenerated — a landmine with a timer on
+it, because nothing fails when it fires. `configure-native.mjs` replaces the checklist: it
+re-applies every one of them, is idempotent, and `--check` says whether the working tree's
+native projects are what the repo intends. Run `npm run sync` and the projects are correct by
+construction.
 
-| File | What was added |
+What it applies:
+
+| | |
 |---|---|
-| `android/app/src/main/AndroidManifest.xml` | App Links intent filter for `crema-app.com` (`autoVerify`), the `crema://` scheme, and the `CAMERA` / `POST_NOTIFICATIONS` permissions |
-| `ios/App/App/Info.plist` | `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `CFBundleURLTypes` (`crema://`), `UIBackgroundModes: remote-notification`, portrait-only on iPhone |
-| `android/app/build.gradle` | signing config for the existing keystore — **step 4.3, not done yet** |
+| **Android manifest** | App Links for `crema-app.com` (`autoVerify`), the `crema://` scheme, `CAMERA` + `POST_NOTIFICATIONS` |
+| **Android strings** | `custom_url_scheme` = `crema`, so the OAuth callback matches what `data/supabase.js` asks for |
+| **Android icons** | the TWA's launcher and notification icons, byte-for-byte — this is an in-place update of an app already on home screens, so the icon must not change |
+| **Android version** | `versionName` from the git tag, `versionCode` derived arithmetically (`1.8.0` → `10800`) |
+| **Android signing** | reads `keystore.properties`, git-ignored; absent, release signing is skipped and debug builds still work |
+| **iOS Info.plist** | camera and photo-library usage strings, `crema://`, `remote-notification`, portrait-only on iPhone |
 
-Each block is marked in the file with a comment saying it is Crema's and not generated. This
-table is the checklist.
+Edits live between `@crema:begin`/`@crema:end` markers, so the script owns exactly its own
+lines and never the generator's.
 
 ---
+
+## Signing
+
+`keystore.properties` is git-ignored; `keystore.properties.example` is the template.
+
+⚠️ **There are three plausible-looking keys in this repo and two of them are wrong.**
+
+| | SHA-256 | |
+|---|---|---|
+| `android-twa/pwab/signing.keystore`, alias `my-key-alias` | `01:1A:73:…` | ✅ **the registered upload key** |
+| `android-twa/android.keystore` | `E6:38:C8:…` | superseded |
+| `android-twa/upload-certificate.pem` | `E6:38:C8:…` | ❌ **not the upload certificate**, despite the name — it is `android.keystore`'s |
+
+Play rejects a bundle signed with anything but the first, after the upload, with a thin error.
+`npm run verify:android` checks the fingerprint against the constant before you upload, and
+also audits the bundle's contents the way `sync.mjs` audits the staged assets.
 
 ## What is not finished, and what it is waiting on
 

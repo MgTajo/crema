@@ -1061,11 +1061,23 @@
      a tab and not enough for something that looks like an app.
      Under the appbar rather than over it, so it pushes nothing and
      covers nothing; the tab bar and --app-h are unaffected. */
-  .offbar{position:absolute; left:0; right:0; z-index:35; display:flex; align-items:center;
-          justify-content:center; gap:7px; background:var(--ink); color:var(--cream);
-          font-size:12.5px; font-weight:500; padding:7px 14px; letter-spacing:-.005em;
-          transform:translateY(-100%); transition:transform .24s ease; pointer-events:none}
-  .offbar.show{transform:translateY(0)}
+  /* A FLEX ITEM, not an absolutely positioned one. The first version was
+     `position:absolute` with no `top`, on the theory that it would sit
+     where it fell in the flow. It does not: a flex container gives an
+     abspos child a static position of the container's start corner, so
+     the strip painted over the appbar and cut "Crema" and "Sign in" in
+     half. Caught on the emulator, which is the only place it can be —
+     the element does not exist in a browser.
+
+     As a flex item between .appbar and .view it pushes rather than
+     covers, and .view (flex:1) absorbs the height. Animating `height`
+     rather than `transform` is what keeps it out of the layout entirely
+     while hidden, so an online app is laid out exactly as before. */
+  .offbar{flex:none; display:flex; align-items:center; justify-content:center; gap:7px;
+          background:var(--ink); color:var(--cream); font-size:12.5px; font-weight:500;
+          letter-spacing:-.005em; height:0; overflow:hidden; opacity:0; z-index:5;
+          transition:height .24s ease, opacity .18s ease; pointer-events:none}
+  .offbar.show{height:29px; opacity:1}
   :root[data-theme="dark"] .offbar{background:var(--surface3); color:var(--ink); border-bottom:1px solid var(--line2)}
   .offbar b{font-weight:600}
   .empty{text-align:center; color:var(--ink2); padding:56px 22px; font-size:14.5px; line-height:1.55; text-wrap:pretty}
