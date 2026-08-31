@@ -14,6 +14,7 @@ import { imageUrl } from '../data/media.js';
 import { art, artSet } from '../domain/art.js';
 import { t, tn } from '../i18n.js';
 import { icon } from './icons.js';
+import { native } from '../core/native.js';
 import { agoTag } from './timeago.js';
 
 /* @handles become links to the person named, when we know who that is.
@@ -152,7 +153,22 @@ export function followBtn(uid, cls='sm', style=''){
   return `<button class="btn ${cls} ${on?'ghost on':''} ${s==='pending'?'pending':''}"${style?` style="${style}"`:''} data-action="follow" data-id="${uid}">${followText(uid)}</button>`;
 }
 
-export const postLink=id=>location.href.split('#')[0]+'#p/'+id;
+/* A link to one pour, for sharing and for copying.
+
+   On the web this is the page's own URL, which is right: whichever host
+   the reader is on — crema-app.com, a fork, localhost — is the one their
+   link should point back at.
+
+   Inside the native shell `location.href` is the bundle's own address
+   (capacitor://crema-app.com/index.html on iOS, https://crema-app.com
+   served from the binary on Android). Neither opens on anybody else's
+   phone, so a shared pour would be a dead link — and it would look fine
+   to whoever sent it. Native therefore names the public site outright.
+   The deep-link handler in app.js takes the same #p/<id> back off it, so
+   a Crema user who taps one lands in the app rather than the browser. */
+const PUBLIC_ORIGIN = 'https://crema-app.com/';
+export const postLink = id =>
+  (native() ? PUBLIC_ORIGIN : location.href.split('#')[0]) + '#p/' + id;
 
 /* Challenge participation, straight from challenge_joins. Zero is a real
    number here, and reads better as an invitation than as "0 joined". */

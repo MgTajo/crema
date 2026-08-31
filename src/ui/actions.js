@@ -41,6 +41,7 @@ import { onLive, whileAnsweringRequest } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
+import { native, call, haptic, fileFromBase64 } from '../core/native.js';
 import { t, tn, setLang } from '../i18n.js';
 import { render, renderView, renderAppbar, CAFE_MAIL } from './views.js';
 import { authState, signupStep } from './gate.js';
@@ -294,9 +295,11 @@ document.addEventListener('click',e=>{
     case 'cafe-lead': toast(t('Opening your mail app ✉️')); break;
     case 'copy-cafe-mail': copyText(CAFE_MAIL,t('{mail} copied ✉️',{mail:CAFE_MAIL})); break;
     case 'share-crema':{
-      const link=location.href.split('#')[0];
-      if(navigator.share) navigator.share({title:'Crema',text:t('Coffee, brewed social. Log what you pour.'),url:link}).catch(()=>{});
-      else copyText(link,t('Link copied 🔗'));
+      /* location.href is the bundle's own URL inside the shell
+         (capacitor://crema-app.com/index.html), which is not a link
+         anybody else can open. The public site is what gets shared. */
+      const link = native() ? 'https://crema-app.com/' : location.href.split('#')[0];
+      shareLink('Crema', t('Coffee, brewed social. Log what you pour.'), link);
       break;}
 
     /* ---------- the machine / coffee picker ----------
@@ -548,6 +551,86 @@ function paintSearch(){
   const res=$('#explore-results'), normal=$('#explore-normal');
   if(res&&normal){ res.innerHTML=ui.searchQ?searchHTML(ui.searchQ):''; normal.style.display=ui.searchQ?'none':''; }
 }
+/* ---------- the photo buttons, on a phone that has a real camera ----------
+
+   On the web these are four hidden <input type="file"> elements inside
+   <label>s, and `capture="environment"` is as close to a camera as a
+   browser gets: iOS Safari shows its own sheet, Android shows a chooser,
+   and neither is the camera the user expects from an app. The bundled
+   shell has UIImagePickerController / the Android camera intent behind
+   @capacitor/camera, and using them is a large part of what makes this an
+   app rather than a website — Apple guideline 4.2, which the plan calls
+   out as the thing a generic container gets rejected for.
+
+   The interception is a click handler rather than different markup, and
+   that is deliberate. The alternative was to render <button>s on native
+   and <label>s on the web, which would fork four call sites in
+   overlays.js, the CSS that styles them, and the e2e selectors that drive
+   them. This way the DOM is identical in both builds, the web path is
+   untouched, and the native branch is one preventDefault.
+
+   Everything after the photo is picked is the SAME CODE: handleUpload()
+   and uploadAvatar() take a File and do the downscale, the square, the
+   focus pick, the Premium cap and the upload. So the three-photo limit
+   and the rate limit cannot be walked around by coming in through the
+   camera, and the native path cannot drift from the web one. */
+const PHOTO_BUTTONS = {
+  'c-photo-cam': { source:'CAMERA',  mode:'replace' },
+  'c-photo-lib': { source:'PHOTOS',  mode:'replace' },
+  'c-photo-add': { source:'PROMPT',  mode:'add' },
+  'sp-avatar':   { source:'PROMPT',  mode:'avatar' },
+};
+
+async function nativePhoto(id){
+  const spec = PHOTO_BUTTONS[id];
+  if(!spec) return;
+  haptic('light');
+  const r = await call('Camera', 'getPhoto', {
+    source: spec.source,
+    resultType: 'base64',
+    /* Full quality out of the plugin; the existing pipeline is what
+       decides the real size, and it downscales on the short side to
+       1080. Compressing twice is how a photo of a flat white ends up
+       looking like a fax of one. */
+    quality: 92,
+    correctOrientation: true,
+    /* The plugin's own cropper is off on purpose: ui/actions.js already
+       has a square crop with an automatic focus point (domain/framing.js)
+       and a drag to adjust it. Two croppers is one too many, and the
+       app's one is the one the feed is laid out for. */
+    allowEditing: false,
+    saveToGallery: false,
+    promptLabelHeader: t('Add a photo'),
+    promptLabelPhoto:  t('Gallery'),
+    promptLabelPicture:t('Take photo'),
+    promptLabelCancel: t('Cancel'),
+  });
+
+  /* Backing out of the camera is not a failure and must not toast. */
+  if(r.cancelled) return;
+  if(!r.ok || !r.value || !r.value.base64String){
+    if(!r.ok && r.error) console.warn('native camera failed', r.error);
+    toast(t('That photo did not upload. Tap Post to retry.'));
+    return;
+  }
+  const mime = r.value.format ? `image/${r.value.format}` : 'image/jpeg';
+  const file = fileFromBase64(r.value.base64String, mime);
+  if(spec.mode === 'avatar') uploadAvatar(file);
+  else handleUpload(file, spec.mode);
+}
+
+/* Capture phase: the click has to be stopped before it reaches the
+   <label>, which is what activates the hidden input. */
+document.addEventListener('click', e => {
+  if(!native()) return;
+  const label = e.target.closest('label');
+  const input = label && label.querySelector('input[type="file"]');
+  if(!input || !PHOTO_BUTTONS[input.id]) return;
+  e.preventDefault();
+  e.stopPropagation();
+  nativePhoto(input.id);
+}, true);
+
 document.addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='c-photo-cam'||id==='c-photo-lib'||id==='c-photo-add'){
@@ -1612,6 +1695,45 @@ function pickStandout(id){
 
    Nothing is uploaded. The card is drawn, rasterised and shared from
    the device, which is also why it can say so on the sheet. */
+/* Blob → a file the OS share sheet can carry. Returns 'ok', 'cancelled'
+   or 'fallback'; the caller decides what each means, because a cancelled
+   share and a broken one are different events and only one of them is
+   worth counting or complaining about. */
+const u0 = () => currentUser();
+
+async function shareRecapNative(blob, name){
+  const base64 = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload  = () => res(String(fr.result).split(',')[1] || '');
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  }).catch(() => null);
+  if(!base64) return 'fallback';
+
+  const write = await call('Filesystem', 'writeFile', {
+    path: name, data: base64, directory: 'CACHE', recursive: true
+  });
+  if(!write.ok || !write.value || !write.value.uri){
+    if(write.error) console.warn('week card: could not write the PNG', write.error);
+    return 'fallback';
+  }
+
+  haptic('light');
+  const r = await call('Share', 'share', {
+    title: t('Your week in coffee'),
+    files: [write.value.uri],
+    dialogTitle: t('Your week in coffee'),
+  });
+  /* The temp file goes either way — the sheet has already taken its
+     copy, and leaving PNGs in the cache is how an app grows to 300 MB. */
+  call('Filesystem', 'deleteFile', { path: name, directory: 'CACHE' });
+
+  if(r.cancelled) return 'cancelled';
+  if(r.ok) return 'ok';
+  console.warn('week card: native share failed', r.error);
+  return 'fallback';
+}
+
 async function shareRecap(){
   const r=weekRecap(); if(!r) return;
   const name=`crema-week-${new Date().toISOString().slice(0,10)}.png`;
@@ -1623,6 +1745,24 @@ async function shareRecap(){
     const svg=recapSVG(r,state.me,photos,weekStanding(r));
     const blob=await recapPNG(svg);
     const file=new File([blob],name,{type:'image/png'});
+
+    /* The native path for the card, which is the growth loop and so the
+       one share that most has to work. `navigator.share` with a FILE is
+       not available in either WebView, so the PNG is written to the app's
+       cache directory and the OS sheet is handed its URI instead — which
+       is what puts it in front of Instagram's composer, the destination
+       this card was drawn for.
+
+       Cache directory, not documents: the file is a courier, the share
+       sheet copies what it needs, and the OS may reclaim it whenever it
+       likes. Nothing here is the user's copy of anything. */
+    if(native()){
+      const shared = await shareRecapNative(blob, name);
+      if(shared === 'cancelled') return;
+      if(shared === 'ok'){ if(u0()) logRecapExport(u0().id, r.key, 'share'); return; }
+      /* Anything else falls through to the web paths below, which end in
+         a download and a toast rather than in silence. */
+    }
     /* Counted only where the card actually left — after the share
        sheet resolved, and not at all when it was cancelled. An export
        count that includes the ones nobody sent would be a worse number
@@ -2217,10 +2357,40 @@ function brewAgain(id){
   ui.ovStack=[]; pushOv({type:'create'}); toast(t('Recipe loaded. Brew it again ☕'));
 }
 function sharePost(id){
-  const p=findPost(id); if(!p) return; const link=postLink(id);
-  if(navigator.share){ navigator.share({title:'Crema',text:(p.caption||t('A pour on Crema')),url:link}).catch(()=>{}); }
-  else copyText(link,t('Link copied 🔗'));
+  const p=findPost(id); if(!p) return;
+  shareLink('Crema', p.caption||t('A pour on Crema'), postLink(id));
 }
+/* ---------- sharing a link ----------
+
+   `navigator.share` is the web answer and it stays the web answer. It is
+   simply not reliable inside a WebView: the Android WebView has never
+   implemented it, and WKWebView's is gated on a user gesture it does not
+   always agree happened. A share button that silently does nothing is the
+   worst of the three outcomes, so on native the same intent goes through
+   @capacitor/share, which is the OS sheet either way.
+
+   Order of preference, and the reason for it:
+     1. native shell        → Share plugin, the real sheet
+     2. browser with share  → navigator.share, unchanged from before
+     3. anything else       → copy the link, unchanged from before
+
+   Returns nothing; every path ends in either a sheet or a toast. */
+async function shareLink(title, text, url){
+  if(native()){
+    haptic('light');
+    const r = await call('Share', 'share', { title, text, url, dialogTitle: title });
+    /* Dismissing the sheet is not an error and gets no toast. Only a
+       shell that could not open one at all falls through to copying. */
+    if(r.ok || r.cancelled) return;
+    console.warn('native share failed', r.error);
+  }
+  else if(navigator.share){
+    navigator.share({ title, text, url }).catch(()=>{});
+    return;
+  }
+  copyText(url, t('Link copied 🔗'));
+}
+
 function copyText(text,msg){
   const done=()=>toast(msg||t('Copied ✓'));
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text,done)); }

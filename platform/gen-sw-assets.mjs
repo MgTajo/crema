@@ -38,7 +38,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP  = path.resolve(HERE, '..');          // the repo root, which is the web root
@@ -99,7 +99,7 @@ function walk(dir, out = []) {
 /* The list, in a deterministic order: rule by rule, and alphabetically
    within a directory. Order is part of the output, so it has to come
    from the rules rather than from the filesystem's mood. */
-function collect() {
+export function collect() {
   const entries = [];
   for (const r of RULES) {
     if (r.file) { entries.push({ url: r.url, file: r.file }); continue; }
@@ -155,6 +155,19 @@ function splice(src, block) {
   return src.slice(0, i) + BEGIN + '\n' + block + '\n' + src.slice(j);
 }
 
+/* ------------------------------------------------------------
+   Everything below is the command-line half, and it only runs when this
+   file IS the command. platform/capacitor/sync.mjs imports collect()
+   above to stage the native shell's assets from the same rules — the
+   list of files the app is made of should exist once, not twice — and an
+   import must not rewrite sw.js or call process.exit() as a side effect.
+   ------------------------------------------------------------ */
+const isMain = process.argv[1]
+  && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMain) main();
+
+function main() {
 const { cache, entries, block } = build();
 const arg = process.argv[2] || '';
 
@@ -187,3 +200,4 @@ if (arg === '--check') {
 if (before === after) { console.log(`sw.js already current — ${entries.length} files, cache ${cache}`); process.exit(0); }
 fs.writeFileSync(SW, after);
 console.log(`sw.js rewritten — ${entries.length} precached files, cache ${cache}`);
+}

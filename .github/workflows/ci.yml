@@ -43,6 +43,14 @@ jobs:
       - name: streak — 20 assertions
         run: node src/domain/streak.test.mjs
 
+      # The one bug in step 4.1 that would be catastrophic and silent: a
+      # store build pointed at STAGING. Capacitor serves from localhost,
+      # localhost resolves to staging, and the resulting app looks
+      # completely normal. Nine assertions, three of which are that the
+      # web app's own resolution did not move.
+      - name: config — a native build talks to production
+        run: node src/config.test.mjs
+
       - name: web push — RFC 8291 / 8292 vectors
         run: node --experimental-strip-types platform/supabase/functions/send-push/webpush.test.mjs
 
@@ -58,6 +66,15 @@ jobs:
       # what notices that somebody added a module and did not re-run it.
       - name: sw.js precache list is current
         run: node platform/gen-sw-assets.mjs --check
+
+      # The Capacitor shell's www/ is staged from the same rules, and the
+      # staging script refuses to copy signing material into a bundle
+      # that ships to two app stores. Running it in CI is what proves the
+      # allowlist still resolves and the audit still passes — an .ipa and
+      # an .apk are both zip files, so this is the check that matters
+      # most in the whole workflow.
+      - name: capacitor — the shell stages, and stages nothing secret
+        run: node platform/capacitor/sync.mjs
 
   sql:
     name: migration chain

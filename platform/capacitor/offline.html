@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     The shell's own last resort.
+
+     Acceptance criterion 7 of step 4.1: "a real offline state, never a
+     white screen or a browser error page". This is the *floor* of that,
+     not the whole of it. The app itself is bundled, so the ordinary
+     offline experience is Crema opening normally with a cached feed —
+     see src/core/native.js and the offline banner in ui/actions.js.
+
+     This page is what a WebView shows when it could not load the app at
+     all: a navigation that escaped the bundle, or an asset the binary
+     somehow does not have. Without it, iOS draws its own grey
+     "cannot connect to server" — a browser error page inside something
+     the user believes is an app, which is both alarming and, for App
+     Review, a 4.2 "this is a website" tell.
+
+     Self-contained on purpose: no styles.css, no fonts, no modules.
+     If those had loaded, this page would not be needed. It has to look
+     like Crema using nothing but what is inline here.
+     ============================================================ -->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<title>Crema</title>
+<style>
+  :root{
+    --bg:#F7F1E7; --surface:#FFFDF9; --ink:#24170F; --muted:#9A8877;
+    --line:#E4D9C8; --crema:#8A5A28;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#17100B; --surface:#221812; --ink:#F2E9DC; --muted:#A08D79;
+      --line:#3B2B21; --crema:#DCA362;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:grid; place-items:center; text-align:center;
+    padding:24px calc(24px + env(safe-area-inset-left,0px));
+    -webkit-font-smoothing:antialiased;
+  }
+  .card{max-width:320px}
+  .disc{
+    width:64px; height:64px; margin:0 auto 22px; border-radius:50%;
+    background:var(--crema); display:grid; place-items:center;
+    font-size:30px; line-height:1;
+  }
+  h1{
+    font-family:ui-serif,Georgia,"Times New Roman",serif;
+    font-weight:400; font-size:27px; letter-spacing:-.02em;
+    margin:0 0 10px;
+  }
+  p{margin:0 0 24px; color:var(--muted); font-size:15px; line-height:1.5}
+  button{
+    font:inherit; font-weight:600; font-size:15px; color:#FFFDF9;
+    background:var(--crema); border:0; border-radius:999px;
+    padding:13px 30px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  button:active{transform:scale(.97)}
+  .hint{margin-top:18px; font-size:13px; color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="disc">☕</div>
+    <h1 data-i18n="title">No connection</h1>
+    <p data-i18n="body">Crema needs the network to catch up. Your pours are safe — nothing was lost.</p>
+    <button id="retry" data-i18n="retry">Try again</button>
+    <div class="hint" data-i18n="hint">This screen goes away on its own once you are back.</div>
+  </div>
+<script>
+  /* Same language rule as the app: whatever i18n.js persisted, else the
+     browser's. Kept to the four strings on this page rather than
+     importing src/i18n.js — this file has to work when modules do not. */
+  var DE = {
+    title: 'Keine Verbindung',
+    body:  'Crema braucht das Netz, um aufzuholen. Deine Kaffees sind sicher — nichts ist verloren.',
+    retry: 'Nochmal versuchen',
+    hint:  'Dieser Hinweis verschwindet von selbst, sobald du wieder online bist.'
+  };
+  try{
+    var lang = localStorage.getItem('crema.lang')
+            || ((navigator.language||'').slice(0,2));
+    if(lang === 'de'){
+      document.documentElement.lang = 'de';
+      document.querySelectorAll('[data-i18n]').forEach(function(el){
+        var s = DE[el.getAttribute('data-i18n')];
+        if(s) el.textContent = s;
+      });
+    }
+  }catch(e){}
+
+  function back(){ location.replace('index.html'); }
+  document.getElementById('retry').addEventListener('click', back);
+  /* The promise in the hint. Nothing to tap if the network returns on
+     its own while this is on screen. */
+  window.addEventListener('online', back);
+</script>
+</body>
+</html>

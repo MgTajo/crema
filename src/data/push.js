@@ -28,14 +28,154 @@
 import { VAPID_PUBLIC_KEY } from '../config.js';
 import { rest } from './supabase.js';
 import { lang } from '../i18n.js';
+import { native, platform, plugin, call } from '../core/native.js';
+
+/* ============================================================
+   THE NATIVE HALF — step 4.1.
+
+   Everything above this line and below the native block is Web Push and
+   is unchanged. In a browser `native()` is false, none of the functions
+   below are reached, and the module behaves exactly as it did.
+
+   Inside the Capacitor shell the mechanism is different in every part:
+   there is no service worker, no PushManager, no VAPID and no endpoint.
+   The OS hands the app a device token — APNs on iOS, FCM on Android —
+   and the app stores it. Same intent, same UI, same settings toggle;
+   different plumbing underneath, which is exactly what the plan means
+   by "replacing Web Push on native only".
+
+   ⚠️ WHAT DOES NOT WORK YET, said plainly so nobody reads this as
+   finished: a token can be obtained and stored, and NOTHING SENDS TO IT.
+   The sender needs an APNs signing key from an Apple Developer account
+   and an FCM service account from a Firebase project — step 4.2, and
+   the plan lists both under what an agent cannot do. So on native the
+   reminders toggle turns on, is honest about being on, and no push
+   arrives until that credential exists. The table it writes to
+   (`native_push_tokens`, migration 20260831090000) is deliberately
+   separate from `push_subscriptions` so that Web Push — which is live,
+   in production, for everyone on the web today — cannot be affected by
+   any of this.
+   ============================================================ */
+
+const TOKENS = 'native_push_tokens';
+
+/* One row per device, keyed on the token, upserted — the same contract
+   push_subscriptions has with `endpoint`, for the same reason: APNs and
+   FCM both rotate tokens without warning, and a device that re-registers
+   must move its row rather than add one. */
+const upsertToken = (token, uid) => rest(TOKENS, { method:'POST',
+  body: {
+    token,
+    user_id: uid,
+    platform: platform(),
+    tz_offset: -new Date().getTimezoneOffset(),
+    lang,
+    last_seen: new Date().toISOString(),
+  },
+  prefer:'resolution=merge-duplicates' });
+
+/* The registration handshake is asynchronous in a way the web one is
+   not: `register()` resolves when the OS has been ASKED, and the token
+   arrives later on a listener. So the listener is attached once, at
+   module level, and a promise is what register() actually waits on. */
+let tokenPromise = null;
+let lastToken = null;
+
+function awaitToken(){
+  if(tokenPromise) return tokenPromise;
+  const p = plugin('PushNotifications');
+  if(!p || typeof p.addListener !== 'function') return Promise.resolve(null);
+
+  tokenPromise = new Promise(resolve => {
+    /* 20 seconds, then give up. A phone in airplane mode never gets a
+       token from APNs and the promise would otherwise be held forever,
+       with the settings toggle spinning. */
+    const done = setTimeout(() => resolve(null), 20000);
+    p.addListener('registration', ({ value }) => {
+      clearTimeout(done); lastToken = value || null; resolve(lastToken);
+    });
+    p.addListener('registrationError', err => {
+      clearTimeout(done); console.warn('native push registration failed', err); resolve(null);
+    });
+  });
+  return tokenPromise;
+}
+
+/* A tapped notification, native-side. The web gets this through the
+   service worker's `navigate` message (see app.js); on native the OS
+   delivers it here instead, and it is turned into the same deep link so
+   that openFromHash() stays the single place that decides what a route
+   means. The payload's shape is ours: the sender puts `{ url: "#p/…" }`
+   in the data, exactly as sw.js does today. */
+export function watchNativeTaps(onHash){
+  if(!native()) return;
+  const p = plugin('PushNotifications');
+  if(!p || typeof p.addListener !== 'function') return;
+  p.addListener('pushNotificationActionPerformed', ev => {
+    const d = (ev && ev.notification && ev.notification.data) || {};
+    const url = d.url || d.link || '';
+    const cut = String(url).indexOf('#');
+    if(cut >= 0) onHash(String(url).slice(cut));
+  });
+}
+
+async function enableNativePush(uid){
+  const perm = await call('PushNotifications', 'checkPermissions');
+  let status = perm.ok && perm.value ? perm.value.receive : 'prompt';
+  if(status === 'prompt' || status === 'prompt-with-rationale'){
+    const asked = await call('PushNotifications', 'requestPermissions');
+    status = asked.ok && asked.value ? asked.value.receive : 'denied';
+  }
+  if(status !== 'granted') return { ok:false, reason:'denied' };
+
+  const token = awaitToken();
+  const reg = await call('PushNotifications', 'register');
+  if(!reg.ok) return { ok:false, reason:'subscribe-failed' };
+
+  const value = await token;
+  if(!value) return { ok:false, reason:'subscribe-failed' };
+
+  try{ await upsertToken(value, uid); }
+  catch(e){ console.warn('storing the device token failed', e); return { ok:false, reason:'store-failed' }; }
+  return { ok:true };
+}
+
+async function disableNativePush(){
+  const token = lastToken;
+  /* Stop the OS delivering, then forget the row. Order matters only in
+     that a failure of the second leaves a token nothing will ever send
+     to, which is harmless; the reverse leaves notifications arriving
+     after the user turned them off, which is not. */
+  await call('PushNotifications', 'unregister');
+  if(token){
+    try{ await rest(`${TOKENS}?token=eq.${encodeURIComponent(token)}`, { method:'DELETE' }); }
+    catch(e){ console.warn('removing the device token failed', e); }
+  }
+  lastToken = null; tokenPromise = null;
+  return true;
+}
+
+async function nativePushEnabled(){
+  const perm = await call('PushNotifications', 'checkPermissions');
+  if(!perm.ok || !perm.value || perm.value.receive !== 'granted') return false;
+  return true;
+}
 
 export const pushSupported = () =>
-  typeof navigator!=='undefined' && 'serviceWorker' in navigator
+  /* The shell always can: notifications are an OS capability there, not
+     a browser one, and none of the four conditions below apply to it. */
+  native() ||
+  (typeof navigator!=='undefined' && 'serviceWorker' in navigator
   && typeof window!=='undefined' && 'PushManager' in window && 'Notification' in window
-  && !!VAPID_PUBLIC_KEY;
+  && !!VAPID_PUBLIC_KEY);
 
 /* Running from the Home Screen / as an installed app rather than a tab. */
 export const standalone = () =>
+  /* The shell is not "installed to the Home Screen", it IS the app —
+     and every caller of this asks the same underlying question: is this
+     a browser tab? Answering false inside the app would put the
+     "add Crema to your Home Screen" prompt inside Crema. */
+  native() ||
   (typeof window!=='undefined' && window.matchMedia
     && window.matchMedia('(display-mode: standalone)').matches)
   || (typeof navigator!=='undefined' && navigator.standalone===true);
@@ -62,12 +202,12 @@ export const iosSafari = () =>
    navigator.standalone on a home-screen launch, and the installed app
    also matches display-mode: standalone. Either one means installed,
    and means this prompt has nothing to say. */
-export const canInstallOnIOS = () => iosSafari() && !standalone();
+export const canInstallOnIOS = () => !native() && iosSafari() && !standalone();
 
 /* True when the only thing standing between this user and push is
    Apple's Home Screen requirement — worth saying out loud, because the
    fix is one menu away and otherwise the toggle just looks broken. */
-export const iosNeedsInstall = () => isIOS() && !standalone() && !('PushManager' in window);
+export const iosNeedsInstall = () => !native() && isIOS() && !standalone() && !('PushManager' in window);
 
 export const pushPermission = () =>
   (typeof Notification!=='undefined' && Notification.permission) || 'default';
@@ -104,6 +244,7 @@ async function currentSubscription(){
    An explicit 'denied' still wins: the browser will not deliver, whatever
    subscription happens to be lying around. */
 export async function pushEnabled(){
+  if(native()) return nativePushEnabled();
   if(pushPermission()==='denied') return false;
   return !!(await currentSubscription());
 }
@@ -138,6 +279,7 @@ const upsert = (sub, uid) => rest('push_subscriptions', { method:'POST',
 /* Ask, subscribe, store. Returns a reason string on failure so the UI can
    say something truer than "didn't work". */
 export async function enablePush(uid){
+  if(native()) return enableNativePush(uid);
   if(!pushSupported()) return { ok:false, reason: iosNeedsInstall() ? 'ios-install' : 'unsupported' };
   const perm = pushPermission()==='granted' ? 'granted' : await Notification.requestPermission();
   if(perm!=='granted') return { ok:false, reason: perm==='denied' ? 'denied' : 'dismissed' };
@@ -168,6 +310,7 @@ export async function enablePush(uid){
 /* Off means off on this device: the row goes, so the server stops trying,
    and the browser subscription goes with it. Other devices keep theirs. */
 export async function disablePush(){
+  if(native()) return disableNativePush();
   const sub=await currentSubscription();
   if(!sub) return true;
   const endpoint=sub.endpoint;
@@ -183,6 +326,17 @@ export async function disablePush(){
    Never prompts: no permission request happens here. */
 export async function syncPush(uid){
   if(!uid || !(await pushEnabled())) return;
+  if(native()){
+    /* Same job as the web branch below — restate where this device is,
+       once per launch, because the token may have rotated while the app
+       was closed. register() is safe to call again: permission is
+       already granted, so nothing prompts. */
+    const token = awaitToken();
+    await call('PushNotifications', 'register');
+    const value = await token;
+    if(value) await upsertToken(value, uid).catch(()=>{});
+    return;
+  }
   const sub=await currentSubscription();
   if(sub) await upsert(sub, uid).catch(()=>{});
 }
