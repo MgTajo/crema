@@ -56,6 +56,11 @@ export function rowToMe(row){
        here — meToRow never writes them back. */
     points: row.points|0,
     level: row.level || 1,
+    /* Written by this client, but read back from the row like everything
+       else: the row is what other people see, so it is the honest answer
+       to "which badges do I have". meToRow never sends it — pushBadges()
+       does, on its own, when the set actually grows. */
+    badges: Array.isArray(row.badges) ? row.badges : [],
     /* Notification switches (step-1.16.sql). Read here off `select=*` so
        an unrun migration simply leaves them undefined; written only by
        setNotifyPrefs(), never by meToRow — "Save profile" must not be
@@ -149,6 +154,11 @@ export function rowToUser(row){
      Premium lapse" has to survive registerUser()'s merge exactly as
      "they redeemed a code" does. */
   if('premium' in row) u.premium = !!row.premium;
+  /* Same `in row` rule as the two above: a query that did not select
+     badges must not blank out the ones registerUser() already merged
+     in, and an empty array is a real value — it is what everybody who
+     has earned none has. */
+  if('badges' in row) u.badges = Array.isArray(row.badges) ? row.badges : [];
   return u;
 }
 
@@ -213,6 +223,24 @@ export async function ensureProfile(uid, email, me){
 
 /* Push local profile edits up. A 409 means the username is taken — the
    caller surfaces that, because it is the user's to fix. */
+/* ------------------------------------------------------------
+   The badges this person has earned, written to their own row.
+
+   Its own function rather than a field on meToRow(), because the two
+   are written at different moments and for different reasons: a profile
+   is saved when somebody presses Save, and badges change when they post
+   a coffee. Folding them together would mean either writing badges on
+   every profile save (pointless) or waiting for one (badges that appear
+   on your profile the next time you rename yourself).
+
+   Fire and forget at the call site — see syncBadges() in store.js. A
+   badge that fails to reach the row is re-sent on the next open, and
+   nothing on screen is waiting for it.
+   ------------------------------------------------------------ */
+export async function pushBadges(uid, ids){
+  return rest(`profiles?id=eq.${uid}`, { method:'PATCH', body:{ badges: ids } });
+}
+
 export async function pushProfile(uid, me){
   const row = meToRow(me, uid, clean(me.handle) || 'barista');
   delete row.id;
@@ -272,7 +300,11 @@ export async function fetchScore(uid){
 }
 
 /* ---------- reads about other people ---------- */
-const CARD = 'id,handle,name,city,bio,avatar_color,level,premium,avatar_key';
+/* `badges` rides along with every face the app draws, for the same
+   reason `premium` does: a badge is now something OTHER people see, so
+   it has to arrive with the author embed rather than needing a lookup
+   of its own. See migrations/20260905090000_badges_are_public.sql. */
+const CARD = 'id,handle,name,city,bio,avatar_color,level,premium,avatar_key,badges';
 
 /* Follower / following / pour counts, from the profile_counts view.
    Counted in Postgres rather than kept in columns, so they can't drift. */

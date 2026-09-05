@@ -18,7 +18,8 @@ import { signUp, signInWithPassword, signInWithOAuth, signOut, onAuthChange, cur
          sendPasswordReset, updatePassword } from '../data/supabase.js';
 import { ensureProfile, pushProfile, pushName, pushAvatar, fetchUserCard, searchProfiles, fetchScore,
          setNotifyPrefs , setTimezone, fetchProfilesByHandles, redeemPremium, dropPremium,
-         handleTaken } from '../data/profiles.js';
+         handleTaken, pushBadges } from '../data/profiles.js';
+import { earnedBadgeIds, computeBadges } from '../domain/scoring.js';
 import { codeValid, PREMIUM_MAIL, photoLimit } from '../domain/premium.js';
 import { cropSquare, objectPosition, isAdjustable, focusAfterDrag, pickFocus } from '../domain/framing.js';
 import { recapSVG, recapPNG, loadShotPhotos, loadStanding, weekStanding } from './recap.js';
@@ -43,10 +44,10 @@ import { commentRow, postLink, searchHTML, reactionBar, avatar } from './compone
 import { icon } from './icons.js';
 import { native, call, haptic, fileFromBase64 } from '../core/native.js';
 import { t, tn, setLang } from '../i18n.js';
-import { render, renderView, renderAppbar, CAFE_MAIL } from './views.js';
+import { render, renderView, renderAppbar, paintArrivalsPill, CAFE_MAIL } from './views.js';
 import { authState, signupStep } from './gate.js';
 import { pushOv, popOv, renderOverlay, pickerList } from './overlays.js';
-import { openSelect, applySelect, writeSelect } from './selectsheet.js';
+import { openSelect, applySelect, writeSelect, openChoice, settleChoice } from './selectsheet.js';
 import { initHistory } from './history.js';
 import { markSeen, DAILY_CHAMPION } from '../core/announce.js';
 
@@ -353,6 +354,15 @@ document.addEventListener('click',e=>{
     case 'drop-photo':{ syncCreate(); const c=ui.create;
       c.photos=shots(c).filter(x=>!x.failed);
       c.photoI=Math.max(0,Math.min(c.photoI,c.photos.length-1)); renderOverlay(); break;}
+    /* "Try again" next to it. The same retry Post would run, offered
+       where the failure is reported rather than only on the button that
+       does five other things — a free account has one photo slot, so
+       "tap Post to retry" was the whole of its recovery and it did not
+       look like one. Says whether it worked, because a silent retry
+       that failed again is indistinguishable from a button that does
+       nothing. */
+    case 'retry-photo':{ syncCreate(); const c=ui.create;
+      ensureUploaded(c).then(ok=>{ if(ok&&ui.create===c) toast(t('Photo uploaded ✓')); }); break;}
     case 'photo-remove': removeShot(+el.dataset.i); break;
     case 'photo-pick':{ syncCreate(); ui.create.photoI=+el.dataset.i; renderOverlay(); break;}
     /* The ＋ tile on a free account: the one place the photo limit is
@@ -369,6 +379,12 @@ document.addEventListener('click',e=>{
       if(!openSelect(el.dataset.for)) break;
       pushOv({type:'select', id:el.dataset.for}); break;}
     case 'select-pick':{
+      /* Two sheets share these rows: a <select>'s dropdown, which ends
+         in el.value, and a standalone question, which ends in the
+         promise openChoice() handed its caller. Settled BEFORE the pop,
+         because popOv() repaints and clearSelectSheet() would otherwise
+         resolve it with null first. */
+      if(ui.select && ui.select.choice){ settleChoice(el.dataset.v); popOv(); break; }
       const r=applySelect(el.dataset.v);
       popOv();
       /* After the pop, not before: popOv() repaints the sheet underneath
@@ -595,16 +611,54 @@ function paintSearch(){
 const PHOTO_BUTTONS = {
   'c-photo-cam': { source:'CAMERA',  mode:'replace' },
   'c-photo-lib': { source:'PHOTOS',  mode:'replace' },
-  'c-photo-add': { source:'PROMPT',  mode:'add' },
-  'sp-avatar':   { source:'PROMPT',  mode:'avatar' },
+  'c-photo-add': { source:'ASK',     mode:'add' },
+  'sp-avatar':   { source:'ASK',     mode:'avatar' },
 };
+
+/* ---------- where the photo comes from ----------
+   Two of the four buttons above do not say. The ＋ tile on a pour and
+   "Add a photo" in Settings both mean "a photo, from wherever you keep
+   them", and @capacitor/camera answers that with source:'PROMPT' — its
+   own Android dialog, which is a grey system list with none of Crema in
+   it. Reported from the alpha, and it is the same complaint the
+   dropdown got in ui/selectsheet.js.
+
+   So the question is asked in Crema's own sheet and the plugin is told
+   the answer. openChoice() reuses the dropdown's second layer, which
+   matters here for the same reason it did there: the create sheet
+   underneath is holding a typed caption, and a sheet that replaced
+   #overlay would take it with it.
+
+   Returns null when they backed out, which is a cancel and not a
+   failure — the same thing r.cancelled means below. */
+function askPhotoSource(){
+  /* openChoice() sets ui.select synchronously and returns the promise;
+     pushOv() repaints and paintSelectSheet() reads ui.select. In that
+     order, or the sheet paints before it has anything to draw — the
+     same ordering open-select relies on above. */
+  const answer = openChoice({
+    id: 'photo-source',
+    title: t('Add a photo'),
+    options: [
+      { v:'CAMERA', l:t('Take photo'), ic:'📷' },
+      { v:'PHOTOS', l:t('Gallery'),    ic:'🖼️' },
+    ],
+  });
+  pushOv({ type:'select', id:'photo-source' });
+  return answer;
+}
 
 async function nativePhoto(id){
   const spec = PHOTO_BUTTONS[id];
   if(!spec) return;
   haptic('light');
+  let source = spec.source;
+  if(source === 'ASK'){
+    source = await askPhotoSource();
+    if(!source) return;               // backed out of the sheet
+  }
   const r = await call('Camera', 'getPhoto', {
-    source: spec.source,
+    source,
     resultType: 'base64',
     /* Full quality out of the plugin; the existing pipeline is what
        decides the real size, and it downscales on the short side to
@@ -618,10 +672,6 @@ async function nativePhoto(id){
        app's one is the one the feed is laid out for. */
     allowEditing: false,
     saveToGallery: false,
-    promptLabelHeader: t('Add a photo'),
-    promptLabelPhoto:  t('Gallery'),
-    promptLabelPicture:t('Take photo'),
-    promptLabelCancel: t('Cancel'),
   });
 
   /* Backing out of the camera is not a failure and must not toast. */
@@ -751,10 +801,20 @@ onLive((what,arg)=>{
   if(what==='thread'){ refreshOpenThread(arg); return; }
   if(what==='post'){ const p=findPost(arg); if(p){ paintLike(p); paintReactions(p); paintCommentCount(p); } return; }
   if(what==='feed'){
-    if(feedIsSteady()) applyArrivals();
-    /* Repaint either way: with the new cards in, or with the pill that
-       says they are waiting. A deleted pour has already left the list. */
-    if(onFeedScreen()) renderView();
+    if(feedIsSteady()){
+      /* The cards changed, so the view has to be rebuilt — and the
+         reader is at the top with nothing open, which is the one place
+         where that is free. */
+      applyArrivals();
+      if(onFeedScreen()) renderView();
+      return;
+    }
+    if(!onFeedScreen()) return;
+    /* Otherwise the arrivals are still queued and the list below is
+       untouched, so only the pill needs drawing. paintArrivalsPill()
+       says false when it cannot be sure of that — a deleted pour — and
+       then the full repaint is the right answer after all. */
+    if(!paintArrivalsPill()) renderView();
   }
 });
 
@@ -1221,6 +1281,51 @@ async function refreshScore(){
     state.me.points=points; state.me.level=level; save(); applyMe();
     if(ui.route==='profile'&&!ui.ovStack.length) renderView();
   }catch(e){ console.warn('score refresh failed',e); }
+}
+
+/* ------------------------------------------------------------
+   Badges, from this device to the profile row everyone can read.
+
+   Lives here rather than in the store because domain/scoring.js already
+   imports store.js — putting the sync in the store would make that a
+   cycle. ui/ is above both, which is what ui/ is for.
+
+   THE SET ON THE SERVER IS THE MEMORY. Anything computed here that is
+   not already in `USERS.me.badges` — the array the profile row arrived
+   with — is new, and gets both a write and a word. There is no second
+   "already announced" list to keep in step with anything, and a badge
+   announced on a phone is not announced again on a laptop, because by
+   then the row has it.
+
+   ⚠️ The one exception is the backfill. Everybody who was already using
+   Crema on 2026-09-05 has an empty array and up to eleven badges they
+   earned months ago; announcing all of them at once would be the app
+   shouting about the past. More than one at a time is therefore written
+   silently. Two genuinely earned in one morning is possible and would
+   also be silent — that is the right way round for a rare case.
+   ------------------------------------------------------------ */
+export function syncBadges(){
+  const u=currentUser(); if(!u) return;
+  const me=USERS.me||{};
+  /* undefined, not [], means no profile row has been read yet in this
+     session — writing then would race the fetch and could announce a
+     badge the row already has. */
+  if(!Array.isArray(me.badges)) return;
+  const have=me.badges, want=earnedBadgeIds();
+  const fresh=want.filter(id=>!have.includes(id));
+  /* Only ever grows. A badge is not taken back — deleting a pour must
+     not un-earn "First pour" — so a shrinking set is left alone rather
+     than written. */
+  if(!fresh.length) return;
+
+  me.badges=want;
+  pushBadges(u.id, want).catch(e=>console.warn('badges did not save',e));
+
+  if(fresh.length===1){
+    const b=computeBadges().find(x=>x.id===fresh[0]);
+    if(b) toast(`${b.i} ${t('Badge earned')} · ${t(b.n)}`);
+  }
+  if(ui.route==='profile'&&!ui.ovStack.length) renderView();
 }
 
 async function saveProfile(){
@@ -2581,6 +2686,10 @@ async function submitPost(){
     /* The pour may have finished a challenge — the trigger has already
        decided, so ask rather than guess. */
     refreshChallenges();
+    /* And it may have earned a badge — a first pour, a seventh bean, a
+       hundredth coffee. Cheap: it is arithmetic over posts already in
+       memory, and it writes nothing unless the set actually grew. */
+    syncBadges();
     /* Both tabs are server-filtered now, and we may have just switched
        to the other one — so let the server say what belongs there rather
        than showing whichever list happened to be loaded. */
@@ -2606,6 +2715,15 @@ export function applyTheme(){
   const th=state.theme||'auto';
   const dark = th==='dark' || (th==='auto' && mqDark.matches);
   document.documentElement.setAttribute('data-theme',dark?'dark':'light');
+  /* Mirrored to a plain, unscoped key so the legal documents can match
+     it. They are separate pages — /privacy/, /impressum/, /child-safety/
+     — that borrow styles.css for its tokens but run none of the app, so
+     they have no way to read `state`, which is keyed by user id. The
+     RESOLVED value is what is written, not 'auto': the pages should
+     follow prefers-color-scheme on their own when nobody has chosen,
+     and legal.js only overrides when this key exists. Same shape as
+     `crema.lang` in src/i18n.js, and for the same reason. */
+  try{ localStorage.setItem('crema.theme', dark?'dark':'light'); }catch(e){}
 }
 if(mqDark.addEventListener) mqDark.addEventListener('change',()=>{ if((state.theme||'auto')==='auto') applyTheme(); });
 

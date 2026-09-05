@@ -100,10 +100,14 @@ function layer(){
 function rows(s){
   return s.opts.map(o => {
     const on = o.v === s.cur;
+    /* `ic` is optional and only a choice sheet sets it — an <option>
+       has nothing to draw. It is a glyph, not markup, and goes through
+       esc() like everything else. */
     return `<button type="button" class="selrow${on?' on':''}${o.v?'':' none'}"
       role="option" aria-selected="${on?'true':'false'}"${o.dis?' disabled':''}
       data-action="select-pick" data-v="${esc(o.v)}">
-      <span class="selrow-t">${esc(o.l)}</span>
+      ${o.ic?`<span class="selrow-i" aria-hidden="true">${esc(o.ic)}</span>`:''}
+      <span class="selrow-t">${esc(o.l)}${o.sub?`<small>${esc(o.sub)}</small>`:''}</span>
       <span class="selrow-c">${on?'✓':''}</span></button>`;
   }).join('');
 }
@@ -147,6 +151,12 @@ export function clearSelectSheet(){
      the sheet can be dismissed by routes that know nothing about it —
      the Android back gesture, the backdrop, signing out. */
   ui.select = null;
+  /* A choice sheet that got here was dismissed rather than answered, and
+     its caller is awaiting a promise. Resolving with null is what turns
+     "they pressed back" into a cancel instead of a photo that never
+     arrives and a spinner nobody clears. Harmless when a choice was
+     just made: settleChoice() has already taken the resolver. */
+  settleChoice(null);
 }
 
 /* ---------- 3. opening and choosing ---------- */
@@ -183,4 +193,40 @@ export function writeSelect(id, v){
   if(!el || el.value === v) return;
   el.value = v;
   el.dispatchEvent(new Event('change', { bubbles:true }));
+}
+
+/* ---------- 4. the same sheet, without a <select> under it ----------
+
+   Reported from the Play alpha, and it is the same complaint the
+   dropdown got: adding a second photo raised Android's own "Gallery /
+   Take photo / Cancel" list, which is a grey system dialog with none of
+   Crema in it. @capacitor/camera draws that itself when it is asked for
+   source:'PROMPT' — the labels can be translated and nothing else about
+   it can be touched.
+
+   So Crema asks the question instead and tells the plugin the answer.
+   Everything the dropdown already solved is reused as it stands: the
+   second layer (so the create sheet's typed caption survives), the
+   ovStack entry (so the back gesture closes it), the rows, the CSS.
+   What differs is only that there is no element holding the value, so
+   the answer goes to a callback rather than to `el.value`.
+
+   The callback is module-private rather than a field on `ui.select`,
+   because `ui` is read and rebuilt by renderers that have no business
+   holding a function. */
+let pending = null;
+
+export function openChoice({ id, title, options }){
+  ui.select = { id, title, cur:'', opts: options, choice:true };
+  return new Promise(resolve => { pending = resolve; });
+}
+
+/* Answers the promise openChoice() returned — with the chosen value, or
+   with null when the sheet was dismissed rather than answered. Every
+   caller therefore has exactly one place to handle "they backed out",
+   which is the case the native prompt reported as a cancel. */
+export function settleChoice(v){
+  const f = pending; pending = null;
+  if(ui.select && ui.select.choice) ui.select = null;
+  if(f) f(v == null ? null : v);
 }

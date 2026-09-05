@@ -10,8 +10,9 @@ import { BEANS, ADD_DRINK, DRINKS, beanCatalog, combineMachine, flag } from '../
 import { USERS, handleToUid, CAFES, userOf } from '../data/world.js';
 import { state, allPosts, findPost } from '../store/store.js';
 import { REACTIONS } from '../data/reactions.js';
-import { imageUrl } from '../data/media.js';
+import { imageUrl, imageAttrs } from '../data/media.js';
 import { art, artSet } from '../domain/art.js';
+import { BADGES } from '../domain/scoring.js';
 import { t, tn } from '../i18n.js';
 import { icon } from './icons.js';
 import { native } from '../core/native.js';
@@ -39,12 +40,18 @@ export function mentionify(t){
    Deliberately NOT loading="lazy": the app scrolls inside its own
    container rather than the document, and the browser's lazy heuristic
    never considers these visible — a lazy avatar sitting in the middle of
-   the feed simply never loads. They're 240px thumbs, so eager is cheap
+   the feed simply never loads. They're 120px faces, so eager is cheap
    and, unlike lazy, it works. */
 export function avatar(uid,cls=''){
   const u=USERS[uid]||{name:'☕',color:'var(--crema)'};
+  /* One helper, six rendered sizes: 26 on the today strip up to 74 for
+     .xl. `face` is 120px, which is a 40px avatar at DPR 3 and covers
+     everything below it; the two large classes ask for `thumb` instead
+     rather than being upscaled from a face. Measured, not assumed —
+     see the comment on VARIANTS in data/media.js. */
+  const big=/\b(big|xl)\b/.test(cls);
   const photo=u.avatar
-    ? `<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`
+    ? `<img src="${esc(imageUrl(u.avatar,big?'thumb':'face'))}" alt="" onerror="this.remove()">`
     : '';
   /* The gold ring rides on the face rather than sitting beside the name,
      because it has to survive every context an avatar appears in — a
@@ -55,6 +62,36 @@ export function avatar(uid,cls=''){
   const ring=u.premium?' prem':'';
   return `<div class="avatar ${cls}${ring}" style="background:${u.color}">${initials(u.name)}${photo}</div>`;
 }
+/* ---------- the strip other people see ----------
+   The point of the whole change. A badge that lives on one tab of your
+   own profile is a private checklist; this is the same fact where
+   somebody else can read it, and it is the reason profiles.badges is a
+   column rather than a computation.
+
+   Capped at six — a profile header is not the place for eleven rows of
+   prose, and the full grid is one tap away for anyone who wants to know
+   what a swan means. `ids` come off the profile row, so this renders for
+   anybody: yours from USERS.me, theirs from the author embed every query
+   already carries.
+
+   An id this build does not know about is skipped rather than drawn as
+   a blank. That is what makes it safe for an older app — the Play build
+   from before a badge was added, which can be a day behind the web — to
+   read a newer row. */
+export function badgeStrip(ids, {own=false}={}){
+  const list = Array.isArray(ids) ? ids : [];
+  if(!list.length) return '';
+  const known = BADGES;
+  const shown = list.map(id => known.find(b => b.id === id)).filter(Boolean);
+  if(!shown.length) return '';
+  const first = shown.slice(0, 6), rest = shown.length - first.length;
+  const chips = first.map(b =>
+    `<span class="bchip" title="${esc(t(b.d))}"><i>${b.i}</i>${esc(t(b.n))}</span>`).join('');
+  const more = rest > 0 ? `<span class="bchip more">+${rest}</span>` : '';
+  const tap = own ? ' data-action="ptab" data-t="badges" style="cursor:pointer"' : '';
+  return `<div class="bstrip"${tap}>${chips}${more}</div>`;
+}
+
 export function cafeThumb(c){return `<div class="cafe-thumb" style="background:${c.color}">${initials(c.name)}</div>`;}
 
 /* ----- catalogue fields -----
@@ -267,7 +304,7 @@ export function postCard(p){
       ${p.user==='me'?'':followMini(p.user)}
       <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">⋯</button></div>
     <div class="media" data-action="open-post" data-id="${p.id}" data-media="${p.id}">
-      ${artSet((p.imgs&&p.imgs.length?p.imgs:[p.img]).map(k=>imageUrl(k,'feed')),p.pattern,p.quality,seedOf(p.id),p.drink)}
+      ${artSet((p.imgs&&p.imgs.length?p.imgs:[p.img]).map(k=>imageAttrs(k,'feed')),p.pattern,p.quality,seedOf(p.id),p.drink)}
       <div class="heartpop" data-hp="${p.id}">${icon('heartF',90)}</div></div>
     <div class="p-act">
       ${likeButton(p)}

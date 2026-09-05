@@ -67,23 +67,106 @@ export const POINT_RULES=[
   ['3rd place on today\'s podium','+5']
 ];
 
-export function computeBadges(){
+/* ------------------------------------------------------------
+   Badges.
+
+   `id` is new and is the load-bearing part of it. Until 2026-09-05 a
+   badge was an object with a name and a boolean, computed on the device
+   of the person who earned it and rendered on one tab of their own
+   profile — which made it a private checklist. Nobody else could see
+   one, which is why nobody looked at their own.
+
+   They are stored now, on `profiles.badges`, and that column is a list
+   of these ids. So an id is a name in the database and must NEVER be
+   changed once it has shipped: renaming one silently un-earns it for
+   everybody who has it. The English `n` and `d` are display strings and
+   are free to be reworded, and both go through t().
+
+   `have`/`need` replace the old `p:'3/7'` string. A number the caller
+   can compare is what makes "the one you are closest to" possible —
+   see nextBadge() below, which is the whole engagement idea: not
+   eleven things you have not done, one you nearly have.
+
+   ⚠️ Badges deliberately pay NO points and unlock NOTHING. They are not
+   in POINT_RULES and they are not in user_points(). That is what keeps
+   them a side feature rather than a second scoring system competing
+   with the one the server owns, and it is also why it is safe for the
+   client to write them — see the header of
+   migrations/20260905090000_badges_are_public.sql.
+   ------------------------------------------------------------ */
+/* WHAT a badge is: id, glyph, name, description, and how many of the
+   thing it takes. Deliberately free of any reference to the store, so
+   that rendering SOMEBODY ELSE'S badges — the whole point of the change
+   — needs nothing but their profile row. badgeStrip() in ui/components.js
+   is the caller that depends on this being pure. */
+export const BADGES = [
+  {id:'first-pour',     i:'☕',n:'First pour',        d:'Post your first coffee',     need:1},
+  {id:'week-streak',    i:'🔥',n:'Week streak',       d:'7 days of coffee in a row',  need:7},
+  {id:'rosetta-groove', i:'🌿',n:'Rosetta groove',    d:'Post 5 rosettas',            need:5},
+  {id:'tulip-time',     i:'🌷',n:'Tulip time',        d:'Post your first tulip',      need:1},
+  {id:'swan-whisperer', i:'🦢',n:'Swan whisperer',    d:'Post a swan',                need:1},
+  {id:'bean-explorer',  i:'🫘',n:'Bean explorer',     d:'Log 7 different beans',      need:7},
+  {id:'world-tour',     i:'🌍',n:'World tour',        d:'Try coffees from 5 origins', need:5},
+  {id:'cold-brew',      i:'🧊',n:'Cold brew curious', d:'Post a cold brew',           need:1},
+  /* Joining is no longer a thing you can do (step 1.17), so this is
+     what it always should have been: finishing one. `wins` counts
+     completion rows, which outlive the week they were earned in. */
+  {id:'challenger',     i:'🎯',n:'Challenger',        d:'Finish a challenge',         need:1},
+  {id:'regular-winner', i:'🏆',n:'Regular winner',    d:'Finish 10 challenges',       need:10},
+  {id:'century-club',   i:'💯',n:'Century club',      d:'Log 100 pours',              need:100},
+];
+
+/* HOW FAR the signed-in person is on each. Reads the store, so it only
+   ever answers about them — which is why it is a separate function from
+   the list above rather than a field on it. */
+export function badgeList(){
   const mine=myPosts(), n=mine.length, pats=p=>mine.filter(x=>x.pattern===p).length;
-  const beansN=myBeans().length;
-  const origins=myCountries().length;
-  return [
-    {i:'☕',n:'First pour',d:'Post your first coffee',e:n>0},
-    {i:'🔥',n:'Week streak',d:'7 days of coffee in a row',e:streak()>=7},
-    {i:'🌿',n:'Rosetta groove',d:'Post 5 rosettas',e:pats('rosetta')>=5,p:Math.min(pats('rosetta'),5)+'/5'},
-    {i:'🌷',n:'Tulip time',d:'Post your first tulip',e:pats('tulip')>=1},
-    {i:'🦢',n:'Swan whisperer',d:'Post a swan',e:pats('swan')>=1,p:pats('swan')+'/1'},
-    {i:'🫘',n:'Bean explorer',d:'Log 7 different beans',e:beansN>=7,p:Math.min(beansN,7)+'/7'},
-    {i:'🌍',n:'World tour',d:'Try coffees from 5 origins',e:origins>=5,p:Math.min(origins,5)+'/5'},
-    {i:'🧊',n:'Cold brew curious',d:'Post a cold brew',e:mine.some(p=>p.drink==='Cold brew')},
-    /* Joining is no longer a thing you can do (step 1.17), so this is
-       what it always should have been: finishing one. `wins` counts
-       completion rows, which outlive the week they were earned in. */
-    {i:'🎯',n:'Challenger',d:'Finish a challenge',e:challenges.wins>0},
-    {i:'🏆',n:'Regular winner',d:'Finish 10 challenges',e:challenges.wins>=10,p:Math.min(challenges.wins,10)+'/10'},
-    {i:'💯',n:'Century club',d:'Log 100 pours',e:n>=100,p:n+'/100'}];
+  const HAVE = {
+    'first-pour':n, 'week-streak':streak(),
+    'rosetta-groove':pats('rosetta'), 'tulip-time':pats('tulip'), 'swan-whisperer':pats('swan'),
+    'bean-explorer':myBeans().length, 'world-tour':myCountries().length,
+    'cold-brew':mine.filter(p=>p.drink==='Cold brew').length,
+    'challenger':challenges.wins, 'regular-winner':challenges.wins,
+    'century-club':n,
+  };
+  return BADGES.map(b => Object.assign({}, b, { have: HAVE[b.id]|0 }));
+}
+
+/* The same list with `e` (earned) and `p` (the '3/7' label) filled in,
+   which is the shape every renderer already expects. A badge needing
+   one of something shows no counter — "0/1" is not progress, it is the
+   description again. */
+export function computeBadges(){
+  return badgeList().map(b => {
+    const have = Math.min(b.have|0, b.need);
+    return Object.assign({}, b, {
+      e: (b.have|0) >= b.need,
+      p: b.need > 1 ? have + '/' + b.need : ''
+    });
+  });
+}
+
+/* Just the ids, for the profile row. Sorted so a re-order in the list
+   above cannot make an unchanged set look changed and cause a write. */
+export const earnedBadgeIds = () =>
+  computeBadges().filter(b=>b.e).map(b=>b.id).sort();
+
+/* ------------------------------------------------------------
+   The one you are closest to.
+
+   This is the engagement half of badges and it is deliberately ONE.
+   A grid of eleven locked things is a list of ways you have fallen
+   short; a single named next one is an idea for tomorrow morning.
+
+   Closest by fraction rather than by remainder, so "5 of 7 beans" beats
+   "0 of 1 swan" — the first is somebody already on their way, the
+   second is somebody who has not started. Nothing at all is returned
+   when they have every badge, and when they have started nothing:
+   showing "0/100 pours" to a person on their first day is the app
+   telling them how far they are from somewhere they did not ask to go.
+   ------------------------------------------------------------ */
+export function nextBadge(){
+  const open = computeBadges().filter(b=>!b.e && (b.have|0) > 0);
+  if(!open.length) return null;
+  return open.sort((a,b)=>(b.have/b.need)-(a.have/a.need))[0];
 }

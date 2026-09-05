@@ -67,11 +67,23 @@ const RULES = [
      never reach a browser: they are run by node, in CI. */
   { dir: 'src', match: /\.js$/, skip: /\.test\.m?js$/ },
 
-  /* Artwork. og-cover.png is the only file here the app never loads —
-     it is the social preview in index.html's meta tags, fetched off the
-     network by a crawler that has no service worker. Precaching it would
-     cost every install a download nobody ever sees. */
-  { dir: 'assets', match: /\.(?:jpg|png|svg|webp)$/, skip: /^og-cover\.png$/ },
+  /* Artwork. Part of the app — the native bundle ships it, and sw.js
+     serves it offline once it has been seen — but NOT part of opening
+     the app, so `precache: false`: it is fetched on demand and the
+     runtime cache-first branch in sw.js keeps it from then on.
+
+     Measured 2026-09-04: this directory was 856 KB of the 1.76 MB
+     `caches.addAll()` runs on a first visit, all-or-nothing, competing
+     with the paint the visitor is waiting for. beans.jpg alone is
+     141 KB and appears on a bean detail page. Nine of the twelve files
+     are not referenced from src/ at all today, so precaching them
+     bought a first visit nothing whatsoever.
+
+     og-cover.png is excluded outright rather than deferred: it is the
+     social preview in index.html's meta tags, fetched off the network
+     by a crawler that has no service worker, so the app never asks for
+     it and the runtime cache would never hold it either. */
+  { dir: 'assets', match: /\.(?:jpg|png|svg|webp)$/, skip: /^og-cover\.png$/, precache: false },
 
   /* The icons, which live at the root because the manifest and
      assetlinks point at them there. */
@@ -102,12 +114,13 @@ function walk(dir, out = []) {
 export function collect() {
   const entries = [];
   for (const r of RULES) {
-    if (r.file) { entries.push({ url: r.url, file: r.file }); continue; }
+    const pre = r.precache !== false;
+    if (r.file) { entries.push({ url: r.url, file: r.file, precache: pre }); continue; }
     for (const rel of walk(r.dir)) {
       const base = path.basename(rel);
       if (r.match && !r.match.test(base)) continue;
       if (r.skip && r.skip.test(base)) continue;
-      entries.push({ url: `./${rel}`, file: rel });
+      entries.push({ url: `./${rel}`, file: rel, precache: pre });
     }
   }
   return entries;
@@ -127,15 +140,28 @@ function build() {
     console.error('missing file(s) named by a rule:\n  ' + missing.map(m => m.file).join('\n  '));
     process.exit(2);
   }
-  /* The cache name is a hash of what is IN the cache — every precached
-     file's bytes, under the URL it is cached as. Two deploys that change
-     nothing precached share a cache name and therefore a cache. */
+  /* The cache name is a hash of EVERY file the worker can end up
+     holding — precached or runtime — not only the precache list.
+
+     Precached files are the obvious half. The runtime half matters for
+     a subtler reason: artwork is cache-first with no revalidation, so a
+     changed assets/beans.jpg under the same name would otherwise be
+     served out of the runtime cache forever. activate() deletes every
+     cache that is not C, so folding the runtime files into the hash is
+     what evicts them when they change. Two deploys that touch nothing
+     the worker serves still share a cache name, which is the property
+     this was written for. */
   const fingerprint = entries
     .map(e => `${e.url}\0${sha(fs.readFileSync(path.join(APP, e.file)))}`)
     .join('\n');
   const cache = 'crema-' + sha(Buffer.from(fingerprint)).slice(0, 12);
-  const list = entries.map(e => `  '${e.url}',`).join('\n');
-  return { cache, entries,
+
+  /* ASSETS is only what install() fetches up front. The rest reaches the
+     same cache through the fetch handler, the first time it is asked
+     for, and is offline from then on. */
+  const precached = entries.filter(e => e.precache);
+  const list = precached.map(e => `  '${e.url}',`).join('\n');
+  return { cache, entries, precached,
     block: `const C = '${cache}';\nconst ASSETS = [\n${list}\n];` };
 }
 
@@ -168,7 +194,7 @@ const isMain = process.argv[1]
 if (isMain) main();
 
 function main() {
-const { cache, entries, block } = build();
+const { cache, entries, precached, block } = build();
 const arg = process.argv[2] || '';
 
 if (arg === '--print') { console.log(block); process.exit(0); }
@@ -178,7 +204,7 @@ const after  = splice(before, block);
 
 if (arg === '--check') {
   if (before === after) {
-    console.log(`sw.js is current — ${entries.length} precached files, cache ${cache}`);
+    console.log(`sw.js is current — ${precached.length} precached, ${entries.length - precached.length} runtime-cached, cache ${cache}`);
     process.exit(0);
   }
   console.error('sw.js is out of date.\n');
@@ -187,17 +213,17 @@ if (arg === '--check') {
      entries would report files as dropped that were never in it. */
   const region = before.slice(before.indexOf(BEGIN), before.indexOf(END));
   const cur = new Set([...region.matchAll(/'(\.\/[^']*)'/g)].map(m => m[1]));
-  const want = new Set(entries.map(e => e.url));
+  const want = new Set(precached.map(e => e.url));
   const added   = [...want].filter(u => !cur.has(u));
   const dropped = [...cur].filter(u => !want.has(u));
   if (added.length)   console.error('  not precached: ' + added.join(', '));
-  if (dropped.length) console.error('  no longer exists or excluded: ' + dropped.join(', '));
+  if (dropped.length) console.error('  no longer precached (gone, excluded, or now runtime-cached): ' + dropped.join(', '));
   if (!added.length && !dropped.length) console.error(`  the list is right; a precached file changed, so the cache name has to (${cache}).`);
   console.error('\nRun:  node platform/gen-sw-assets.mjs   and commit sw.js.');
   process.exit(1);
 }
 
-if (before === after) { console.log(`sw.js already current — ${entries.length} files, cache ${cache}`); process.exit(0); }
+if (before === after) { console.log(`sw.js already current — ${precached.length} precached, ${entries.length - precached.length} runtime-cached, cache ${cache}`); process.exit(0); }
 fs.writeFileSync(SW, after);
-console.log(`sw.js rewritten — ${entries.length} precached files, cache ${cache}`);
+console.log(`sw.js rewritten — ${precached.length} precached, ${entries.length - precached.length} runtime-cached, cache ${cache}`);
 }

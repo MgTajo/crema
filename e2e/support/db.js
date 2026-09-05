@@ -39,7 +39,7 @@ export async function likeExists(postId, userId) {
 }
 
 export async function profileByHandle(handle) {
-  const rows = await get(`profiles?handle=eq.${enc(handle)}&select=id,handle,name,premium`);
+  const rows = await get(`profiles?handle=eq.${enc(handle)}&select=id,handle,name,premium,badges`);
   return rows[0] || null;
 }
 

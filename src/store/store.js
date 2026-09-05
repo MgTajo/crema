@@ -169,13 +169,19 @@ export function freshState(){
        overwrites them on sync. Present here so the reminder switches
        render a real position before the first sync rather than reading
        as "off" and inviting someone to turn on what is already on. */
-    me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:'',avatar:'',
+    me:{name:'',handle:'',city:'',machineBrand:'',machineModel:'',favDrink:'Cappuccino',favMilk:'Whole milk',premium:false,bio:'',avatar:'',badges:[],
         notifySocial:true,notifyStreak:true,notifyDigest:true,notifyMorning:true,notifyFriends:true},
     notifications:[]
   };
 }
 export async function load(){try{const s=await persistence.read(); state=(s&&s.me)?s:freshState();
   ['posts','customBeans','customMachines','customDrinks','myGallery','notifications'].forEach(k=>{if(!state[k])state[k]=[];});
+  /* A blob written before badges existed has no such key, and
+     syncBadges() treats a non-array as "the row has not been read yet"
+     and does nothing. Which is right for it and wrong here: this IS a
+     read blob. Empty is the honest starting point — the row wins on the
+     next sync either way. */
+  if(state.me && !Array.isArray(state.me.badges)) state.me.badges=[];
   ['follows','cafeFollow','followPending','recapPicks'].forEach(k=>{if(!state[k])state[k]={};});
   if(!state.pins||!Array.isArray(state.pins.machines)||!Array.isArray(state.pins.beans)) state.pins={machines:[],beans:[]};
   if(!state.gear||typeof state.gear!=='object') state.gear={beans:{},machines:{}};
@@ -741,6 +747,10 @@ export function applyMe(){
      Postgres, so it has to be mirrored here or you would be the only
      Premium member who couldn't see it. */
   USERS.me.premium=!!state.me.premium;
+  /* Same mirroring, same reason: USERS.me is the one row that never
+     arrives from Postgres, and every badge renderer reads USERS[uid]
+     so that yours and somebody else's take the same path. */
+  USERS.me.badges=Array.isArray(state.me.badges)?state.me.badges:[];
   /* level, points and counts all come from the server — nothing here
      is guessed or incremented locally */
   USERS.me.level=state.me.level||1;

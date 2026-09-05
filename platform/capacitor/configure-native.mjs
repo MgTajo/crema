@@ -148,13 +148,22 @@ function android(){
   if(need(manifest)){
     let m = fs.readFileSync(manifest, 'utf8');
 
+    /* ⚠️ www.crema-app.com is deliberately NOT here, and adding it back
+       will not work. `pm get-app-links` reported it in state 1024
+       (STATE_NO_RESPONSE) on 2026-09-04 while the apex verified, and the
+       cause is not the fingerprints:
+       https://www.crema-app.com/.well-known/assetlinks.json answers 301
+       to the apex, and Android's Digital Asset Links verifier does not
+       follow redirects. GitHub Pages with a CNAME of crema-app.com will
+       always redirect www, so no file can fix it — the host genuinely
+       cannot answer. Claiming it only made the app carry a permanently
+       failed domain. The share sheet emits the apex, which verifies. */
     const LINKS =
 `            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="crema-app.com" />
-                <data android:scheme="https" android:host="www.crema-app.com" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -172,7 +181,27 @@ function android(){
       [/(\n)(\s*<\/activity>)/, '$1            @@$1$2']);
     m = splice(m, 'perms', PERMS,
       [/(<uses-permission android:name="android\.permission\.INTERNET" \/>)/, '$1\n    @@']);
-    put(manifest, m, 'android: deep links + permissions');
+
+    /* ---------- portrait, and nothing but ----------
+       Turning the phone sideways used to hand the app a landscape
+       viewport, and Crema's layout answers a wide viewport with the
+       desktop framing — the phone-in-a-frame the web app shows on a
+       laptop. Inside a phone-shaped app that is not a wider layout, it
+       is a picture of a phone inside a phone.
+
+       There is no landscape design to fall back to and no reason to
+       draw one: this is a thing you use one-handed while the kettle
+       boils. So the activity is locked, which is also what Info.plist
+       already does on iOS (UIInterfaceOrientationPortrait) — the two
+       shells now agree.
+
+       ⚠️ Android 16 (targetSdk 36) ignores screenOrientation on
+       displays 600dp and wider, so a tablet or a desktop window can
+       still be landscape. That is the platform's call, not ours, and
+       the responsive CSS is what handles it there. */
+    m = m.replace(/(<activity\b(?![^>]*android:screenOrientation)[^>]*android:name="\.MainActivity")/,
+                  '$1\n            android:screenOrientation="portrait"');
+    put(manifest, m, 'android: deep links, permissions, portrait lock');
   }
 
   /* ---------- strings: the custom scheme ----------
@@ -253,6 +282,95 @@ function android(){
     }
   }
 
+  /* ---------- the splash the phone actually shows ----------
+     Capacitor's stock template sets `android:background` on a theme
+     whose parent is Theme.SplashScreen. The Android 12+ platform splash
+     API does not read that attribute — it reads
+     windowSplashScreenBackground and windowSplashScreenAnimatedIcon,
+     neither of which was set. So the configured cream never appeared:
+     frames captured every ~450 ms on 2026-09-04 showed blank system
+     grey until the feed rendered at +2492 ms. The XML looked right,
+     which is why it went unnoticed for so long.
+
+     Written in two places on purpose. The un-prefixed attributes are
+     androidx.core.splashscreen's own, which is what draws the splash on
+     API 24-30; the android:-prefixed ones in values-v31 are what the
+     platform reads from 31 up. Setting only one of them leaves half the
+     installed base on the grey rectangle.
+
+     postSplashScreenTheme is the half people forget: without it the
+     launch theme stays applied after the splash goes, and the WebView
+     inherits a window background it should not have. */
+  const SPLASH_ITEMS = (p) => [
+    `        <item name="${p}windowSplashScreenBackground">@color/crema_splash</item>`,
+    `        <item name="${p}windowSplashScreenAnimatedIcon">@drawable/crema_splash_mark</item>`,
+  ].join('\n');
+
+  const styles = path.join(AND, 'app/src/main/res/values/styles.xml');
+  if(need(styles)){
+    let st = fs.readFileSync(styles, 'utf8');
+    st = st.replace(
+      /<style name="AppTheme\.NoActionBarLaunch"[^>]*>[\s\S]*?<\/style>/,
+`<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <!-- @crema — configure-native.mjs. See the note there; do not
+             put android:background back, the platform ignores it. -->
+${SPLASH_ITEMS('')}
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>`);
+    put(styles, st, 'android: splash theme (compat)');
+  }
+
+  put(path.join(AND, 'app/src/main/res/values-v31/styles.xml'),
+`<?xml version="1.0" encoding="utf-8"?>
+<!-- @crema — configure-native.mjs. The platform splash API, API 31+. -->
+<resources>
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+${SPLASH_ITEMS('android:')}
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>
+</resources>
+`, 'android: splash theme (API 31+)');
+
+  /* #F7F1E7 is the cream `capacitor.config.json` already names as the
+     splash backgroundColor — the same value, in the one place the
+     platform reads it from. */
+  put(path.join(AND, 'app/src/main/res/values/crema_splash.xml'),
+`<?xml version="1.0" encoding="utf-8"?>
+<!-- @crema — configure-native.mjs -->
+<resources>
+    <color name="crema_splash">#F7F1E7</color>
+</resources>
+`, 'android: splash colour');
+
+  /* The mark, redrawn as a vector rather than exported as a bitmap:
+     the geometry is four numbers and it is already written down in
+     index.html, so this cannot drift from the brand.
+
+     240dp is the platform splash canvas; the disc is 160dp centred in
+     it, which is both the documented visible area and, at that size,
+     the clear space brand-and-voice.md asks for (clear space on all
+     sides = the height of the heart — the heart is 71dp here, the
+     margin 40dp on the disc plus the cream beyond it). Disc #8A5A28,
+     heart #F5EADA, heart never touching the rim: guidelines §The mark,
+     and the same path index.html:67 draws. */
+  put(path.join(AND, 'app/src/main/res/drawable/crema_splash_mark.xml'),
+`<?xml version="1.0" encoding="utf-8"?>
+<!-- @crema — configure-native.mjs. The mark from index.html:67, as a
+     vector: a #8A5A28 disc with the #F5EADA heart. No gradients, no
+     squircle, the heart clear of the rim. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp" android:height="240dp"
+    android:viewportWidth="240" android:viewportHeight="240">
+    <path android:fillColor="#8A5A28"
+        android:pathData="M40,120a80,80 0 1,0 160,0a80,80 0 1,0 -160,0Z" />
+    <group android:translateX="84.4" android:translateY="84.4"
+        android:scaleX="0.712" android:scaleY="0.712">
+        <path android:fillColor="#F5EADA"
+            android:pathData="M50 92C50 92 6 62 6 34.5 6 18.5 17.5 8 30.5 8 39.5 8 46 13.2 50 20.5 54 13.2 60.5 8 69.5 8 82.5 8 94 18.5 94 34.5 94 62 50 92 50 92Z" />
+    </group>
+</vector>
+`, 'android: splash mark');
+
   /* ---------- build.gradle: version and signing ----------
      The signing block reads keystore.properties, which is git-ignored
      and holds the upload key's passwords. When that file is absent the
@@ -296,8 +414,69 @@ android {
 }
 `;
     if(!/@crema signing/.test(g)) g = g.trimEnd() + '\n' + SIGN;
-    put(gradle, g, `android: version ${v.name} (code ${v.code}) + signing`);
+
+    /* ---------- R8 ----------
+       Capacitor's template ships `minifyEnabled false`, so the release
+       bundle carried 14.44 MB of unshrunk dex — across two files, i.e.
+       it had spilled into multidex — around a 1.8 MB web app. Measured
+       on 2026-09-04 by building it both ways on this machine:
+
+         AAB  7.94 MB -> 4.90 MB   (-38%)
+         dex 14.44 MB -> 2.15 MB   (-85%, and back to one file)
+         APK  8.85 MB -> 3.90 MB   (-56%)
+
+       Replaced in the template's own block rather than appended in a
+       second `android {}`: proguardFiles APPENDS, so adding the
+       -optimize file next to the stock proguard-android.txt would leave
+       `-dontoptimize` in force and quietly buy the size without the
+       optimisation. There must be exactly one of them, and it must be
+       the optimize one. */
+    const R8 =
+`            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'`;
+    g = splice(g, 'r8', R8,
+      [/[ \t]*minifyEnabled false\n[ \t]*proguardFiles getDefaultProguardFile\('proguard-android\.txt'\), 'proguard-rules\.pro'/,
+       '@@'], ['            // ', '']);
+    put(gradle, g, `android: version ${v.name} (code ${v.code}), signing, R8`);
   }
+
+  /* What R8 must not strip.
+
+     Capacitor finds a plugin by its @CapacitorPlugin annotation and
+     calls its methods by reflection from the JavaScript bridge, so
+     there is no call site for R8 to trace and nothing stops it removing
+     the whole class. The plugins' own AARs ship consumer rules for
+     most of this; these are written down anyway because the failure
+     mode is a runtime "Unable to load plugin" on a device, in release
+     only, and the review that turned R8 on could not exercise the
+     camera, the share sheet or FCM without an account. Keeping a few
+     hundred annotated methods costs nothing against 12 MB. */
+  put(path.join(AND, 'app/proguard-rules.pro'),
+`# @crema — configure-native.mjs. See the R8 note there.
+
+# Plugins are discovered by annotation and invoked by reflection.
+-keep @com.getcapacitor.annotation.CapacitorPlugin public class * { *; }
+-keepclassmembers class * { @com.getcapacitor.PluginMethod <methods>; }
+-keep class * extends com.getcapacitor.Plugin { *; }
+
+# The bridge reads and writes these by field/method name.
+-keep class com.getcapacitor.JSObject { *; }
+-keep class com.getcapacitor.PluginCall { *; }
+
+# Firebase Cloud Messaging is reached the same way — reflectively, from
+# the Google Play services runtime, not from our code.
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
+
+# WebView JavaScript interfaces. @JavascriptInterface methods are only
+# ever called from JavaScript, which R8 cannot see.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+`, 'android: ProGuard keep rules for the Capacitor bridge');
 }
 
 /* ============================================================

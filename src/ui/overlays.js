@@ -27,7 +27,7 @@ import { native } from '../core/native.js';
 import { art, artSet, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { t, tn } from '../i18n.js';
-import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, selectOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, hiddenMark, followMini, followBtn, followState } from './components.js';
+import { avatar, cafeThumb, mentionify, recipeRows, recipePanel, commentRow, machinePicker, beanPicker, drinkOptions, selectOptions, premiumNote, gcell, commentCount, likeButton, reactionBar, editedMark, privateMark, hiddenMark, followMini, followBtn, followState, badgeStrip } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { agoTag } from './timeago.js';
 import { keepInput } from './keepinput.js';
@@ -529,6 +529,11 @@ function overlayUser(uid){
         <div style="margin-top:10px"><b style="font-family:var(--serif);font-size:22px">${esc(u.name)}</b> <span class="lvlchip">Lv${u.level}</span>
           <div style="color:var(--muted);font-size:13px;margin:2px 0 8px">${esc(u.handle)}${open&&u.city?` · 📍 ${esc(u.city)}`:''}</div>
           ${open&&u.bio?`<p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:0 0 12px">${esc(u.bio)}</p>`:''}</div>
+        ${/* The whole reason profiles.badges exists. Behind the same
+             `open` gate as the bio, the city and the pour count: what
+             somebody has made is for the followers they accepted, and a
+             badge is a summary of what they have made. */
+          open?badgeStrip(u.badges):''}
         <div class="stats">${open?`<div><b>${fmt(u.pourN)}</b><span>${t('Pours')}</span></div>`:''}<div><b>${fmt(u.followerN)}</b><span>${t('Followers')}</span></div><div><b>${t(u.levelName)}</b><span>${t('Level')} ${u.level}</span></div></div>
         ${open?`<div class="section-h"><h2>${t('Recent pours')}</h2></div>
         ${theirs.length?`<div class="grid">${theirs.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty">${t('No pours yet.')}</div>`}`
@@ -1647,7 +1652,14 @@ function overlayCreate(){
      its pixels are still here (preview), and only if it isn't already
      square — a square has exactly one crop. */
   const framing=!!(sh&&sh.preview&&sh.adjustable&&(!editing||sh.added));
-  const anyFailed=pics.some(x=>x.failed);
+  const failedN=pics.filter(x=>x.failed).length, anyFailed=failedN>0;
+  /* How many would survive dropping the failed ones. "Post without
+     the photo" is only true when there is one photo; with three
+     Premium slots and one that failed, that button posts the other
+     two — and reading it as "lose all my photos" is why somebody
+     ends up posting the second one alone and wondering where the
+     first went. */
+  const keptN=pics.length-failedN;
   const pats=[['heart',t('Heart')],['rosetta',t('Rosetta')],['tulip',t('Tulip')],['swan',t('Swan')],['abstract',t('Abstract art')]];
   const mkList=(base,cur)=>{const l=base.slice(); if(cur&&!l.includes(cur))l.push(cur); return l;};
   /* `translate` is on for catalogue values (milk) and off for names
@@ -1675,9 +1687,16 @@ function overlayCreate(){
       </div>
       ${photoStrip(c,pics,n,editing)}
       ${anyFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
-        ${editing?t('That photo could not reach the server. Tap Save to try again, or drop it and keep the pour as it was.')
-                 :t('That photo could not reach the server. Tap Post to try again, or drop it and post without a photo.')}
-        <button class="btn ghost sm" style="margin-top:8px" data-action="drop-photo">${editing?t('Drop it'):t('Post without the photo')}</button></div>`:''}
+        ${editing?tn(failedN,'That photo could not reach the server. Try again, or drop it and keep the pour as it was.',
+                              'Those photos could not reach the server. Try again, or drop them and keep the pour as it was.')
+                 :tn(failedN,'That photo could not reach the server. Try again, or post without it.',
+                             'Those photos could not reach the server. Try again, or post without them.')}
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn sm" data-action="retry-photo">${t('Try again')}</button>
+          <button class="btn ghost sm" data-action="drop-photo">${
+            editing ? tn(failedN,'Drop it','Drop them')
+            : keptN ? tn(keptN,'Post with the other photo','Post with the other {n} photos')
+                    : tn(failedN,'Post without the photo','Post without the photos')}</button></div></div>`:''}
       ${framing?`<div class="frame-hint">${t('Drag the photo to pick what stays in the square.')}</div>`:''}
       ${editing?(n?`<div style="font-size:11.5px;color:var(--muted);margin:10px 2px 12px">${
         state.me.premium&&n<PHOTOS_PREMIUM

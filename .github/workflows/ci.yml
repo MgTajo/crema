@@ -40,6 +40,14 @@ jobs:
         with:
           node-version: '22'
 
+      # First, because everything below it is moot if a module cannot
+      # load. `node --check` parses as a SCRIPT and lets an unbalanced
+      # template literal through — which shipped a blank screen on
+      # 2026-09-05. This imports every file under src/ and lets the
+      # engine's own module parser answer. See src/modules.test.mjs.
+      - name: modules — every file under src/ loads
+        run: node src/modules.test.mjs
+
       - name: streak — 20 assertions
         run: node src/domain/streak.test.mjs
 

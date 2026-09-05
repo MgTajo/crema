@@ -26,7 +26,7 @@ import { startLive } from './store/live.js';
 import { render } from './ui/views.js';
 import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
-import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap } from './ui/actions.js';
+import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap, syncBadges } from './ui/actions.js';
 import { startAgoTicker } from './ui/timeago.js';
 import { canInstallOnIOS, watchNativeTaps } from './data/push.js';
 import { seen, markSeen, DAILY_CHAMPION } from './core/announce.js';
@@ -127,6 +127,11 @@ if(auth.error && auth.session) toast(t(auth.error));
   await reference;
   await syncWorld();
   applyMe(); render();
+  /* After the world, never before it: syncBadges() compares what this
+     device can work out against what the profile row says, and the
+     profile row only exists once syncWorld() has read it. Running it
+     early would announce badges the row already has. */
+  syncBadges();
 })().catch(e=>console.warn('the world did not load',e))
     .then(startLive);
 
@@ -311,8 +316,37 @@ function takeUpdate(){
    bundled code for the same bundled code. See platform/capacitor/sync.mjs,
    which is why sw.js is not in the native bundle at all. */
 if(!native() && 'serviceWorker' in navigator && (location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname))){
+  /* Read BEFORE registering: whether this page was already being served
+     by a worker when it loaded.
+
+     `controllerchange` fires for two quite different things, because
+     sw.js calls skipWaiting() in install and clients.claim() in activate.
+     One is an UPDATE — old code is running, newer code has taken over,
+     and a reload is the only way to start running it. The other is a
+     FIRST INSTALL, where there was no old code at all, so there is
+     nothing a reload can improve: the page is already the newest thing
+     that exists.
+
+     Reloading on the first install is not merely wasted; it is
+     destructive. takeHash() has already stripped `#p/<id>` with
+     history.replaceState by the time the worker claims the page, so the
+     second load starts from a URL with no fragment and openFromHash()
+     has nothing to open. A stranger following a shared pour link lands
+     on the generic feed — every time, because every stranger is a first
+     install. That is the last step of the growth loop, so it is the one
+     case that must not reload.
+
+     `controlled` is a latch rather than a constant, and that matters:
+     the first install's claim is consumed by it, but the page is
+     controlled from then on, so a deploy that lands later in the SAME
+     sitting is a real update and still reloads. Reading the flag once
+     and never writing it would have swallowed that one too. */
+  let controlled = !!navigator.serviceWorker.controller;
   let _reloading=false;
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_reloading)return; _reloading=true; location.reload(); });
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!controlled){ controlled=true; return; }   // the first install claiming this page
+    if(_reloading)return; _reloading=true; location.reload();
+  });
 
   /* Messages from the worker (sw.js).
 

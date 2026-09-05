@@ -3,8 +3,28 @@
    from styles.css, laid out as plain readable text rather than the
    app shell.
    ============================================================ */
+/* ⚠️ THE SCROLL FIX. styles.css's phone breakpoint sets, on `body`:
+       @media(max-width:520px){ body{ height:var(--app-h,100dvh); overflow:hidden } }
+   because on a phone the app shell IS the window and the document must
+   never scroll. These documents load that same stylesheet for its design
+   tokens, so on every phone-width viewport — the web AND the Capacitor
+   shell — the privacy policy was a fixed-height box with its overflow
+   clipped, and the text below the fold was simply unreachable. Reported
+   from the Play alpha as "I cannot scroll the privacy page"; it was the
+   same on a phone browser.
+
+   `body.legal-body` outranks the bare `body` in that media query on
+   specificity, so this wins wherever it applies and nothing about the
+   app changes. --app-h is only ever set by ui/viewport.js, which does
+   not run here, but the fallback 100dvh clipped it just as well. */
 body.legal-body{
-  display:block; padding:0; min-height:100vh;
+  display:block; padding:0;
+  height:auto; min-height:100dvh; min-height:100vh;
+  overflow:visible;
+  /* The document scrolls here rather than a child, so the phone's own
+     momentum and overscroll are the ones the reader expects. */
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:auto;
 }
 .legal-page{
   max-width:640px; margin:0 auto;
@@ -53,3 +73,40 @@ body.legal-body{
   color:var(--muted); text-decoration:none;
 }
 .legal-back:hover{ color:var(--crema-deep) }
+
+/* ---------- the bar at the top ----------
+   Added by legal.js rather than by each document, so the three pages
+   cannot drift apart and none of their markup had to move.
+
+   A legal page is reached from three different places and has to get
+   back to all of them: from Settings inside the app, from the footer of
+   the landing page, and from a link somebody sent. history.back() is
+   right for the first two and wrong for the third, so legal.js decides
+   which it is and this only draws it. Sticky, because these documents
+   are long and the way out should not be at the bottom of one. */
+.legal-bar{
+  position:sticky; top:0; z-index:5;
+  display:flex; align-items:center; gap:10px;
+  padding:calc(10px + env(safe-area-inset-top,0px))
+          calc(14px + env(safe-area-inset-right,0px)) 10px
+          calc(14px + env(safe-area-inset-left,0px));
+  background:color-mix(in srgb, var(--cream) 88%, transparent);
+  -webkit-backdrop-filter:saturate(1.4) blur(12px);
+  backdrop-filter:saturate(1.4) blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.legal-bar b{
+  font-family:var(--serif); font-size:16px; font-weight:600; color:var(--ink);
+  flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.legal-bar .legal-x{
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
+  font-family:var(--sans); font-size:13.5px; font-weight:600;
+  border-radius:999px; padding:7px 13px; cursor:pointer; text-decoration:none;
+}
+.legal-bar .legal-x:active{ background:var(--surface2) }
+/* With a bar above it the page's own top padding is the bar's job. */
+body.legal-body.has-bar .legal-page{
+  padding-top:22px;
+}

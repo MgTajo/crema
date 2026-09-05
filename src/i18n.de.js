@@ -488,6 +488,10 @@ export const DE = {
   'tap for details':'für Details tippen',
   'Your own coffee. Details are coming later.':'Dein eigener Kaffee. Details kommen später.',
   '{a} of {b} earned':'{a} von {b} verdient',
+  'Closest: {name}':'Am nächsten dran: {name}',
+  'Badge earned':'Abzeichen verdient',
+  'Badges are for the fun of it. They earn no points and unlock nothing — but the ones you have show on your profile, and other people can see them.':
+    'Abzeichen sind zum Spaß da. Sie bringen keine Punkte und schalten nichts frei — aber die, die du hast, stehen in deinem Profil, und andere können sie sehen.',
 
   /* ---------- stats ---------- */
   'No numbers yet.':'Noch keine Zahlen.',
@@ -667,6 +671,7 @@ export const DE = {
   'That file could not be read':'Diese Datei ließ sich nicht lesen',
   'That photo did not upload. Try again.':'Das Foto wurde nicht hochgeladen. Probier es nochmal.',
   'That photo did not upload. Tap Post to retry.':'Das Foto wurde nicht hochgeladen. Tipp auf Posten, um es nochmal zu versuchen.',
+  'Photo uploaded ✓':'Foto hochgeladen ✓',
   'That is a lot of photos at once. Give it a minute.':'Das sind gerade viele Fotos auf einmal. Warte kurz.',
   'That photo did not come off. Try again.':'Das Foto ließ sich nicht entfernen. Probier es nochmal.',
   'Profile photos are not switched on yet':'Profilfotos sind noch nicht freigeschaltet',
@@ -819,11 +824,20 @@ export const DE = {
   'Edit coffee':'Kaffee bearbeiten',
   'your coffee photo':'dein Kaffeefoto',
   'Upload failed':'Upload fehlgeschlagen',
-  'That photo could not reach the server. Tap Post to try again, or drop it and post without a photo.':
-    'Das Foto hat den Server nicht erreicht. Tipp auf Posten, um es nochmal zu versuchen, oder lass es weg und poste ohne Foto.',
+  'That photo could not reach the server. Try again, or post without it.':
+    'Das Foto hat den Server nicht erreicht. Probier es nochmal, oder poste ohne.',
   'Post without the photo':'Ohne Foto posten',
-  'That photo could not reach the server. Tap Save to try again, or drop it and keep the pour as it was.':
-    'Das Foto hat den Server nicht erreicht. Tipp auf Speichern, um es nochmal zu versuchen, oder lass es weg und alles bleibt, wie es war.',
+  'That photo could not reach the server. Try again, or drop it and keep the pour as it was.':
+    'Das Foto hat den Server nicht erreicht. Probier es nochmal, oder lass es weg und alles bleibt, wie es war.',
+  'Try again':'Nochmal versuchen',
+  'Those photos could not reach the server. Try again, or post without them.':
+    'Die Fotos haben den Server nicht erreicht. Probier es nochmal, oder poste ohne.',
+  'Those photos could not reach the server. Try again, or drop them and keep the pour as it was.':
+    'Die Fotos haben den Server nicht erreicht. Probier es nochmal, oder lass sie weg und alles bleibt, wie es war.',
+  'Post without the photos':'Ohne Fotos posten',
+  'Post with the other photo':'Mit dem anderen Foto posten',
+  'Post with the other {n} photos':'Mit den anderen {n} Fotos posten',
+  'Drop them':'Weglassen',
   'Drop it':'Weglassen',
   'The photo stays as it was poured. Everything else is yours to fix.':'Das Foto bleibt, wie es war. Alles andere kannst du ändern.',
   'The photos already here stay as they were poured — you can still add one.':

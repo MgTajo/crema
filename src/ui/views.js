@@ -14,9 +14,9 @@ import { state, ui, session, feed, discover, social, saved, mine, challenges, st
          friendsToday, weekRecap, arrivals } from '../store/store.js';
 import { imageUrl } from '../data/media.js';
 import { art } from '../domain/art.js';
-import { computeBadges, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
+import { computeBadges, nextBadge, levelOf, nextLevel, levelProgress } from '../domain/scoring.js';
 import { t, tn, lang, locale, LANGS } from '../i18n.js';
-import { postCard, searchHTML, avatar, podiumRow, gcell, followBtn } from './components.js';
+import { postCard, searchHTML, avatar, podiumRow, gcell, followBtn, badgeStrip } from './components.js';
 import { icon, logoMark } from './icons.js';
 import { agoTag } from './timeago.js';
 import { keepInput } from './keepinput.js';
@@ -86,6 +86,36 @@ function arrivalsPill(){
   const n=arrivals.list.length; if(!n) return '';
   return `<button class="newpours" data-action="show-arrivals">
     <i>${icon('back',13)}</i>${tn(n,'{n} new pour','{n} new pours')}</button>`;
+}
+
+/* ---------- the pill, without repainting the feed under it ----------
+
+   A pour arriving while somebody is reading used to cost a full
+   renderView(): every card in state.posts rebuilt as a string, for a
+   button. Measured on 2026-09-05 at 4x CPU throttle, that is 3.5 ms at
+   twelve posts and 24.4 ms at a hundred and twenty — a dropped frame,
+   every time a pour lands, for a reader ten pages deep who is not even
+   being shown the new ones.
+
+   Nothing else on that screen changed: the arrivals are QUEUED
+   precisely because it was not safe to splice them in, so the list
+   below is the same list. So this patches the one node.
+
+   Returns false when it cannot be sure — no feed on screen, or the
+   number of cards no longer matches the list, which means something
+   really did change (a deleted pour) and the caller must do the full
+   repaint. Cheap to ask: it counts elements, it does not build strings. */
+export function paintArrivalsPill(){
+  const wrap=$('#view .pad'); if(!wrap) return false;
+  const seg=wrap.querySelector(':scope > .seg'); if(!seg) return false;
+  if(wrap.querySelectorAll(':scope > .card').length !== feedPosts().length) return false;
+
+  const have=wrap.querySelector(':scope > .newpours');
+  const html=arrivalsPill();
+  if(!html){ if(have) have.remove(); return true; }
+  if(have){ have.outerHTML=html; return true; }
+  seg.insertAdjacentHTML('afterend', html);
+  return true;
 }
 
 /* The one thing on a guest's screen that asks for anything, and it sits
@@ -390,6 +420,7 @@ export function renderProfile(){
       <div class="prof-id"><b>${esc(u.name)}</b><div class="h">${u.handle}${u.city?` · ${esc(u.city)}`:''}</div>
         <span class="lvl" data-action="open-scoring">${icon('bolt',13)} ${t('Level')} ${lvl[0]} · ${t(lvl[1])}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:var(--gold);color:var(--on-crema);border-color:transparent">${t('PREMIUM')}</span>`:''}</div></div>
     <div class="bio">${bioHTML}</div>
+    ${badgeStrip(USERS.me.badges,{own:true})}
     <div class="lvlbar" data-action="open-scoring" style="cursor:pointer">
       <div class="top"><b>${t('{n} points',{n:fmt(points)})}</b><span>${next?t('{n} to {level}',{n:fmt(next[2]-points),level:t(next[1])}):t('Top level reached')}</span></div>
       <div class="track"><i style="width:${Math.round(levelProgress(points)*100)}%"></i></div></div>
@@ -566,10 +597,19 @@ export function renderStats(){
   return `<div class="stx">${out.join('')}</div>`;
 }
 export function renderBadges(){
-  const b=computeBadges(), earned=b.filter(x=>x.e).length;
+  const b=computeBadges(), earned=b.filter(x=>x.e).length, up=nextBadge();
+  /* One next one, above the grid. The grid is the reference; this is the
+     idea for tomorrow morning. See nextBadge() for why it is one and why
+     it is never a badge you have not started. */
+  const nextUp = up ? `<div class="bnext" data-action="open-create">
+      <div class="bic">${up.i}</div>
+      <div><b>${t('Closest: {name}',{name:t(up.n)})}</b><span>${t(up.d)} · ${Math.min(up.have,up.need)}/${up.need}</span></div>
+      <i style="--p:${Math.round(Math.min(1,up.have/up.need)*100)}%"></i></div>` : '';
   return `<div style="font-size:12.5px;color:var(--muted);font-weight:600;margin:6px 2px 2px">${t('{a} of {b} earned',{a:earned,b:b.length})}</div>
+  ${nextUp}
   <div class="bgrid">${b.map(x=>`<div class="badge ${x.e?'':'locked'}"><div class="bic">${x.i}</div>
-    <div><b>${t(x.n)}</b><span>${x.e?t(x.d):(x.p?t(x.d)+' · '+x.p:t(x.d))}</span></div></div>`).join('')}</div>`;
+    <div><b>${t(x.n)}</b><span>${x.e?t(x.d):(x.p?t(x.d)+' · '+x.p:t(x.d))}</span></div></div>`).join('')}</div>
+  <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin:12px 2px 4px">${t('Badges are for the fun of it. They earn no points and unlock nothing — but the ones you have show on your profile, and other people can see them.')}</div>`;
 }
 
 /* ----- tabbar & master render ----- */

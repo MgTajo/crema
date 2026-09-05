@@ -36,7 +36,7 @@ export const handleToUid={ you:'me' };
    remote profile renders exactly like the local one. */
 export function registerUser(u){
   if(!u||!u.id) return null;
-  USERS[u.id]=Object.assign({followerN:0,pourN:0,bio:'',city:'',level:1,avatar:''},USERS[u.id],u);
+  USERS[u.id]=Object.assign({followerN:0,pourN:0,bio:'',city:'',level:1,avatar:'',badges:[]},USERS[u.id],u);
   if(u.handle) handleToUid[u.handle.replace(/^@/,'')]=u.id;
   return USERS[u.id];
 }
@@ -46,7 +46,7 @@ export function registerUser(u){
    know who it was. */
 export const userOf = uid => USERS[uid] || {
   id:uid, name:'Someone', handle:'@unknown', color:'#8d8378',
-  level:1, levelName:'First Sips', city:'', followerN:0, pourN:0, bio:'', avatar:''
+  level:1, levelName:'First Sips', city:'', followerN:0, pourN:0, bio:'', avatar:'', badges:[]
 };
 
 /* ---------- reference data, filled by data/remote.js ---------- */

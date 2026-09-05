@@ -63,7 +63,17 @@ export function cupSVG(pattern,quality,seed,opts={}){
     <g transform="translate(${dx} ${dy}) rotate(${rot} 50 50)" fill="${foam}" opacity="0.9">${artShapes(pattern,q,rnd,foam)}</g>
     <ellipse cx="42" cy="34" rx="20" ry="12" fill="#ffffff" opacity="0.07"/></svg>`;
 }
-export function art(img,pattern,q,seed,alt){ return img?`<img class="photo" src="${img}" alt="${esc(alt||'coffee')}" loading="lazy">`:cupSVG(pattern||'none', q==null?0.9:q, seed); }
+/* A photo argument is either a URL string — what most surfaces pass,
+   because one width is the right answer for a 46px podium thumb — or
+   the {src,srcset,sizes} object imageAttrs() in data/media.js builds
+   for the surfaces where it is not. Kept as a shape rather than three
+   parameters because the three are only meaningful together, and
+   because every existing call site keeps working untouched. */
+function imgSrc(img){
+  if(typeof img === 'string') return `src="${img}"`;
+  return `src="${img.src}"${img.srcset?` srcset="${img.srcset}" sizes="${img.sizes||''}"`:''}`;
+}
+export function art(img,pattern,q,seed,alt){ return img?`<img class="photo" ${imgSrc(img)} alt="${esc(alt||'coffee')}" loading="lazy">`:cupSVG(pattern||'none', q==null?0.9:q, seed); }
 
 /* Two or three photos on one pour (step-1.28): a swipeable rail rather
    than a carousel with controls. CSS scroll-snap does the whole job —
@@ -85,6 +95,6 @@ export function artSet(srcs,pattern,q,seed,alt){
   const list=(srcs||[]).filter(Boolean);
   if(list.length<2) return art(list[0],pattern,q,seed,alt);
   return `<div class="shots">${
-    list.map((u,i)=>`<img class="photo" src="${u}" alt="${esc(alt||'coffee')} ${i+1}/${list.length}" loading="${i?'lazy':'eager'}">`).join('')
+    list.map((u,i)=>`<img class="photo" ${imgSrc(u)} alt="${esc(alt||'coffee')} ${i+1}/${list.length}" loading="${i?'lazy':'eager'}">`).join('')
   }</div><div class="shots-n" aria-hidden="true">${list.length}</div>`;
 }
