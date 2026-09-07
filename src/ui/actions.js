@@ -648,6 +648,52 @@ function askPhotoSource(){
   return answer;
 }
 
+/* ---------- taking the photo, and the crash that used to follow ----------
+   Reported from the alpha on 2026-09-07: on Android, tapping the camera
+   closed the app. Coming in through the gallery with the very same photo
+   worked. That asymmetry is the whole diagnosis.
+
+   Both sources land in @capacitor/camera's LegacyCameraFlow, and the two
+   entry points are not written the same way:
+
+     processPickedImage()  decodes the bitmap inside
+                           try { … } catch (OutOfMemoryError) → reject
+     processCameraImage()  decodes the bitmap with no catch at all
+
+   BitmapFactory.decodeFile() is called with no inSampleSize, so a 12MP
+   frame becomes a ~50MB ARGB_8888 bitmap; correctOrientation then
+   allocates a second one of the same size before recycling the first, so
+   the peak is ~100MB. An OutOfMemoryError there is not an exception the
+   app sees — it is uncaught on the main thread, which is process death.
+   To the person holding the phone, the app closed.
+
+   And it is worst on the camera path for a reason that has nothing to do
+   with the photo: the camera app has just been in the foreground using
+   several hundred MB, so this allocation is asked for at the moment the
+   device has least to give. The same picture chosen from the gallery a
+   minute later is asked for when the system is calm — and even when it
+   does fail, that path rejects instead of dying.
+
+   Neither the decode nor the orientation copy can be made smaller from
+   here; the plugin exposes no sampling option. So the fix is in two
+   halves, and only together:
+
+     1. `width`/`height` below, which removes ~15MB of tail allocation
+        that was being spent on detail handleUpload() discards anyway.
+     2. android:largeHeap="true", written by platform/capacitor/
+        configure-native.mjs. That is the half that addresses the decode
+        itself: it raises the per-process heap ceiling the OOM is thrown
+        against, from the platform default to the large-heap limit, which
+        clears a ~100MB peak on every device Crema targets.
+
+   ⚠️ Do not "simplify" either half away on its own. (1) without (2)
+   leaves the uncaught 100MB decode exactly where it was; (2) without (1)
+   works, but pays for a frame nobody ever sees.
+
+   resultType stays 'base64' on purpose. 'uri' would skip the encode, but
+   returnResult() only calls deleteImageFile() when the result type is NOT
+   uri — so every shot would leak its full-resolution original into
+   getExternalFilesDir(PICTURES), which nothing ever clears. */
 async function nativePhoto(id){
   const spec = PHOTO_BUTTONS[id];
   if(!spec) return;
@@ -665,6 +711,28 @@ async function nativePhoto(id){
        1080. Compressing twice is how a photo of a flat white ends up
        looking like a fax of one. */
     quality: 92,
+    /* ---------- why there is a ceiling here at all ----------
+       A cap, not a resize the user can see: resizePreservingAspectRatio()
+       in the plugin takes min(width, maxWidth), so a photo smaller than
+       this is returned untouched and nothing is ever upscaled.
+
+       2048 is deliberately well clear of what the app actually keeps.
+       handleUpload() downscales the SHORT side to 1080, so a 4:3 frame
+       capped here arrives as 2048x1536 and is still oversized for the
+       thing that comes next. Not one pixel that survives the pipeline is
+       lost, which is why this does not contradict the paragraph above.
+
+       What it buys is the tail of the native path. Without a ceiling the
+       plugin compresses a full 12MP frame into a ByteArrayOutputStream,
+       Base64.encodeToString()s that into a Java String (UTF-16, so twice
+       the bytes again), hands it across the bridge as JSON, and this file
+       then atob()s it into a third copy. That is ~15MB of peak allocation
+       spent on detail the very next function throws away — and it is
+       spent at the worst possible moment, immediately after the camera
+       app has drained the device of free memory. See the note above
+       nativePhoto(). */
+    width: 2048,
+    height: 2048,
     correctOrientation: true,
     /* The plugin's own cropper is off on purpose: ui/actions.js already
        has a square crop with an automatic focus point (domain/framing.js)
@@ -1343,24 +1411,48 @@ async function saveProfile(){
 
 /* ---------- people ---------- */
 /* Open someone's sheet, then fill it in with their real profile counts
-   and their pours. Nothing is guessed while the request is in flight. */
+   and their pours. Nothing is guessed while the request is in flight.
+
+   TWO REQUESTS, SEPARATELY, AND A REPAINT EITHER WAY.
+
+   This used to be one `await` after another inside one try, with the
+   repaint at the end of it — so whichever request failed first took the
+   whole sheet with it, and the sheet it left behind was not blank. It
+   was WRONG, and quietly: registerUser() seeds followerN and pourN at 0
+   and theirPosts() falls back to whatever of theirs is on the current
+   feed page, so a failed load rendered as "0 followers, 0 pours, and
+   they poured twice today" for somebody with 37 followers and 63 pours.
+   Nobody reads that as an error. They read it as the profile.
+
+   Reported from the alpha on 2026-09-07 and it was not a client bug at
+   all: profiles.badges reached the Play build before it reached
+   production, so the CARD select 400ed and every profile in the app read
+   as empty. The column is the fix (migrations/20260905090000) and the
+   pipeline is what should have stopped it — but a store build is the one
+   artefact release.yml cannot hold back or roll back, so the shape below
+   is what keeps the next version of that mistake from erasing the whole
+   sheet: each half is awaited on its own, and the repaint happens
+   whatever either of them did. */
 async function openUser(uid){
   pushOv({type:'user',id:uid});
-  if(!currentUser()) return;
-  try{
-    const me=currentUser();
-    await fetchUserCard(uid);
-    /* Their pours are only shown to accepted followers, so only fetch
-       them for one — asking for a grid the sheet won't draw is a request
-       nobody reads. Following them later re-opens this path. */
-    if(state.follows[uid]){
-      const list=await fetchMine(uid,{limit:60, myUid:me?me.id:null});
-      ui.userPosts={ id:uid, list };
-      cachePosts(list);   // so tapping one of them opens the post, not a blank sheet
-    }
-    const top=ui.ovStack[ui.ovStack.length-1];
-    if(top&&top.type==='user'&&top.id===uid) renderOverlay();
-  }catch(e){ console.warn('profile load failed',e); }
+  const me=currentUser();
+  if(!me) return;
+  /* Their pours are only shown to accepted followers, so only fetch
+     them for one — asking for a grid the sheet won't draw is a request
+     nobody reads. Following them later re-opens this path. */
+  const wantPours = !!state.follows[uid];
+  const [card, pours] = await Promise.allSettled([
+    fetchUserCard(uid),
+    wantPours ? fetchMine(uid,{limit:60, myUid:me.id}) : Promise.resolve(null),
+  ]);
+  if(card.status==='rejected') console.warn('profile card failed', card.reason);
+  if(pours.status==='rejected') console.warn('profile pours failed', pours.reason);
+  else if(pours.value){
+    ui.userPosts={ id:uid, list:pours.value };
+    cachePosts(pours.value);   // so tapping one of them opens the post, not a blank sheet
+  }
+  const top=ui.ovStack[ui.ovStack.length-1];
+  if(top&&top.type==='user'&&top.id===uid) renderOverlay();
 }
 
 /* A like or comment on an older pour points at a post that is not on the

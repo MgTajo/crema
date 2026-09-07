@@ -20,7 +20,7 @@ test('posting a coffee puts a badge on the profile row everyone can read', async
   await openApp(page);
 
   const caption = `badge check ${Date.now()}`;
-  await postPour(page, { caption });
+  await postPour(page, caption);
 
   /* syncBadges() runs behind createPost(), so this is the wait that
      matters — and the row is read as a stranger, which is the claim. */

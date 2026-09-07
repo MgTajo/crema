@@ -201,7 +201,35 @@ function android(){
        the responsive CSS is what handles it there. */
     m = m.replace(/(<activity\b(?![^>]*android:screenOrientation)[^>]*android:name="\.MainActivity")/,
                   '$1\n            android:screenOrientation="portrait"');
-    put(manifest, m, 'android: deep links, permissions, portrait lock');
+
+    /* ---------- a heap big enough to decode a photograph ----------
+       Reported from the alpha on 2026-09-07: taking a picture inside the
+       app closed the app. Choosing the same picture from the gallery
+       worked. The full diagnosis is in the note above nativePhoto() in
+       src/ui/actions.js; the short version is that
+       @capacitor/camera's processCameraImage() decodes the frame with no
+       inSampleSize and, unlike its gallery twin, no catch for
+       OutOfMemoryError — so a ~100MB peak (a 12MP bitmap, plus the
+       orientation copy made before the first is recycled) is thrown
+       against the platform heap ceiling uncaught, on the main thread,
+       at the exact moment the camera app has drained the device.
+
+       largeHeap is the half of the fix that addresses the decode itself.
+       It is not a licence to be careless — nothing else here allocates
+       anything like this, and getPhoto() now caps the frame at 2048 —
+       it is the documented setting for the one thing an app is allowed
+       to want a large heap for: it holds a full-resolution photograph in
+       memory because a plugin's API gives it no way not to.
+
+       An ATTRIBUTE, so it cannot use the marker splice above. Written
+       with the same negative-lookahead idiom as the portrait lock, and
+       normalised rather than merely inserted: a hand-edit to "false"
+       is put back, which is what makes --check mean something. */
+    m = /android:largeHeap=/.test(m)
+      ? m.replace(/android:largeHeap="[^"]*"/, 'android:largeHeap="true"')
+      : m.replace(/(<application\b)/, '$1\n        android:largeHeap="true"');
+
+    put(manifest, m, 'android: deep links, permissions, portrait lock, largeHeap');
   }
 
   /* ---------- strings: the custom scheme ----------
