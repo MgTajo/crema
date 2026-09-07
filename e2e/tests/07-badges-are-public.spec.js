@@ -39,6 +39,12 @@ test('posting a coffee puts a badge on the profile row everyone can read', async
   /* The grid still agrees with the strip: one is BADGES filtered by the
      row, the other is computeBadges() over this device's posts, and the
      two drifting apart is the failure this whole design has to avoid. */
-  await page.locator('[data-action="ptab"][data-t="badges"]').click();
+  /* `button`, because there are two of these on your own profile and
+     only one of them is the tab. badgeStrip() makes the strip itself a
+     shortcut to this tab when it is yours (components.js), so a bare
+     attribute selector matches the <div class="bstrip"> as well and
+     Playwright refuses an ambiguous click. The strip is asserted above;
+     what is clicked here is the segmented control. */
+  await page.locator('button[data-action="ptab"][data-t="badges"]').click();
   await expect(page.locator('.badge:not(.locked)').first()).toBeVisible({ timeout: 10000 });
 });
