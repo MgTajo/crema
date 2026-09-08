@@ -42,7 +42,7 @@ import { onLive, whileAnsweringRequest } from '../store/live.js';
 import { react, unreact, noReactions } from '../data/reactions.js';
 import { commentRow, postLink, searchHTML, reactionBar, avatar } from './components.js';
 import { icon } from './icons.js';
-import { native, call, haptic, fileFromBase64 } from '../core/native.js';
+import { native, isAndroidNative, call, haptic, fileFromBase64 } from '../core/native.js';
 import { t, tn, setLang } from '../i18n.js';
 import { render, renderView, renderAppbar, paintArrivalsPill, CAFE_MAIL } from './views.js';
 import { authState, signupStep } from './gate.js';
@@ -648,52 +648,166 @@ function askPhotoSource(){
   return answer;
 }
 
-/* ---------- taking the photo, and the crash that used to follow ----------
-   Reported from the alpha on 2026-09-07: on Android, tapping the camera
-   closed the app. Coming in through the gallery with the very same photo
-   worked. That asymmetry is the whole diagnosis.
+/* ---------- taking the photo, and the crash that kept coming back ----------
+   Reported from the alpha on 2026-09-07 and AGAIN on 2026-09-08, after
+   v1.9.1 had supposedly fixed it: on Android, taking a picture inside
+   Crema closed the app. Choosing the same photo from the gallery worked.
+   That asymmetry is still the whole diagnosis, and it is worth reading
+   the plugin to see why, because the first fix treated the symptom.
 
    Both sources land in @capacitor/camera's LegacyCameraFlow, and the two
    entry points are not written the same way:
 
      processPickedImage()  decodes the bitmap inside
                            try { … } catch (OutOfMemoryError) → reject
-     processCameraImage()  decodes the bitmap with no catch at all
+     processCameraImage()  decodes the bitmap with NO catch at all
 
-   BitmapFactory.decodeFile() is called with no inSampleSize, so a 12MP
-   frame becomes a ~50MB ARGB_8888 bitmap; correctOrientation then
-   allocates a second one of the same size before recycling the first, so
-   the peak is ~100MB. An OutOfMemoryError there is not an exception the
-   app sees — it is uncaught on the main thread, which is process death.
-   To the person holding the phone, the app closed.
+   BitmapFactory.decodeFile() is called with no inSampleSize, so the frame
+   is decoded at the sensor's full resolution into an ARGB_8888 bitmap —
+   four bytes a pixel, no matter what `width`/`height` say, because
+   ImageUtils.resize() runs on the bitmap that has already been built.
+   correctOrientation then allocates a SECOND one of the same size before
+   releasing the first, whenever the EXIF says the phone was upright,
+   which for a photo of a coffee it always does. An OutOfMemoryError there
+   is not an exception the app can see — it is uncaught, on the main
+   thread, which is process death. To the person holding the phone, the
+   app closed.
 
-   And it is worst on the camera path for a reason that has nothing to do
-   with the photo: the camera app has just been in the foreground using
-   several hundred MB, so this allocation is asked for at the moment the
-   device has least to give. The same picture chosen from the gallery a
-   minute later is asked for when the system is calm — and even when it
-   does fail, that path rejects instead of dying.
+   ⚠️ WHY v1.9.1 WAS NOT ENOUGH. That release added android:largeHeap and
+   a 2048 ceiling. largeHeap moves the ceiling from dalvik.vm.heapgrowth-
+   limit to dalvik.vm.heapsize — 192MB to 512MB on the emulator, measured
+   — and that is genuinely more room. But the allocation it is measured
+   against is not a constant, it is the camera:
 
-   Neither the decode nor the orientation copy can be made smaller from
-   here; the plugin exposes no sampling option. So the fix is in two
-   halves, and only together:
+     12MP  (4032x3024)   ~49MB   x2 rotated  ~98MB    fits
+     50MP  (8160x6120)  ~200MB   x2 rotated ~400MB    fits, barely, alone
+     108MP (12000x9000) ~432MB   x2 rotated ~864MB    cannot fit, ever
 
-     1. `width`/`height` below, which removes ~15MB of tail allocation
-        that was being spent on detail handleUpload() discards anyway.
-     2. android:largeHeap="true", written by platform/capacitor/
-        configure-native.mjs. That is the half that addresses the decode
-        itself: it raises the per-process heap ceiling the OOM is thrown
-        against, from the platform default to the large-heap limit, which
-        clears a ~100MB peak on every device Crema targets.
+   A 50MP sensor is a mid-range phone in 2026 and 108MP is not rare, and
+   the WebView is holding its own heap beside this. So largeHeap raised
+   the resolution at which the app dies; it did not stop it dying. And it
+   is asked for at the worst possible moment, because the camera app has
+   just been in the foreground draining the device.
 
-   ⚠️ Do not "simplify" either half away on its own. (1) without (2)
-   leaves the uncaught 100MB decode exactly where it was; (2) without (1)
-   works, but pays for a frame nobody ever sees.
+   There is no option that avoids the decode. `resultType:'uri'` does not
+   skip it — processCameraImage() decodes before it ever looks at the
+   result type. `width`/`height` are applied after. The plugin exposes no
+   sampling. From JavaScript this code path cannot be made safe.
 
-   resultType stays 'base64' on purpose. 'uri' would skip the encode, but
-   returnResult() only calls deleteImageFile() when the result type is NOT
-   uri — so every shot would leak its full-resolution original into
-   getExternalFilesDir(PICTURES), which nothing ever clears. */
+   ---------- so the camera stops going through the plugin ----------
+
+   `[CANON]` On Android, a photo TAKEN with the camera is taken by the
+   WebView, not by @capacitor/camera. Capacitor's own
+   BridgeWebChromeClient.showImageCapturePicker() fires the same
+   MediaStore.ACTION_IMAGE_CAPTURE intent with the same FileProvider
+   EXTRA_OUTPUT, and on RESULT_OK hands the WebView the URI. It never
+   decodes a bitmap. Chromium streams the file into a Blob, handleUpload()
+   downscales it on a canvas — off the Java heap entirely — and the
+   OutOfMemoryError has nowhere left to be thrown. The size of the sensor
+   stops mattering.
+
+   This is not a new path. It is the path crema-app.com has used in
+   Android Chrome since the first day, and the markup for it is already in
+   overlays.js: c-photo-cam carries capture="environment", which goes
+   straight to the camera with no chooser in between. On native we simply
+   stop intercepting it. Verified on an API 35 emulator: the camera opens
+   directly, and the change handler receives a real image/jpeg File.
+
+   THE GALLERY STAYS ON THE PLUGIN, deliberately. Its decode is the one
+   inside the catch, so its worst case is a toast and not a dead process;
+   it needs no permission; and it shows Android's own photo picker rather
+   than the ACTION_GET_CONTENT documents list the WebView would fall back
+   to below API 33 — minSdk here is 24. Changing it would be a regression
+   in the path nobody reported.
+
+   iOS ALSO STAYS ON THE PLUGIN. UIImagePickerController does not have
+   this bug — there is no unguarded full-resolution Java bitmap on iOS —
+   and the iOS shell has still never been compiled (Q19). Narrowing the
+   fix to the platform that has the fault is the smaller claim. */
+
+/* Which of the four buttons can take a photo through the WebView, and
+   how. Returns null when the plugin should handle it after all. */
+function webCapture(source){
+  return isAndroidNative() && source === 'CAMERA';
+}
+
+/* Open the camera through a file input we make on the spot.
+
+   ⚠️ IT HAS TO BE A NEW ONE, and this is the part that is easy to get
+   wrong — the first attempt clicked the <input> the button already owns
+   and nothing happened at all. Answering Crema's source sheet pops the
+   overlay, and popping the overlay repaints it, so by the time the
+   await resolves the element we were handed has been replaced by an
+   identical one and the node in hand is detached. A click on a detached
+   input is silently a no-op: no camera, no error, nothing.
+
+   ⚠️ AND IT HAS TO STAY CLOSE TO THE USER'S GESTURE. A file chooser is
+   gesture-gated, and openChoice() resolves from the sheet tap's own
+   handler, so this runs as a microtask in the SAME task as that tap.
+   Measured rather than assumed: at the moment of the click
+   navigator.userActivation.isActive already reads FALSE and the Android
+   WebView opens the camera anyway, so that flag is not what governs it
+   here — but the one await is what has been driven end to end on the
+   emulator, and nothing further has. Do not add a setTimeout, an
+   animation frame, or another await to this path.
+
+   The input carries no id, so the document-level change handler ignores
+   it and the two callers below are reached directly instead. That is
+   deliberate: giving it the button's id to reuse that handler would put
+   two elements with one id in the document. */
+function captureViaWebView(onFile){
+  /* A cancelled camera fires no change event on some Android builds, so
+     the previous node can still be here. One is harmless; a new one per
+     cancelled shot is not. */
+  document.querySelectorAll('input[data-webcapture]').forEach(n => n.remove());
+  const inp = document.createElement('input');
+  inp.dataset.webcapture = '1';
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.setAttribute('capture', 'environment');
+  inp.hidden = true;
+  document.body.appendChild(inp);
+  inp.addEventListener('change', () => {
+    const f = inp.files && inp.files[0];
+    inp.remove();
+    if(!f) return;                    // backed out of the camera
+    sweepCaptures(f.name);
+    onFile(f);
+  }, { once:true });
+  inp.click();
+}
+
+/* ---------- and the originals it leaves behind ----------
+   The one thing the plugin did that the WebView does not: tidy up.
+   showImageCapturePicker() writes the shot to
+   getExternalFilesDir(PICTURES)/JPEG_<stamp>_<n>.jpg as the intent's
+   EXTRA_OUTPUT and never removes it — nothing in Capacitor does. Left
+   alone that is one full-resolution original per photo, for the life of
+   the install, in the user's storage. LegacyCameraFlow had
+   deleteImageFile() for exactly this and it is the reason the old code
+   kept resultType:'base64' rather than 'uri'.
+
+   So we sweep, and the timing is the only delicate part: the File handed
+   to the change handler is BACKED by one of these paths, so the file we
+   have just been given has to survive. Everything else in the directory
+   is a previous shot and can go. That keeps at most one original on disk
+   and needs no bookkeeping across launches.
+
+   Capacitor's Directory.External is getExternalFilesDir(null), so the
+   directory is 'Pictures' under it. Failures are ignored on purpose —
+   this is housekeeping, and a user whose upload worked must not be shown
+   an error because a delete did not. */
+async function sweepCaptures(keep){
+  if(!isAndroidNative()) return;
+  const r = await call('Filesystem', 'readdir', { path:'Pictures', directory:'EXTERNAL' });
+  if(!r.ok || !r.value || !Array.isArray(r.value.files)) return;
+  for(const f of r.value.files){
+    const name = f && (f.name || f);
+    if(!name || name === keep || !/^JPEG_.*\.jpg$/i.test(name)) continue;
+    await call('Filesystem', 'deleteFile', { path:`Pictures/${name}`, directory:'EXTERNAL' });
+  }
+}
+
 async function nativePhoto(id){
   const spec = PHOTO_BUTTONS[id];
   if(!spec) return;
@@ -703,6 +817,15 @@ async function nativePhoto(id){
     source = await askPhotoSource();
     if(!source) return;               // backed out of the sheet
   }
+  /* Android + camera: hand it to the WebView instead of the plugin.
+     `input` is only present for the buttons that already say CAMERA in
+     their markup, and those never reach here — the click listener lets
+     them through untouched. This is the sheet's answer. */
+  if(webCapture(source)){
+    captureViaWebView(f => spec.mode === 'avatar' ? uploadAvatar(f) : handleUpload(f, spec.mode));
+    return;
+  }
+
   const r = await call('Camera', 'getPhoto', {
     source,
     resultType: 'base64',
@@ -711,26 +834,16 @@ async function nativePhoto(id){
        1080. Compressing twice is how a photo of a flat white ends up
        looking like a fax of one. */
     quality: 92,
-    /* ---------- why there is a ceiling here at all ----------
-       A cap, not a resize the user can see: resizePreservingAspectRatio()
-       in the plugin takes min(width, maxWidth), so a photo smaller than
-       this is returned untouched and nothing is ever upscaled.
+    /* A cap, not a resize anybody sees: resizePreservingAspectRatio()
+       takes min(width, maxWidth), so a smaller photo is returned
+       untouched and nothing is upscaled. handleUpload() downscales the
+       short side to 1080, so a 4:3 frame capped here still arrives
+       oversized for what is kept.
 
-       2048 is deliberately well clear of what the app actually keeps.
-       handleUpload() downscales the SHORT side to 1080, so a 4:3 frame
-       capped here arrives as 2048x1536 and is still oversized for the
-       thing that comes next. Not one pixel that survives the pipeline is
-       lost, which is why this does not contradict the paragraph above.
-
-       What it buys is the tail of the native path. Without a ceiling the
-       plugin compresses a full 12MP frame into a ByteArrayOutputStream,
-       Base64.encodeToString()s that into a Java String (UTF-16, so twice
-       the bytes again), hands it across the bridge as JSON, and this file
-       then atob()s it into a third copy. That is ~15MB of peak allocation
-       spent on detail the very next function throws away — and it is
-       spent at the worst possible moment, immediately after the camera
-       app has drained the device of free memory. See the note above
-       nativePhoto(). */
+       It buys the tail of the gallery path — the JPEG buffer, the
+       Base64 String, the bridge JSON and this file's atob(). It does
+       NOT buy anything on the decode, which is why it was never the
+       fix. See above. */
     width: 2048,
     height: 2048,
     correctOrientation: true,
@@ -756,12 +869,20 @@ async function nativePhoto(id){
 }
 
 /* Capture phase: the click has to be stopped before it reaches the
-   <label>, which is what activates the hidden input. */
+   <label>, which is what activates the hidden input.
+
+   The one case we do NOT stop is Android's explicit Take photo button.
+   Its input already carries capture="environment", so letting the click
+   through IS the fix — the WebView opens the camera and the change
+   handler below receives the File. Intercepting it is what used to route
+   it into the plugin decode that killed the process. */
 document.addEventListener('click', e => {
   if(!native()) return;
   const label = e.target.closest('label');
   const input = label && label.querySelector('input[type="file"]');
-  if(!input || !PHOTO_BUTTONS[input.id]) return;
+  const spec = input && PHOTO_BUTTONS[input.id];
+  if(!spec) return;
+  if(webCapture(spec.source)) return;          // let the WebView have it
   e.preventDefault();
   e.stopPropagation();
   nativePhoto(input.id);
@@ -770,11 +891,17 @@ document.addEventListener('click', e => {
 document.addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='c-photo-cam'||id==='c-photo-lib'||id==='c-photo-add'){
-    if(e.target.files&&e.target.files[0]) handleUpload(e.target.files[0], id==='c-photo-add'?'add':'replace');
+    if(e.target.files&&e.target.files[0]){
+      const f=e.target.files[0];
+      /* On Android this file may be the WebView's own capture; clear the
+         previous ones out from under it. No-op everywhere else. */
+      sweepCaptures(f.name);
+      handleUpload(f, id==='c-photo-add'?'add':'replace');
+    }
     /* Cleared so choosing the SAME file twice still fires a change —
        otherwise re-picking the photo you just removed does nothing. */
     e.target.value=''; return; }
-  if(id==='sp-avatar'){ if(e.target.files&&e.target.files[0]) uploadAvatar(e.target.files[0]); return; }
+  if(id==='sp-avatar'){ if(e.target.files&&e.target.files[0]){ const f=e.target.files[0]; sweepCaptures(f.name); uploadAvatar(f); } return; }
   if(id==='c-drink'||id==='c-cafe'){ syncCreate(); renderOverlay(); return; }
   if(id==='c-milk'){ syncCreate(); return; }
 });

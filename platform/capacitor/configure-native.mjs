@@ -214,12 +214,21 @@ function android(){
        against the platform heap ceiling uncaught, on the main thread,
        at the exact moment the camera app has drained the device.
 
-       largeHeap is the half of the fix that addresses the decode itself.
-       It is not a licence to be careless — nothing else here allocates
-       anything like this, and getPhoto() now caps the frame at 2048 —
-       it is the documented setting for the one thing an app is allowed
-       to want a large heap for: it holds a full-resolution photograph in
-       memory because a plugin's API gives it no way not to.
+       ⚠️ largeHeap IS NOT THE FIX, and v1.9.1 shipping it as if it were
+       is why the same crash was reported again on 2026-09-08. It moves
+       the ceiling from dalvik.vm.heapgrowthlimit to dalvik.vm.heapsize —
+       192MB to 512MB, measured on an API 35 emulator — but the
+       allocation it is measured against is the camera's resolution, and
+       a 50MP sensor already wants ~400MB with the orientation copy. It
+       raised the resolution at which the app dies. The fix is that the
+       camera no longer goes through the plugin at all; see the note
+       above nativePhoto().
+
+       It stays because the GALLERY still goes through that decode, and
+       for an ordinary photo this is the difference between working and
+       a toast. That is the honest claim for this line: it is headroom
+       for the path that survives failure, not a guard on the one that
+       did not.
 
        An ATTRIBUTE, so it cannot use the marker splice above. Written
        with the same negative-lookahead idiom as the portrait lock, and
