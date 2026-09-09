@@ -705,6 +705,28 @@
      there is nothing to clear, so this changes nothing on the desktop
      mockup, on a phone with no notch, or on any browser today. */
   @media(max-width:520px){ .sheet:not(.bottom){padding-top:env(safe-area-inset-top,0px)} }
+  /* The same hole at the other end, and it took a second report to find:
+     every sheet reaches the bottom edge of the glass — a full one because
+     inset:0 says so, a .bottom one because it is anchored there — and the
+     page is drawn edge to edge (viewport-fit=cover, index.html), so the
+     last thing in .ov-body sits under the system navigation. On the
+     composer the last thing is *Post it*, which is why that is the screen
+     it was reported on: nothing else ends in a full-width primary button
+     with 8px under it. Measured on an API 35 emulator, the button's
+     bottom edge lands exactly on the gesture zone, and with three-button
+     navigation 24 of its 42 pixels are behind the bar.
+
+     ⚠️ On the SHEET, not on .ov-body. overlayCreate() writes
+     `style="padding:0 16px 16px"` on its body, and any padding-bottom
+     put there is what that inline rule overwrites. On the sheet it is
+     also the only place that works for both kinds: .bottom has no bar,
+     a full sheet has one, and neither owns the scrolling element.
+
+     The background paints across padding, so the sheet still meets the
+     bottom of the screen and nothing shows a seam — the content simply
+     stops above the bar. env() is 0 where there is nothing to clear, so
+     the desktop mockup and any phone without a bar are unchanged. */
+  @media(max-width:520px){ .sheet{padding-bottom:env(safe-area-inset-bottom,0px)} }
   @keyframes slideup{from{transform:translateY(14px); opacity:0} to{transform:none; opacity:1}}
   @keyframes slideup2{from{transform:translateY(100%)} to{transform:none}}
   /* A sheet animates when it ARRIVES, never when it repaints in place.
