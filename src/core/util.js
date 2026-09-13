@@ -67,13 +67,7 @@ export function daysAgo(createdAt,ago){
   if(isFinite(t)) return Math.floor((startOfDay(Date.now())-startOfDay(t))/864e5);
   return agoDays(ago);
 }
-export function agoLabel(createdAt,ago){
-  const d=daysAgo(createdAt,ago);
-  if(d===0) return'Today';
-  if(d===1) return'Yesterday';
-  if(d<7){
-    const t=createdAt&&Date.parse(createdAt);
-    return (isFinite(t)?new Date(t):new Date(Date.now()-d*864e5)).toLocaleDateString('en',{weekday:'short'});
-  }
-  return ago+' ago';
-}
+/* `agoLabel()` used to live here and said 'Today', 'Yesterday' and an
+   `en` weekday in every language, because this file is dependency-free
+   by design and cannot call t(). It is now dayLabel() in ui/timeago.js,
+   which can. daysAgo() above is the half that was always pure. */

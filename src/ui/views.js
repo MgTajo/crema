@@ -5,7 +5,7 @@
    Renderers are pure string→DOM: they read the store and emit HTML,
    then write it into the shell's mount points.
    ============================================================ */
-import { $, esc, fmt, cap, initials, seedOf, daysAgo, agoLabel } from '../core/util.js';
+import { $, esc, fmt, cap, initials, seedOf, daysAgo } from '../core/util.js';
 import { S } from '../data/assets.js';
 import { beanCatalog, flag } from '../data/catalog.js';
 import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
@@ -18,7 +18,7 @@ import { computeBadges, nextBadge, levelOf, nextLevel, levelProgress } from '../
 import { t, tn, lang, locale, LANGS } from '../i18n.js';
 import { postCard, searchHTML, avatar, podiumRow, gcell, followBtn, badgeStrip } from './components.js';
 import { icon, logoMark } from './icons.js';
-import { agoTag } from './timeago.js';
+import { agoTag, dayLabel } from './timeago.js';
 import { keepInput } from './keepinput.js';
 import { hhmm } from './recap.js';
 import { renderOverlay, challengeCard } from './overlays.js';
@@ -400,7 +400,7 @@ export function renderProfile(){
         <div><b>${new Set(mine.filter(p=>p.pattern).map(p=>p.pattern)).size}</b><span>${t('art styles')}</span></div></div>
       <div class="actbars">${ACT.map((c,i)=>{const d=new Date(Date.now()-(ACT.length-1-i)*864e5).toLocaleDateString(locale(),{weekday:'short',day:'numeric',month:'short'});return `<div class="ab${i===ACT.length-1?' today':''}" data-d="${d}" data-c="${c}"><i style="height:${c===0?8:c===1?52:100}%"></i></div>`;}).join('')}<div class="bartip" id="bartip" hidden></div></div>
       <div class="acthint"><span>${t('3 weeks ago')}</span><span>${t('today')}</span></div>
-      <div class="recent">${recent.map(p=>`<div class="rp" data-action="open-post" data-id="${p.id}"><div class="rpimg">${art(imageUrl(p.img,'thumb'),p.pattern||'none',p.quality==null?0.9:p.quality,seedOf(p.id),p.drink)}</div><div class="rpd">${agoLabel(p.createdAt,p.ago)}</div><div class="rpt">${esc(t(p.drink||'Coffee'))}</div></div>`).join('')}</div></div>`;
+      <div class="recent">${recent.map(p=>`<div class="rp" data-action="open-post" data-id="${p.id}"><div class="rpimg">${art(imageUrl(p.img,'thumb'),p.pattern||'none',p.quality==null?0.9:p.quality,seedOf(p.id),p.drink)}</div><div class="rpd">${dayLabel(p.createdAt,p.ago)}</div><div class="rpt">${esc(t(p.drink||'Coffee'))}</div></div>`).join('')}</div></div>`;
   const startedHTML = `<div class="journey"><h3>${t('Your journey starts here')}</h3><p class="sub" style="margin-bottom:12px">${t('Every pour earns points and builds your streak, and enough of them move you up a level.')}</p>
       <div style="padding:0 12px 14px"><button class="btn block" data-action="open-create">${icon('bolt',18)} ${t('Log your first coffee')}</button></div></div>`;
   /* The gear twin of the bean strip. Only once there is something to

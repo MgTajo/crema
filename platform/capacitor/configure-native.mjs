@@ -488,18 +488,49 @@ android {
      mode is a runtime "Unable to load plugin" on a device, in release
      only, and the review that turned R8 on could not exercise the
      camera, the share sheet or FCM without an account. Keeping a few
-     hundred annotated methods costs nothing against 12 MB. */
+     hundred annotated methods costs nothing against 12 MB.
+
+     ⚠️ AND THE BRIDGE ITSELF IS KEPT WHOLE, which the first version of
+     this file did not do — that is the v1.9.4 language-switch crash.
+
+     Keeping the plugin CLASSES is not enough, because the thing the
+     bridge reflects on lives in `com.getcapacitor`, not in the plugin:
+     PluginHandle holds the @CapacitorPlugin annotation it read off the
+     class, and Plugin.getPermissionStates() walks annotation.permissions()
+     with no null check. R8, run with proguard-android-optimize.txt, had
+     removed `PluginHandle.pluginAnnotation` and its getter outright — the
+     release build's own usage.txt says so — so getPermissionStates()
+     dereferenced null and threw on the CapacitorPlugins thread. An
+     uncaught exception on any thread ends the process, which is why
+     `checkPermissions` closed the app in the store build and worked
+     perfectly in every debug build ever tested.
+
+     So the rule is the same one data/push.js already lives by, one layer
+     down: the bridge is reached by reflection end to end, R8 cannot see
+     any of it, and a partial keep is indistinguishable from a correct one
+     until a device runs it. Keep the runtime and the plugin
+     implementations as written. Measured cost of the two lines below on
+     v1.9.5: see the release notes in platform/capacitor/README.md — it is
+     small, and it is bounded, and the alternative is a crash nobody can
+     catch from JavaScript. */
   put(path.join(AND, 'app/proguard-rules.pro'),
 `# @crema — configure-native.mjs. See the R8 note there.
+
+# The bridge, whole. It is reflected on end to end — annotations read off
+# classes, methods invoked by name — so R8 can see no call site for any
+# of it. A partial keep cost v1.9.4 its language switch.
+-keep class com.getcapacitor.** { *; }
+-keep class com.capacitorjs.plugins.** { *; }
+
+# Annotation TYPES, and the attributes that carry them on a class. Without
+# both, getAnnotation() answers null and the permission machinery throws.
+-keep @interface com.getcapacitor.annotation.**
+-keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
 
 # Plugins are discovered by annotation and invoked by reflection.
 -keep @com.getcapacitor.annotation.CapacitorPlugin public class * { *; }
 -keepclassmembers class * { @com.getcapacitor.PluginMethod <methods>; }
 -keep class * extends com.getcapacitor.Plugin { *; }
-
-# The bridge reads and writes these by field/method name.
--keep class com.getcapacitor.JSObject { *; }
--keep class com.getcapacitor.PluginCall { *; }
 
 # Firebase Cloud Messaging is reached the same way — reflectively, from
 # the Google Play services runtime, not from our code.

@@ -252,7 +252,14 @@ document.addEventListener('click',e=>{
     case 'accept-follow': acceptFollow(id); break;
     case 'decline-follow': declineFollow(id); break;
     case 'follow-cafe': toggleCafeFollow(id); break;
-    case 'recipe':{const el=$('#rp-'+id); if(el){el.classList.toggle('open'); const o=el.classList.contains('open'); t.innerHTML=t.innerHTML.replace(o?'▾':'▴',o?'▴':'▾');} break;}
+    /* ⚠️ The chevron is `el`, and the panel needs its own name — writing
+       `const el` here shadowed the clicked element, so the line that flips
+       ▾ to ▴ reached for `t`, which is the translate function. `t.innerHTML`
+       is undefined and .replace() on it throws: 14 rows in `client_errors`
+       between 2026-08-31 and 2026-09-11, all of them this. The panel still
+       opened — the throw came after the classList.toggle — so it read as an
+       arrow that never turned round rather than as a broken button. */
+    case 'recipe':{const panel=$('#rp-'+id); if(panel){panel.classList.toggle('open'); const o=panel.classList.contains('open'); el.innerHTML=el.innerHTML.replace(o?'▾':'▴',o?'▴':'▾');} break;}
     case 'ptab':{ ui.profTab=el.dataset.t; renderView();
       /* the saves are rows, not a filter over the feed page */
       if(ui.profTab==='saved'&&!saved.loaded) loadSaved().then(ok=>{ if(ok) renderView(); });

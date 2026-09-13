@@ -36,7 +36,7 @@
    tab bar did not need porting, it needed a shell around it.
    ============================================================ */
 import { native, isIOSNative, isAndroidNative, plugin, call, haptic } from '../core/native.js';
-import { t } from '../i18n.js';
+import { t, onLang } from '../i18n.js';
 import { completeOAuthCode } from '../data/supabase.js';
 
 /* ---------- deep links ---------- */
@@ -286,7 +286,15 @@ function offlineBar(){
   const el = document.createElement('div');
   el.className = 'offbar';
   el.id = 'offbar';
-  el.innerHTML = `<b>${t('Offline')}</b> · ${t('Crema will catch up when you are back')}`;
+  /* Written once, rewritten on every language switch. This strip is the
+     only text in the app that render() does not rebuild — that is the
+     point of it, it must survive a repaint — which also meant it was the
+     only text that stayed English after somebody switched to German. */
+  const word = () => {
+    el.innerHTML = `<b>${t('Offline')}</b> · ${t('Crema will catch up when you are back')}`;
+  };
+  word();
+  onLang(word);
   /* After the appbar so it sits under it in the flex column. */
   const appbar = screen.querySelector('#appbar');
   if(appbar && appbar.nextSibling) screen.insertBefore(el, appbar.nextSibling);

@@ -53,7 +53,31 @@
       whitelist and should make this impossible; this is the check that
       it did, run against the thing that actually ships.
 
-   Exit 0 means all three hold. Anything else means do not upload.
+   3. DID R8 LEAVE THE CAPACITOR BRIDGE ALONE?
+
+      Added 2026-09-13, after v1.9.4 shipped a crash that only a release
+      build could have: switching the language closed the app. The path
+      was set-lang → syncPush() → pushEnabled() → the PushNotifications
+      plugin's checkPermissions, and R8 had deleted
+      `PluginHandle.pluginAnnotation` — so Plugin.getPermissionStates()
+      read the annotation as null, threw on the CapacitorPlugins thread,
+      and an uncaught exception on any thread ends the process. ⚠️ No
+      try/catch in JavaScript can prevent that; core/native.js's call()
+      has already returned by the time Java throws.
+
+      Every debug build in the project's history was fine, because R8
+      does not run on one. So the only place this is visible before a
+      user finds it is the release build's OWN REPORT: R8 writes
+      `usage.txt` next to the bundle listing everything it removed. If
+      anything of substance in com.getcapacitor or com.capacitorjs is in
+      that list, the bridge has been shrunk and some plugin call will
+      fail on a device. Compiler artefacts — <clinit>, synthetic lambdas,
+      R8's own -IA classes — are not source and are ignored.
+
+      This is the cheapest possible stand-in for running the store build
+      on a phone, which nothing in CI does.
+
+   Exit 0 means all four hold. Anything else means do not upload.
    ============================================================ */
 import fs from 'fs';
 import path from 'path';
@@ -278,6 +302,54 @@ if(assets.length < 40){
   say(`✗ assets/public/ has ${assets.length} files; the web app is missing or partial`);
 }else{
   say(`✓ assets/public/ carries ${assets.length} files`);
+}
+
+/* ---------- 3. what R8 took out ----------
+   The bundle cannot answer this; R8's report beside it can. usage.txt
+   lists every class and member the shrinker removed, one class per
+   unindented line with its removed members indented under it.
+
+   A short list of shapes is ignored, and every one of them is something
+   a compiler wrote rather than a person:
+
+     <clinit>                        a static initialiser R8 folded away
+     $$…SyntheticLambda              desugaring's own classes
+     $r8$lambda$…                    and its methods
+     …-IA                            R8's interface-abstraction synthetics
+
+   Anything else in com.getcapacitor or com.capacitorjs means a keep rule
+   in configure-native.mjs no longer covers what it used to. */
+console.log('\nR8');
+{
+  const mapping = path.resolve(path.dirname(AAB), '../../mapping/release/usage.txt');
+  if(!fs.existsSync(mapping)) soft('what R8 removed', 'no usage.txt beside the bundle');
+  else if(fs.statSync(mapping).mtimeMs < fs.statSync(AAB).mtimeMs - 15 * 60 * 1000){
+    soft('what R8 removed', 'usage.txt is older than the bundle — stale report');
+  }else{
+    const BRIDGE = /^(com\.getcapacitor|com\.capacitorjs)[.$]/;
+    const ARTEFACT = /<clinit>|SyntheticLambda|\$r8\$lambda\$|-IA$/;
+    const gone = [];
+    let cls = '';
+    for(const raw of fs.readFileSync(mapping, 'utf8').split('\n')){
+      if(!raw.trim()) continue;
+      if(/^\s/.test(raw)){
+        if(cls && !ARTEFACT.test(raw)) gone.push(`${cls}: ${raw.trim()}`);
+        continue;
+      }
+      const name = raw.replace(/:$/, '').trim();
+      cls = BRIDGE.test(name) && !ARTEFACT.test(name) ? name : '';
+      /* A whole class removed is listed with no members under it. */
+      if(cls && !raw.endsWith(':') && !ARTEFACT.test(name)) gone.push(cls);
+    }
+    if(gone.length){
+      fail.push(`R8 removed ${gone.length} thing(s) from the Capacitor bridge — plugin calls will crash on a device`);
+      say('✗ shrunk out of the bridge:');
+      for(const g of gone.slice(0, 12)) say('    ' + g);
+      if(gone.length > 12) say(`    …and ${gone.length - 12} more`);
+      say('  This is the v1.9.4 language-switch crash. Check the keep rules');
+      say('  in configure-native.mjs, re-run it, and rebuild.');
+    }else say('✓ the Capacitor bridge survived the shrinker intact');
+  }
 }
 
 /* ---------- verdict ---------- */

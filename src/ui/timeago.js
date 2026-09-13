@@ -30,9 +30,34 @@
    then days. So half a minute of drift is invisible below the hour and
    literally unobservable above it, and 30s is a generous tick.
    ============================================================ */
-import { $$, agoFrom, esc } from '../core/util.js';
+import { $$, agoFrom, daysAgo, esc } from '../core/util.js';
+import { t, locale } from '../i18n.js';
 
 const TICK_MS = 30000;
+
+/* The calendar-day label over a recent pour on the profile — 'Today',
+   'Yesterday', a weekday, then '3w ago'.
+
+   It lives here rather than in core/util.js, where it was until
+   2026-09-13, for one reason: core is dependency-free on purpose and so
+   could not call t(). The label was therefore English in both languages
+   — 'Today' sitting under a German heading — and the weekday came from
+   toLocaleDateString('en'). Both are the language's job, not core's.
+
+   daysAgo() stays in core: bucketing a timestamp into calendar days is
+   the same arithmetic in every language. */
+export function dayLabel(createdAt, ago){
+  const d = daysAgo(createdAt, ago);
+  if(d === 0) return t('Today');
+  if(d === 1) return t('Yesterday');
+  if(d < 7){
+    const ms = createdAt && Date.parse(createdAt);
+    return (isFinite(ms) ? new Date(ms) : new Date(Date.now() - d * 864e5))
+      .toLocaleDateString(locale(), { weekday:'short' });
+  }
+  /* '3w' is already language-neutral; only the word around it moves. */
+  return t('{time} ago', { time: ago });
+}
 
 /* One relative label.
 

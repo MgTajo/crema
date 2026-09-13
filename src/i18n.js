@@ -51,11 +51,33 @@ export function applyLang(){
   });
 }
 
+/* Anything on screen that ui/ did not render and applyLang() cannot
+   reach.
+
+   There is exactly one such thing and it only exists in the app: the
+   offline strip ui/shell.js inserts beside the app bar, built once at
+   startShell() and never rebuilt, because a full render() must not
+   destroy it. Before this it stayed in English for the rest of the
+   session after a switch — the one visible thing in Crema that a
+   language switch did not change.
+
+   A subscription rather than a second pass over the DOM: the strip's
+   text has markup in it (`<b>Offline</b> · …`), so it cannot be a
+   [data-t] element, and only the code that built it knows how to build
+   it again. Nothing here runs in a browser today; it is a seam for the
+   next such element, not a feature. */
+const watchers = new Set();
+export function onLang(fn){ watchers.add(fn); return ()=>watchers.delete(fn); }
+
 export function setLang(l){
   if(!SUPPORTED.includes(l)||l===lang) return false;
   lang=l;
   try{ localStorage.setItem(KEY,l); }catch(e){}
   applyLang();
+  /* After applyLang, and never allowed to take the switch down with it:
+     a watcher that throws would leave the app half-translated with the
+     exception surfacing out of a click handler. */
+  for(const fn of watchers){ try{ fn(lang); }catch(e){ console.warn('lang watcher failed',e); } }
   return true;
 }
 
