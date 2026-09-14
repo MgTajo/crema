@@ -239,15 +239,24 @@ if(tag){
         }catch(e){ /* fall through to the table reader */ }
       }
       if(!remote.size){
+        /* The same CLI, 2.109.1, prints the table in an interactive
+           terminal and wraps every value in backticks — `20260829065141` —
+           which is what made this gate call all eleven migrations missing
+           on 2026-09-14 while production had every one. */
         for(const line of listed.split('\n')){
           const cols = line.split('|');
           if(cols.length < 3) continue;
-          const rem = (cols[1] || '').trim();
+          const rem = (cols[1] || '').replace(/`/g, '').trim();
           if(/^\d{14}$/.test(rem)) remote.add(rem);
         }
       }
       const missing = want.filter(v => !remote.has(v));
-      if(missing.length){
+      /* Nothing readable is not the same as nothing applied. A production
+         database with zero migrations is not a state this project can be
+         in, so an empty set means the output was not understood — say
+         that, rather than cry wolf. */
+      if(!remote.size) soft('production migrations', 'could not read `supabase migration list --linked` — check it by hand');
+      else if(missing.length){
         fail.push(`production is missing ${missing.length} migration(s) this build expects`);
         say('✗ not applied to production:');
         for(const v of missing) say('    ' + v);
