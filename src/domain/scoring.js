@@ -94,26 +94,32 @@ export const POINT_RULES=[
    client to write them — see the header of
    migrations/20260905090000_badges_are_public.sql.
    ------------------------------------------------------------ */
-/* WHAT a badge is: id, glyph, name, description, and how many of the
+/* WHAT a badge is: id, icon, name, description, and how many of the
    thing it takes. Deliberately free of any reference to the store, so
    that rendering SOMEBODY ELSE'S badges — the whole point of the change
    — needs nothing but their profile row. badgeStrip() in ui/components.js
-   is the caller that depends on this being pure. */
+   is the caller that depends on this being pure.
+
+   `i` is the NAME of a glyph in ui/icons.js, not a picture. It used to
+   be an emoji, which drew differently on every phone and could not take
+   the badge's colour; a name keeps this file free of anything visual,
+   which is also what keeps domain/ from importing ui/. Unlike `id`, it
+   is free to change — nothing stores it. */
 export const BADGES = [
-  {id:'first-pour',     i:'☕',n:'First pour',        d:'Post your first coffee',     need:1},
-  {id:'week-streak',    i:'🔥',n:'Week streak',       d:'7 days of coffee in a row',  need:7},
-  {id:'rosetta-groove', i:'🌿',n:'Rosetta groove',    d:'Post 5 rosettas',            need:5},
-  {id:'tulip-time',     i:'🌷',n:'Tulip time',        d:'Post your first tulip',      need:1},
-  {id:'swan-whisperer', i:'🦢',n:'Swan whisperer',    d:'Post a swan',                need:1},
-  {id:'bean-explorer',  i:'🫘',n:'Bean explorer',     d:'Log 7 different beans',      need:7},
-  {id:'world-tour',     i:'🌍',n:'World tour',        d:'Try coffees from 5 origins', need:5},
-  {id:'cold-brew',      i:'🧊',n:'Cold brew curious', d:'Post a cold brew',           need:1},
+  {id:'first-pour',     i:'cup',     n:'First pour',        d:'Post your first coffee',     need:1},
+  {id:'week-streak',    i:'bolt',    n:'Week streak',       d:'7 days of coffee in a row',  need:7},
+  {id:'rosetta-groove', i:'rosetta', n:'Rosetta groove',    d:'Post 5 rosettas',            need:5},
+  {id:'tulip-time',     i:'tulip',   n:'Tulip time',        d:'Post your first tulip',      need:1},
+  {id:'swan-whisperer', i:'swan',    n:'Swan whisperer',    d:'Post a swan',                need:1},
+  {id:'bean-explorer',  i:'bean',    n:'Bean explorer',     d:'Log 7 different beans',      need:7},
+  {id:'world-tour',     i:'globe',   n:'World tour',        d:'Try coffees from 5 origins', need:5},
+  {id:'cold-brew',      i:'ice',     n:'Cold brew curious', d:'Post a cold brew',           need:1},
   /* Joining is no longer a thing you can do (step 1.17), so this is
      what it always should have been: finishing one. `wins` counts
      completion rows, which outlive the week they were earned in. */
-  {id:'challenger',     i:'🎯',n:'Challenger',        d:'Finish a challenge',         need:1},
-  {id:'regular-winner', i:'🏆',n:'Regular winner',    d:'Finish 10 challenges',       need:10},
-  {id:'century-club',   i:'💯',n:'Century club',      d:'Log 100 pours',              need:100},
+  {id:'challenger',     i:'target',  n:'Challenger',        d:'Finish a challenge',         need:1},
+  {id:'regular-winner', i:'trophy',  n:'Regular winner',    d:'Finish 10 challenges',       need:10},
+  {id:'century-club',   i:'hundred', n:'Century club',      d:'Log 100 pours',              need:100},
 ];
 
 /* HOW FAR the signed-in person is on each. Reads the store, so it only

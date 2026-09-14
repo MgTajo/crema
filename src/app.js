@@ -28,7 +28,8 @@ import { authState } from './ui/gate.js';
 import { pushOv } from './ui/overlays.js';
 import { applyTheme, tick, toast, syncProfile, initPush, openPost, openRecap, syncBadges } from './ui/actions.js';
 import { startAgoTicker } from './ui/timeago.js';
-import { canInstallOnIOS, watchNativeTaps } from './data/push.js';
+import { canInstallOnIOS, watchNativeTaps, standalone } from './data/push.js';
+import { mobileOS, lastPlayOffer, playOfferDue, notePlayOffer } from './core/device.js';
 import { seen, markSeen, DAILY_CHAMPION } from './core/announce.js';
 import { applyLang, t } from './i18n.js';
 import { watchForErrors } from './data/errors.js';
@@ -254,7 +255,7 @@ if(auth.session){
        already in hand. The account is brand new and its setup was
        answered before it existed, so there is no sheet to raise — only
        the same two things onboarding would have done. */
-    if(fresh){ markSeen(DAILY_CHAMPION); toast(t('Welcome to Crema ☕')); }
+    if(fresh){ markSeen(DAILY_CHAMPION); toast(t('Welcome to Crema')); }
     openFromHash(takeHash());
   }
 }else{
@@ -292,6 +293,30 @@ if(auth.session && state.onboarded && !seen(DAILY_CHAMPION)) setTimeout(()=>{
 if(canInstallOnIOS()) setTimeout(()=>{
   if(ui.ovStack.length||ui.gate) return;
   pushOv({type:'ios'});
+}, 2200);
+
+/* ---------- the Android-in-a-tab prompt: Crema is on Google Play ----------
+   The same moment as the iPhone prompt above, on the other platform, and
+   since 2026-09-14 it has somewhere real to send people: the app is in
+   Play's production track. Same restraint — never over onboarding, a pour
+   somebody followed a link to, or the sign-in sheet, and after the feed
+   rather than instead of it.
+
+   One difference, and it is why this one remembers. The iPhone prompt
+   stops on its own the moment somebody acts on it, because a Home Screen
+   launch is not a tab. Installing the Android app does nothing to the
+   browser tab they were in, so nothing would ever stop this one — except
+   a rest period. core/device.js says how long, and the time is written
+   when the sheet is SHOWN, so closing it with the back gesture rests it
+   exactly like "Not now" does.
+
+   Never inside the app itself (native), and never in the Play TWA or an
+   installed PWA (standalone): all three are already an app on the phone. */
+if(!native() && !standalone() && mobileOS(navigator)==='android'
+   && playOfferDue(lastPlayOffer(), Date.now())) setTimeout(()=>{
+  if(ui.ovStack.length||ui.gate) return;
+  notePlayOffer('shown');
+  pushOv({type:'play'});
 }, 2200);
 
 /* A newer deploy is in the cache and this page is running the older

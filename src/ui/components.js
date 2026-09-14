@@ -6,7 +6,7 @@
    store selectors but never mutate state or touch the DOM directly.
    ============================================================ */
 import { esc, fmt, seedOf, initials } from '../core/util.js';
-import { BEANS, ADD_DRINK, DRINKS, beanCatalog, combineMachine, flag } from '../data/catalog.js';
+import { BEANS, ADD_DRINK, DRINKS, beanCatalog, combineMachine } from '../data/catalog.js';
 import { USERS, handleToUid, CAFES, userOf } from '../data/world.js';
 import { state, allPosts, findPost } from '../store/store.js';
 import { REACTIONS } from '../data/reactions.js';
@@ -43,7 +43,7 @@ export function mentionify(t){
    the feed simply never loads. They're 120px faces, so eager is cheap
    and, unlike lazy, it works. */
 export function avatar(uid,cls=''){
-  const u=USERS[uid]||{name:'☕',color:'var(--crema)'};
+  const u=USERS[uid]||{name:'',color:'var(--crema)'};
   /* One helper, six rendered sizes: 26 on the today strip up to 74 for
      .xl. `face` is 120px, which is a 40px avatar at DPR 3 and covers
      everything below it; the two large classes ask for `thumb` instead
@@ -86,7 +86,7 @@ export function badgeStrip(ids, {own=false}={}){
   if(!shown.length) return '';
   const first = shown.slice(0, 6), rest = shown.length - first.length;
   const chips = first.map(b =>
-    `<span class="bchip" title="${esc(t(b.d))}"><i>${b.i}</i>${esc(t(b.n))}</span>`).join('');
+    `<span class="bchip" title="${esc(t(b.d))}"><i>${icon(b.i,14)}</i>${esc(t(b.n))}</span>`).join('');
   const more = rest > 0 ? `<span class="bchip more">+${rest}</span>` : '';
   const tap = own ? ' data-action="ptab" data-t="badges" style="cursor:pointer"' : '';
   return `<div class="bstrip"${tap}>${chips}${more}</div>`;
@@ -170,7 +170,7 @@ export function drinkOptions(current,{allowAdd=true}={}){
 export function premiumNote(what){
   if(state.me.premium) return '';
   return `<div class="pnote" data-action="open-premium" data-f="${esc(what)}">
-    <span class="pn-lock">🔒</span>
+    <span class="pn-lock">${icon('lock',14)}</span>
     <span>${t('<b>{what}</b> is Premium — <u>free right now, with a code</u>.',{what:esc(what)})}</span></div>`;
 }
 
@@ -250,7 +250,7 @@ export function likeButton(p,size=22){
 }
 
 /* ----- reactions -----
-   Three compliments — "Nice pour", "Nice spot", "Nice pick" — next to
+   Three compliments — the art, the spot, the coffee — next to
    the heart but never part of it. A like is the app's currency: it moves
    points and it decides the podium. A reaction is a sentence you didn't
    have to type and is worth nothing anywhere — no points, no podium, no
@@ -264,7 +264,7 @@ export function reactionBar(p){
   const mine=p.myReactions||[], n=p.reactions||{}, own=p.user==='me';
   const cells=REACTIONS.map(([k,ic,label,hint])=>{
     const c=n[k]|0, on=mine.indexOf(k)>=0;
-    const inner=`<i>${icon(ic,14)}</i>${t(label)}${c?`<span>${fmt(c)}</span>`:''}`;
+    const inner=`<i>${icon(ic,15)}</i><span class="rl">${t(label)}</span>${c?`<span class="rn">${fmt(c)}</span>`:''}`;
     return own
       ? `<div class="react own" title="${esc(t(hint))}">${inner}</div>`
       : `<button class="react${on?' on':''}" data-action="react" data-id="${p.id}" data-k="${k}"
@@ -283,7 +283,7 @@ export const editedMark = p => p.edited ? ` · <span class="edited">${t('edited'
    reminder of a choice you made, in the same dimmed type as the rest of
    the line. */
 export const privateMark = p => p.visibility==='followers'
-  ? ` · <span class="edited" title="${t('Only people who follow you can see this')}">🔒 ${t('followers')}</span>` : '';
+  ? ` · <span class="edited" title="${t('Only people who follow you can see this')}">${icon('lock',12,'inl')} ${t('followers')}</span>` : '';
 
 /* A pour a moderator has hidden. RLS hands the row to nobody but its
    author and an admin, so this line is only ever read by someone who is
@@ -292,19 +292,25 @@ export const privateMark = p => p.visibility==='followers'
    looking exactly as it always did, which would make the notice they
    received look like it did nothing. */
 export const hiddenMark = p => p.hidden
-  ? ` · <span class="edited" title="${t('Hidden after a report. Check your notifications.')}">🚫 ${t('hidden')}</span>` : '';
+  ? ` · <span class="edited" title="${t('Hidden after a report. Check your notifications.')}">${icon('eyeOff',12,'inl')} ${t('hidden')}</span>` : '';
 
 export function postCard(p){
   const u=userOf(p.user), following=p.user==='me'||state.follows[p.user], r=p.recipe, top=p.comments[0];
   const rows=recipeRows(r), cn=commentCount(p);
-  return `<div class="card" data-post="${p.id}">
+  /* The keys first, then the attrs. A pour with no photo has img null, and
+     imageAttrs(null) is a truthy {src:null} — so mapping before filtering
+     drew a broken <img src="null"> where the generated cup belongs. Found
+     2026-09-14; it had been in the feed since the srcset arrived in v1.9.0.
+     The open pour asks imageUrl(), which returns null, and never had it. */
+  const shots=(p.imgs&&p.imgs.length?p.imgs:[p.img]).filter(Boolean).map(k=>imageAttrs(k,'feed'));
+  return `<article class="post" data-post="${p.id}">
     <div class="p-head">
       <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-        <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${p.cafe}`:''} · ${agoTag(p.createdAt,p.ago)}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
+        <div class="who"><b><span class="nm">${esc(u.name)}</span><span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${p.cafe}`:''} · ${agoTag(p.createdAt,p.ago)}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
       ${p.user==='me'?'':followMini(p.user)}
-      <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">⋯</button></div>
+      <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">${icon('more',22)}</button></div>
     <div class="media" data-action="open-post" data-id="${p.id}" data-media="${p.id}">
-      ${artSet((p.imgs&&p.imgs.length?p.imgs:[p.img]).map(k=>imageAttrs(k,'feed')),p.pattern,p.quality,seedOf(p.id),p.drink)}
+      ${artSet(shots,p.pattern,p.quality,seedOf(p.id),p.drink)}
       <div class="heartpop" data-hp="${p.id}">${icon('heartF',90)}</div></div>
     <div class="p-act">
       ${likeButton(p)}
@@ -322,11 +328,11 @@ export function postCard(p){
         ${r&&r.machine?`<span class="chip tag" data-action="open-machine" data-id="${esc(r.machine)}"><span class="g">${icon('mach',12)}</span>${esc(r.machine)}</span>`:''}
         ${p.cafe?`<span class="chip"><span class="g">${icon('cafe',12)}</span>${esc(p.cafe)}</span>`:''}
       </div>
-      ${rows.length?`<button class="recipe-btn" data-action="recipe" data-id="${p.id}">☕ ${recipeBtnLabel(r)} ▾</button>
+      ${rows.length?`<button class="recipe-btn" data-action="recipe" data-id="${p.id}">${icon('cup',16)}<span>${recipeBtnLabel(r)}</span>${icon('chevDown',16,'chev')}</button>
       <div class="recipe-panel" id="rp-${p.id}">${recipePanel(r)}
-        <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ ${t('Brew this recipe')}</button></div></div>`:''}
+        <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">${icon('cup',16)} ${t('Brew this recipe')}</button></div></div>`:''}
       ${top?`<div class="cmt-preview">${cn>1?`<span class="more" data-action="open-post" data-id="${p.id}">${t('View all {n} comments',{n:cn})}</span>`:''}<div class="one"><b>${esc(userOf(top.u).name.split(' ')[0])}</b> ${mentionify(top.t)}</div></div>`:''}
-    </div></div>`;
+    </div></article>`;
 }
 
 /* ----- search ----- */
@@ -340,10 +346,10 @@ export function searchHTML(q){
   let h=`<div class="section-h" style="margin-top:10px"><h2>${t('Results for “{q}”',{q:esc(q)})}</h2><a data-action="clear-search">${t('Clear')}</a></div>`;
   if(users.length) h+=`<div class="rlist" style="margin-bottom:14px">${users.map(u=>`<div class="rlist-row click" data-action="open-user" data-id="${u.id}">${avatar(u.id)}
     <div class="who" style="flex:1"><b>${esc(u.name)}</b><span>${esc(u.handle)}${u.city?' · '+esc(u.city):''}</span></div><span class="lvlchip">Lv${u.level}</span></div>`).join('')}</div>`;
-  if(beans.length||cbeans.length) h+=`<div class="chips" style="margin-bottom:14px">${beans.map(b=>`<span class="chip tag" data-action="open-bean" data-id="${esc(b.n)}">${flag[b.c]||'🫘'} ${b.n}</span>`).join('')}${cbeans.map(n=>`<span class="chip">🫘 ${esc(n)} <small style="color:var(--muted)">${t('yours')}</small></span>`).join('')}</div>`;
+  if(beans.length||cbeans.length) h+=`<div class="chips" style="margin-bottom:14px">${beans.map(b=>`<span class="chip tag" data-action="open-bean" data-id="${esc(b.n)}"><span class="g">${icon('bean',12)}</span>${esc(b.n)}</span>`).join('')}${cbeans.map(n=>`<span class="chip"><span class="g">${icon('bean',12)}</span>${esc(n)} <small style="color:var(--muted)">${t('yours')}</small></span>`).join('')}</div>`;
   if(cafes.length) h+=cafes.map(cafeCard).join('');
   if(posts.length) h+=`<div class="grid" style="margin-bottom:14px">${posts.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`;
-  if(!users.length&&!beans.length&&!cbeans.length&&!cafes.length&&!posts.length) h+=`<div class="empty"><div class="big">🔍</div>${t('No matches for “{q}”.',{q:esc(q)})}<br>${t('Try a name, a bean, a café or a drink.')}</div>`;
+  if(!users.length&&!beans.length&&!cbeans.length&&!cafes.length&&!posts.length) h+=`<div class="empty"><div class="big">${icon('search',30)}</div>${t('No matches for “{q}”.',{q:esc(q)})}<br>${t('Try a name, a bean, a café or a drink.')}</div>`;
   return h;
 }
 
@@ -369,18 +375,20 @@ export function podiumRow(p){
   const u=userOf(p.user);
   const line=(p.caption||'').trim()||t(p.drink||'Coffee');
   const place=p.place|0;
-  const medal=place===1?'🥇':place===2?'🥈':place===3?'🥉':place;
+  /* The place as a numbered disc: solid gold for first, a gold ring for
+     second and third. It was a medal emoji, which is three different
+     drawings on three different phones and never the brand's gold. */
   return `<div class="rlist-row click ${p.user==='me'?'me':''}" data-action="open-post" data-id="${p.id}">
-  <div class="pod-rank top">${medal}</div>
+  <div class="pod-rank p${place}">${place||''}</div>
   <div class="pod-thumb">${art(imageUrl(p.img,'thumb'),p.pattern,p.quality,seedOf(p.id),p.drink)}</div>
   <div class="who" style="flex:1;min-width:0"><b>${esc(u.name)}${p.user==='me'?' '+t('(you)'):''}</b>
     <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(line)}</span></div>
-  <div class="rlist-val" style="text-align:right">${icon('heartF',13)} ${fmt(p.likes)}${p.commentN?`<br><span style="font-size:11px;font-weight:600;color:var(--muted)">${icon('chat',11)} ${fmt(p.commentN)}</span>`:''}</div></div>`;}
+  <div class="rlist-val" style="text-align:right">${icon('heartF',13,'inl')} ${fmt(p.likes)}${p.commentN?`<span class="rv-sub">${icon('chat',12,'inl')} ${fmt(p.commentN)}</span>`:''}</div></div>`;}
 
 export function cafeCard(c){
   return `<div class="cafe-card" data-action="open-cafe" data-id="${c.id}">${cafeThumb(c)}
     <div class="info"><b>${c.name}</b><div class="meta">${c.spec} · ${c.area}</div>
-      <div class="row2"><span class="star">★ ${c.rating}</span><span style="font-size:12px;color:var(--muted)">${t('{n} followers',{n:fmt(c.followers)})}</span>${c.promo?`<span class="promo">${t('10% off · show post')}</span>`:''}</div></div>
+      <div class="row2"><span class="star">${icon('star',13)} ${c.rating}</span><span class="t-s t-muted">${t('{n} followers',{n:fmt(c.followers)})}</span>${c.promo?`<span class="promo">${t('10% off · show post')}</span>`:''}</div></div>
     <div class="aod" title="${t('Latte art of the day')}">${art(c.img,'rosetta',.9,seedOf(c.id))}</div></div>`;
 }
 

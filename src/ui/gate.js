@@ -48,7 +48,7 @@ export function authState(){
    sense under "Sign in". */
 export const signupStep = a => Math.min(3,Math.max(1,a.step||1));
 
-const banner=(text,color,bg,border)=>`<div style="background:${bg};border:1px solid ${border};color:${color};border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin-bottom:12px">${esc(text)}</div>`;
+const banner=(text,color,bg,border)=>`<div class="t-s" style="background:${bg};border:1px solid ${border};color:${color};border-radius:12px;padding:10px 12px;margin-bottom:12px">${esc(text)}</div>`;
 
 export function renderGate(){
   const a=authState();
@@ -93,11 +93,11 @@ export function renderGate(){
       title="${a.showPw?t('Hide password'):t('Show password')}">${icon(a.showPw?'eyeOff':'eye',18)}</button></div>`;
 
   const oauth=`
-    <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:11.5px">
+    <div class="t-s" style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted)">
       <i style="flex:1;height:1px;background:var(--line)"></i>${t('or')}<i style="flex:1;height:1px;background:var(--line)"></i></div>
     <button class="btn ghost block" data-action="auth-oauth" data-p="google">${t('Continue with Google')}</button>`;
 
-  const haveOne=`<div style="text-align:center;margin-top:16px;font-size:13px">
+  const haveOne=`<div class="t-s" style="text-align:center;margin-top:16px">
     <span style="color:var(--muted)">${t('Already have an account?')} </span>
     <b style="color:var(--crema-deep);cursor:pointer" data-action="auth-mode" data-m="in">${t('Sign in')}</b></div>`;
 
@@ -134,15 +134,15 @@ export function renderGate(){
   const body = forgot
     ? `${emailField}
        <button class="btn block"${a.busy?' disabled':''} data-action="auth-submit">${a.busy?t('Sending…'):t('Email me a reset link')}</button>
-       <div style="text-align:center;margin-top:16px;font-size:13px">
+       <div class="t-s" style="text-align:center;margin-top:16px">
          <b style="color:var(--crema-deep);cursor:pointer" data-action="auth-mode" data-m="in">${t('Back to sign in')}</b></div>`
     : up ? signupBody
     : `${emailField}${pwField}
        <button class="btn block"${a.busy?' disabled':''} data-action="auth-submit">${a.busy?t('Just a moment…'):t('Sign in')}</button>
-       <div style="text-align:center;margin-top:12px;font-size:12.5px">
+       <div class="t-s" style="text-align:center;margin-top:12px">
          <span style="color:var(--muted);cursor:pointer" data-action="auth-mode" data-m="forgot">${t('Forgot your password?')}</span></div>
        ${oauth}
-       <div style="text-align:center;margin-top:16px;font-size:13px">
+       <div class="t-s" style="text-align:center;margin-top:16px">
          <span style="color:var(--muted)">${t('New to Crema?')} </span>
          <b style="color:var(--crema-deep);cursor:pointer" data-action="auth-mode" data-m="up">${t('Create one')}</b></div>`;
 
@@ -156,9 +156,9 @@ export function renderGate(){
     ${a.notice?banner(a.notice,'var(--green)','var(--pm1)','var(--pm2)'):''}
     ${a.error?banner(a.error,'var(--terra)','rgba(168,84,74,.10)','rgba(168,84,74,.28)'):''}
     ${body}
-    <div style="font-size:11px;color:var(--muted);margin-top:20px;text-align:center;line-height:1.55">
+    <div class="t-s t-muted" style="margin-top:20px;text-align:center">
       ${t('Your coffee log is stored in the EU and belongs to you.')}<br>${t('Crema never posts anything without you.')}</div>
-    <div style="text-align:center;margin-top:18px;font-size:13px;color:var(--muted);cursor:pointer" data-action="guest-back">← ${t('Keep reading today\'s pours')}</div>
+    <div class="t-s t-muted" style="text-align:center;margin-top:18px;cursor:pointer" data-action="guest-back">${icon('back',14,'inl')} ${t('Keep reading today\'s pours')}</div>
     <div style="height:20px"></div>
   </div>`;
 }

@@ -1,8 +1,8 @@
 "use strict";
 /* ============================================================
    data/catalog — static reference data ("the menu").
-   Drinks, milks, machines, levels, purchasable beans and the country
-   flags. In the target app a backend serves this read-only catalog;
+   Drinks, milks, machines, levels, purchasable beans and the countries
+   they come from. In the target app a backend serves this read-only catalog;
    here it is bundled. No app state lives here.
    ============================================================ */
 
@@ -35,7 +35,7 @@ export const MILK_LIST=['Whole milk','Semi-skimmed','Skimmed','Lactose-free','Oa
    (state.customDrinks) so it rejoins the dropdown as a normal choice
    next time, for them only. Naming a drink nobody else has is
    personalization — that part stays Premium. */
-export const ADD_DRINK='＋ Add your own drink…';
+export const ADD_DRINK='Add your own drink…';
 
 /* ---------- machines: brand → model (pick brand first, then model) ---------- */
 export const MACHINES={
@@ -197,12 +197,17 @@ export const LEVELS=[[1,'First Sips',0],[2,'Steam Dreams',100],[3,'Heart Starter
   [5,'Tulip Tinkerer',900],[6,'Rosetta Artist',1500],[7,'Rosetta Pro',2400],[8,'Swan Apprentice',3800],
   [9,'Swan Master',6000],[10,'Latte Legend',9500]];
 
-/* ---------- origin flags ---------- */
-export const flag={Ethiopia:'🇪🇹',Colombia:'🇨🇴',Brazil:'🇧🇷',Kenya:'🇰🇪',Guatemala:'🇬🇹',Indonesia:'🇮🇩',Peru:'🇵🇪',Rwanda:'🇷🇼','Costa Rica':'🇨🇷',Germany:'🇩🇪',Italy:'🇮🇹','United Kingdom':'🇬🇧',Norway:'🇳🇴',Denmark:'🇩🇰',USA:'🇺🇸',
-  Sweden:'🇸🇪',Netherlands:'🇳🇱',Belgium:'🇧🇪',Finland:'🇫🇮',Portugal:'🇵🇹',Spain:'🇪🇸',Switzerland:'🇨🇭',Japan:'🇯🇵',Australia:'🇦🇺',Canada:'🇨🇦',India:'🇮🇳',Vietnam:'🇻🇳',Turkey:'🇹🇷'};
+/* ---------- origin countries ----------
+   This was a map of flag emoji until 2026-09-14. The flags were only ever
+   decoration — every screen that drew one now draws the bean or the globe
+   from ui/icons.js — and the one reader that cared about the map itself
+   wanted its KEYS: beanKind() below, which asks whether an origin line
+   names a single country. So the keys stayed and the pictures went. */
+export const ORIGINS=new Set(['Ethiopia','Colombia','Brazil','Kenya','Guatemala','Indonesia','Peru','Rwanda','Costa Rica','Germany','Italy','United Kingdom','Norway','Denmark','USA',
+  'Sweden','Netherlands','Belgium','Finland','Portugal','Spain','Switzerland','Japan','Australia','Canada','India','Vietnam','Turkey']);
 
 /* Specific coffee brands you can actually buy in Germany.
-   c = country the coffee comes from (for the flag); loc: 'DE' local,
+   c = country the coffee comes from; loc: 'DE' local,
    'INT' international. `roaster` drives the brand step of the picker
    (beanBrands below) — one shortcut into the search, for people who
    recognize the bag on the shelf before they can name the coffee.
@@ -361,7 +366,7 @@ export function beanKind(origin){
   const lc=o.toLowerCase();
   if(lc.includes('blend')) return 'Blend';
   if(lc.includes('single origin')) return 'Single origin';
-  return flag[(o.split('·')[0]||'').trim()] ? 'Single origin' : '';
+  return ORIGINS.has((o.split('·')[0]||'').trim()) ? 'Single origin' : '';
 }
 
 /* Everything the app knows about one coffee, or null for a coffee it

@@ -24,6 +24,7 @@
 --       would have caught 2026-08-27.
 --   T6  notify_social off still means silence.
 --   T7  the evening reminder reaches a phone, on the phone's own clock.
+--   T8  the 8am nudge goes out on each device's own clock, in words only.
 --
 -- net.http_post is faked by stub.sql and records into net.calls, which is
 -- the last thing Postgres does before send-push takes over.
@@ -215,5 +216,59 @@ begin
   assert (select count(*) = 1 from jsonb_array_elements(rows) r
            where r ? 'token' and r->>'tag' = 'streak'), 'the phone row is a streak reminder';
 end $$;
+
+\echo '--- T8: the 8am nudge, on each device''s clock, in words only ---'
+-- Bo has a browser and no pours at all, so Bo's nudge is the plain good
+-- morning; Ann's two-day run from T7 makes Ann's the streak line. Neither
+-- may leave the database with an emoji in it — the cup came out of
+-- 'Good morning' in 20260914120000_the_server_writes_no_emoji.sql.
+insert into push_subscriptions (user_id, endpoint, p256dh, auth, lang) values
+  ('22222222-2222-2222-2222-222222222222','https://push.example/bo','p256dh-bo','auth-bo','en');
+update profiles set notify_morning = true;
+do $$
+declare want int;
+begin
+  -- minutes to add to now() to land on 08:00 local, kept inside a real
+  -- offset's range; a whole day either way leaves the hour where it is
+  want := (8 - extract(hour from now())::int) * 60 - extract(minute from now())::int;
+  if want < -720 then want := want + 1440; end if;
+  if want >= 840 then want := want - 1440; end if;
+  update push_subscriptions set tz_offset = want;
+  update native_push_tokens  set tz_offset = want;
+end $$;
+
+-- The UTF-8 lead bytes of U+1F000..U+1FFFF, where the medals are, and of
+-- U+2600..U+27BF, where the cup is. Bytes rather than characters: this
+-- harness's database is not UTF8 while production's is, and bytes read
+-- the same in both. No emoji is written into this file to do it.
+create or replace function t_has_emoji(b bytea) returns bool language sql as $$
+  select exists (select 1 from unnest(array['f09f','e298','e299','e29a','e29b','e29c','e29d','e29e']) p
+                  where position(decode(p, 'hex') in b) > 0);
+$$;
+
+delete from net.calls;
+select push_morning_nudge();
+do $$
+declare rows jsonb; bo text;
+begin
+  -- the check has to be able to fail, or the last assert proves nothing:
+  -- "Good morning" + U+2615, and U+1F947, spelled as UTF-8 bytes
+  assert t_has_emoji(decode('476f6f64206d6f726e696e6720e29895', 'hex')), 'the check misses the cup';
+  assert t_has_emoji(decode('f09fa587', 'hex')), 'the check misses the medal';
+  assert not t_has_emoji(textsend('Good morning — log today''s')), 'the check trips on a dash';
+
+  select (body->'rows') into rows from net.calls
+   where body->'rows'->0->>'tag' = 'morning' order by id desc limit 1;
+  assert rows is not null, 'the nudge went out';
+  assert jsonb_array_length(rows) = 3,
+    'Ann''s laptop and phone and Bo''s browser, got ' || jsonb_array_length(rows);
+  select r->>'title' into bo from jsonb_array_elements(rows) r
+   where r->>'endpoint' = 'https://push.example/bo';
+  assert bo = 'Good morning', 'Bo''s title: ' || coalesce(bo, '(null)');
+  assert (select count(*) = 2 from jsonb_array_elements(rows) r
+           where r->>'title' = 'Keep the streak going'), 'Ann''s run still gets the streak line';
+  assert not t_has_emoji(textsend(rows::text)), 'an emoji left the server: ' || rows::text;
+end $$;
+drop function t_has_emoji(bytea);
 
 \echo 'push-devices-test: all assertions passed'

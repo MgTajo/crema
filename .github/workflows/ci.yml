@@ -51,6 +51,13 @@ jobs:
       - name: streak — 20 assertions
         run: node src/domain/streak.test.mjs
 
+      # Who is offered the Play Store and how often. Real user agents,
+      # because an iPhone told about an app it cannot install is the
+      # failure that matters — and a check that the listing still names
+      # the package the Android build ships as.
+      - name: device — the Play Store offer goes to Android, and rests
+        run: node src/core/device.test.mjs
+
       # The one bug in step 4.1 that would be catastrophic and silent: a
       # store build pointed at STAGING. Capacitor serves from localhost,
       # localhost resolves to staging, and the resulting app looks
@@ -62,9 +69,10 @@ jobs:
       - name: web push — RFC 8291 / 8292 vectors
         run: node --experimental-strip-types platform/supabase/functions/send-push/webpush.test.mjs
 
-      # The push dictionary in step-1.32.sql is generated from
-      # src/i18n.de.js, never typed. This is the only thing that notices
-      # when the two drift apart.
+      # The push dictionary is generated from src/i18n.de.js, never typed,
+      # and the newest seed of it — step-1.32.sql, or the latest migration
+      # that re-seeds push_i18n — has to match. This is the only thing that
+      # notices when the two drift apart.
       - name: push dictionary matches src/i18n.de.js
         run: node platform/supabase/gen-push-i18n.mjs --check
 

@@ -16,9 +16,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-192.png" />
-<!-- Brand type: Newsreader speaks, Public Sans works, JetBrains Mono counts.
+<!-- Brand type: Newsreader speaks, Public Sans does everything else — the
+     numbers too, in tabular figures. Two faces since 2026-09-14; JetBrains
+     Mono was the third, and one fewer family is one fewer download.
      Cross-origin, so sw.js never intercepts it — offline the stack in
-     styles.css falls back to the platform serif/sans/mono and the app
+     styles.css falls back to the platform serif and sans and the app
      still reads. `display=swap` keeps first paint honest either way.
 
      Loaded without blocking the first paint, which is what `media=print`
@@ -32,8 +34,8 @@
      `display=swap` already promised for the font files themselves. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&amp;family=Public+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" />
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&amp;family=Public+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" /></noscript>
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" />
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" /></noscript>
 <link rel="stylesheet" href="styles.css" />
 <title>Crema — coffee, brewed social</title>
 <!-- How Crema looks when someone shares it. Without these a link pasted
@@ -91,7 +93,7 @@
       <div class="screen">
         <div class="statusbar">
           <span id="clock">9:41</span>
-          <div class="dots"><span style="font-size:12px">◗◗◗</span><div class="bat"><i></i></div></div>
+          <div class="dots"><i class="sig"></i><div class="bat"><i></i></div></div>
         </div>
         <div class="appbar" id="appbar"></div>
         <div class="view" id="view"></div>

@@ -61,7 +61,6 @@ export const DE = {
   'Back to today\'s pours':'Zurück zu den Kaffees von heute',
   'Welcome':'Willkommen',
   'Welcome to Crema':'Willkommen bei Crema',
-  'Welcome to Crema ☕':'Willkommen bei Crema ☕',
   'Your name':'Dein Name',
   'e.g. Alex Rivera':'z. B. Alex Rivera',
   'Username':'Benutzername',
@@ -97,7 +96,6 @@ export const DE = {
   'Too many attempts just now. Wait a minute and try again.':'Gerade zu viele Versuche. Warte eine Minute und probier es nochmal.',
   'Crema is out of reach. Check your connection and try again.':'Crema ist nicht erreichbar. Prüf deine Verbindung und probier es nochmal.',
   'Something went wrong. Try again.':'Da ist etwas schiefgegangen. Probier es nochmal.',
-  'Signed in ☕':'Angemeldet ☕',
   'Signed out. You can still look around.':'Abgemeldet. Umsehen kannst du dich trotzdem.',
   'Sign out':'Abmelden',
   'Sign out of Crema on this device?':'Auf diesem Gerät von Crema abmelden?',
@@ -111,14 +109,14 @@ export const DE = {
   'Save password':'Passwort speichern',
   'At least 8 characters, please.':'Bitte mindestens 8 Zeichen.',
   'Those two do not match.':'Die beiden stimmen nicht überein.',
-  'Password changed 🔑':'Passwort geändert 🔑',
+  'Password changed':'Passwort geändert',
   'Sign in first':'Melde dich zuerst an',
 
   /* ---------- the guest wall ---------- */
   'Sign in to like this':'Melde dich an, um zu liken',
   'A heart is the smallest way to say you saw it.':'Ein Herz ist die kleinste Art zu sagen: gesehen.',
   'Sign in to react':'Melde dich an, um zu reagieren',
-  'Say which part you loved: the art, the spot or the coffee.':'Sag, was dir gefallen hat: die Art, der Ort oder der Kaffee.',
+  'Say which part you loved: the art, the spot or the coffee.':'Sag, was dir gefallen hat: die Latte Art, der Ort oder der Kaffee.',
   'Sign in to join in':'Melde dich an und misch dich ein',
   'Comments are people talking about coffee. Bring yours.':'In den Kommentaren reden Leute über Kaffee. Bring deinen mit.',
   'Sign in to keep this':'Melde dich an, um das zu behalten',
@@ -175,7 +173,7 @@ export const DE = {
   'Nobody you follow has poured yet.':'Von den Leuten, denen du folgst, kam heute noch nichts.',
   'Find baristas on Explore.':'Finde Baristas unter Entdecken.',
   'Nobody has poured today yet.':'Heute hat noch niemand etwas gemacht.',
-  'Tap ＋ and be the first.':'Tipp auf ＋ und sei die erste Person.',
+  'Tap {plus} and be the first.':'Tipp auf {plus} und sei die erste Person.',
   'Come back in the morning.':'Komm morgen früh wieder.',
   'Every cup, kept.':'Jede Tasse, festgehalten.',
   'Your streak and your beans, plus the people who care about the same 30 seconds of the morning that you do.':
@@ -187,8 +185,8 @@ export const DE = {
      everywhere else in this file, so it is what it is called here. */
   '{n} new pour':'{n} neuer Kaffee',
   '{n} new pours':'{n} neue Kaffees',
-  '{n} friend has already brewed today ☕':'{n} Freund:in hat heute schon Kaffee gemacht ☕',
-  '{n} friends have already brewed today ☕':'{n} Freund:innen haben heute schon Kaffee gemacht ☕',
+  '{n} friend has already brewed today':'{n} Freund:in hat heute schon Kaffee gemacht',
+  '{n} friends have already brewed today':'{n} Freund:innen haben heute schon Kaffee gemacht',
   'Accept':'Annehmen',
   'Decline':'Ablehnen',
 
@@ -321,7 +319,7 @@ export const DE = {
   '(you)':'(du)',
   'Recipe':'Rezept',
   'Recipe · {a} in → {b} out':'Rezept · {a} rein → {b} raus',
-  '+ Add recipe (bean, machine, dose…)':'+ Rezept hinzufügen (Bohne, Maschine, Einwaage…)',
+  'Add recipe (bean, machine, dose…)':'Rezept hinzufügen (Bohne, Maschine, Einwaage…)',
   'Remove recipe':'Rezept entfernen',
   'Copy link':'Link kopieren',
   'Remove from saved':'Aus Gemerkt entfernen',
@@ -331,32 +329,34 @@ export const DE = {
   'Report':'Melden',
   'Block {name}':'{name} blockieren',
   'this person':'diese Person',
-  'Comment added 💬':'Kommentar hinzugefügt 💬',
+  'Comment added':'Kommentar hinzugefügt',
   'That comment did not post':'Der Kommentar ging nicht raus',
   'Slow down a moment. That is too many comments at once.':'Mach mal langsam. Das sind zu viele Kommentare auf einmal.',
   'You cannot like your own pour':'Deinen eigenen Kaffee kannst du nicht liken',
   'That like did not save':'Das Like wurde nicht gespeichert',
   'Reactions are for other people\'s coffee':'Reaktionen sind für den Kaffee anderer Leute',
   'That reaction did not save':'Die Reaktion wurde nicht gespeichert',
-  'Saved to your collection 🔖':'In deine Sammlung gemerkt 🔖',
+  'Saved to your collection':'In deine Sammlung gemerkt',
   'Removed from saved':'Aus Gemerkt entfernt',
   'Your collection did not update':'Deine Sammlung wurde nicht aktualisiert',
-  'Link copied 🔗':'Link kopiert 🔗',
+  'Link copied':'Link kopiert',
   /* The shell's offline strip (ui/shell.js) — native builds only. */
   'Offline':'Offline',
   'Crema will catch up when you are back':'Crema holt auf, sobald du wieder online bist',
-  'Maps link copied 🔗':'Karten-Link kopiert 🔗',
-  'Copied ✓':'Kopiert ✓',
+  'Maps link copied':'Karten-Link kopiert',
+  'Copied':'Kopiert',
   'Copying is not available here. Long-press the post instead.':'Kopieren geht hier nicht. Halt den Beitrag stattdessen lang gedrückt.',
   'Coffee, brewed social. Log what you pour.':'Kaffee, sozial gebrüht. Trag ein, was du machst.',
-  'Recipe loaded. Brew it again ☕':'Rezept geladen. Brüh es nochmal ☕',
+  'Recipe loaded. Brew it again.':'Rezept geladen. Brüh es nochmal.',
 
-  /* Reaction chips (data/reactions.js) */
-  'Great art':'Schöne Kunst',
+  /* Reaction chips (data/reactions.js). One word each since 2026-09-14,
+     so three fit side by side on a phone; the whole compliment is the
+     tooltip. 'Coffee' is the key the drink fallback already uses, and it
+     already says Kaffee. */
+  'Art':'Kunst',
   'Beautiful latte art':'Schöne Latte Art',
-  'Nice spot':'Schöner Ort',
+  'Spot':'Ort',
   'Lovely place to have it':'Schöner Ort dafür',
-  'Unique coffee':'Besonderer Kaffee',
   'A coffee you don\'t see every day':'Ein Kaffee, den man nicht jeden Tag sieht',
 
   /* ---------- follow ---------- */
@@ -400,7 +400,7 @@ export const DE = {
   'Violence or self-harm':'Gewalt oder Selbstverletzung',
   'Not their content':'Nicht ihr eigener Inhalt',
   'Something else':'Etwas anderes',
-  'Reported. Thanks for keeping Crema kind 🙏':'Gemeldet. Danke, dass du Crema freundlich hältst 🙏',
+  'Reported. Thanks for keeping Crema kind.':'Gemeldet. Danke, dass du Crema freundlich hältst.',
   'That report did not send. Try again.':'Die Meldung ging nicht raus. Probier es nochmal.',
   'Block {who}? You will not see their pours, and they are never told.':
     '{who} blockieren? Du siehst die Kaffees nicht mehr, und die andere Seite erfährt nichts davon.',
@@ -437,7 +437,7 @@ export const DE = {
   'Tell your favourite café about Crema. The ones people ask for get opened first.':
     'Erzähl deinem Lieblingscafé von Crema. Die Läden, nach denen gefragt wird, kommen zuerst dran.',
   'Share Crema':'Crema teilen',
-  'Opening your mail app ✉️':'Dein Mailprogramm wird geöffnet ✉️',
+  'Opening your mail app':'Dein Mailprogramm wird geöffnet',
   'Crema — café pilot':'Crema — Café-Pilot',
   'Hi Magnus,\n\nI would like to put my café on Crema.\n\nCafé:\nCity:\nWebsite / Instagram:\nWhat we pour:\n\nWhat I am most interested in:\n\nThanks!':
     'Hallo Magnus,\n\nich würde mein Café gern auf Crema bringen.\n\nCafé:\nStadt:\nWebsite / Instagram:\nWas wir ausschenken:\n\nWorauf ich am meisten Lust habe:\n\nDanke!',
@@ -447,7 +447,7 @@ export const DE = {
   'Show any post tagged here at the counter.':'Zeig an der Theke einen Beitrag, der hier getaggt ist.',
   'Follow café':'Café folgen',
   'Directions':'Route',
-  'Following café ☕':'Café gefolgt ☕',
+  'Following café':'Café gefolgt',
   '{n} followers':'{n} Follower',
   '10% off · show post':'10 % Rabatt · Beitrag zeigen',
   'Latte art of the day':'Latte Art des Tages',
@@ -463,13 +463,13 @@ export const DE = {
   '{n} points':'{n} Punkte',
   '{n} to {level}':'{n} bis {level}',
   'Top level reached':'Höchstes Level erreicht',
-  'Tap ＋ to log your first coffee.':'Tipp auf ＋ und trag deinen ersten Kaffee ein.',
+  'Tap {plus} to log your first coffee.':'Tipp auf {plus} und trag deinen ersten Kaffee ein.',
   'Loading your collection…':'Deine Sammlung wird geladen…',
   'Nothing saved yet.':'Noch nichts gemerkt.',
   'Tap the bookmark on any post.':'Tipp bei einem Beitrag auf das Lesezeichen.',
   'Recent activity':'Zuletzt gemacht',
   'Your last few weeks of coffee.':'Deine letzten Wochen Kaffee.',
-  'last 3 weeks':'letzte 3 Wochen',
+  'in 3 weeks':'in 3 Wochen',
   'day streak':'Tage-Streak',
   'art styles':'Muster',
   '3 weeks ago':'vor 3 Wochen',
@@ -606,7 +606,7 @@ export const DE = {
   'Sunday at 4pm, when your card is ready':'Sonntag um 16 Uhr, wenn deine Karte fertig ist',
   'Sunday afternoon, if you poured that week':'Sonntagnachmittag, wenn du in der Woche Kaffee gemacht hast',
   'Turn off on this device':'Auf diesem Gerät ausschalten',
-  'Reminders on ☕':'Erinnerungen an ☕',
+  'Reminders on':'Erinnerungen an',
   'Reminders off on this device':'Erinnerungen auf diesem Gerät aus',
   'Notifications are blocked in your browser settings':'Mitteilungen sind in deinen Browsereinstellungen blockiert',
   'Add Crema to your Home Screen first':'Leg Crema zuerst auf deinen Home-Bildschirm',
@@ -632,7 +632,7 @@ export const DE = {
   'No pours logged with this bean yet.':'Mit dieser Bohne ist noch kein Kaffee eingetragen.',
   'No details for that bean yet':'Zu dieser Bohne gibt es noch keine Details',
 
-  /* Origin countries (data/catalog.js flags) */
+  /* Origin countries (data/catalog.js ORIGINS) */
   'Ethiopia':'Äthiopien','Colombia':'Kolumbien','Brazil':'Brasilien','Kenya':'Kenia',
   'Indonesia':'Indonesien','Rwanda':'Ruanda','Germany':'Deutschland','Italy':'Italien',
   'United Kingdom':'Vereinigtes Königreich','Norway':'Norwegen','Denmark':'Dänemark',
@@ -657,21 +657,21 @@ export const DE = {
   'Uploading…':'Wird hochgeladen…',
   'Optional. Initials work fine.':'Optional. Initialen reichen völlig.',
   'Add your name first':'Trag zuerst deinen Namen ein',
-  'Profile updated ✓':'Profil aktualisiert ✓',
+  'Profile updated':'Profil aktualisiert',
   'Saved here. We will sync it shortly.':'Hier gespeichert. Wir gleichen es gleich ab.',
   'Saved on this device. We will sync your profile shortly.':'Auf diesem Gerät gespeichert. Wir gleichen dein Profil gleich ab.',
   'Your profile did not load. We will try again next time.':'Dein Profil wurde nicht geladen. Wir versuchen es beim nächsten Mal wieder.',
   'That did not save. Try again.':'Das wurde nicht gespeichert. Probier es nochmal.',
-  'Photo added 📸':'Foto hinzugefügt 📸',
+  'Photo added':'Foto hinzugefügt',
   'Drag the photo to pick what stays in the square.':'Zieh das Foto, um zu wählen, was im Quadrat bleibt.',
-  'Photo updated 📸':'Foto aktualisiert 📸',
+  'Photo updated':'Foto aktualisiert',
   'Back to your initials':'Zurück zu deinen Initialen',
   'That file is not an image':'Diese Datei ist kein Bild',
   'That image could not be read':'Dieses Bild ließ sich nicht lesen',
   'That file could not be read':'Diese Datei ließ sich nicht lesen',
   'That photo did not upload. Try again.':'Das Foto wurde nicht hochgeladen. Probier es nochmal.',
   'That photo did not upload. Tap Post to retry.':'Das Foto wurde nicht hochgeladen. Tipp auf Posten, um es nochmal zu versuchen.',
-  'Photo uploaded ✓':'Foto hochgeladen ✓',
+  'Photo uploaded':'Foto hochgeladen',
   'That is a lot of photos at once. Give it a minute.':'Das sind gerade viele Fotos auf einmal. Warte kurz.',
   'That photo did not come off. Try again.':'Das Foto ließ sich nicht entfernen. Probier es nochmal.',
   'Profile photos are not switched on yet':'Profilfotos sind noch nicht freigeschaltet',
@@ -702,7 +702,7 @@ export const DE = {
   '<b>{what}</b> is part of Premium.':'<b>{what}</b> gehört zu Premium.',
   'Naming a drink of your own':'Ein eigenes Getränk zu benennen',
   'Pinning your gear':'Dein Gear anzupinnen',
-  'Premium unlocked ✦':'Premium freigeschaltet ✦',
+  'Premium unlocked':'Premium freigeschaltet',
   'Premium turned off':'Premium ausgeschaltet',
   'Not now':'Jetzt nicht',
   'Premium':'Premium',
@@ -725,7 +725,7 @@ export const DE = {
     'Der Code stimmt nicht. Vergleich ihn mit der Mail, oder frag nach einem neuen.',
   'That did not go through. Check your connection and try again.':
     'Das ging nicht durch. Prüf deine Verbindung und probier es nochmal.',
-  '{mail} copied ✉️':'{mail} kopiert ✉️',
+  '{mail} copied':'{mail} kopiert',
   /* the week card */
   'YOUR WEEK IN COFFEE':'DEINE KAFFEEWOCHE',
   'coffee, logged':'Kaffee, eingetragen',
@@ -769,7 +769,7 @@ export const DE = {
   'Share your week':'Teil deine Woche',
   'Saves as a picture, sized for a post or a story. Nothing leaves Crema until you send it.':
     'Wird als Bild gespeichert, passend für Post oder Story. Nichts verlässt Crema, bevor du es verschickst.',
-  'Saved as a picture 📸':'Als Bild gespeichert 📸',
+  'Saved as a picture':'Als Bild gespeichert',
   'That card would not save. Try again.':'Die Karte ließ sich nicht speichern. Probier es nochmal.',
   'Open':'Öffnen',
   /* the locked stats tab */
@@ -779,7 +779,6 @@ export const DE = {
   'Free right now, with a code':'Gerade kostenlos, mit einem Code',
   'Pin the ones you use most to hold them at the top. That is Premium, <u>free right now, with a code</u>.':
     'Pinn die an, die du am meisten nutzt, dann bleiben sie oben. Das ist Premium, <u>gerade kostenlos, mit einem Code</u>.',
-  'Pinned to the top 📌':'Nach oben gepinnt 📌',
   'Unpinned':'Nicht mehr gepinnt',
   'Pin to the top':'Nach oben pinnen',
   'Unpin':'Nicht mehr pinnen',
@@ -853,7 +852,7 @@ export const DE = {
   'Rosetta':'Rosetta',
   'Tulip':'Tulpe',
   'Swan':'Schwan',
-  'Abstract art':'Abstrakt',
+  'Abstract':'Abstrakt',
   'No art? Leave these alone and your {drink} posts without a pattern.':
     'Keine Art? Lass die hier einfach, dann geht dein {drink} ohne Muster raus.',
   'Where did you have it?':'Wo hattest du ihn?',
@@ -874,7 +873,7 @@ export const DE = {
   'what they are pouring':'was sie ausschenken',
   'Bean':'Bohne',
   'Which bean did you have?':'Welche Bohne hattest du?',
-  'Your pour will be tagged 📍 {cafe}':'Dein Kaffee wird mit 📍 {cafe} getaggt',
+  'Your pour will be tagged at {cafe}':'Dein Kaffee wird mit {cafe} getaggt',
   'Pick a café above to load the beans and gear they use.':'Wähl oben ein Café, dann laden wir dessen Bohnen und Gear.',
   'optional, add only what you know':'optional, trag nur ein, was du weißt',
   'Dose in':'Einwaage',
@@ -884,8 +883,8 @@ export const DE = {
   'Save changes':'Änderungen speichern',
   'The photo is still uploading. One moment.':'Das Foto lädt noch hoch. Einen Moment.',
   'The photo still will not upload. Remove it to post without one.':'Das Foto lädt immer noch nicht hoch. Nimm es raus, um ohne zu posten.',
-  'Posted. Streak kept 🔥':'Gepostet. Streak gehalten 🔥',
-  'Posted ☕ · add a photo next time':'Gepostet ☕ · nächstes Mal mit Foto',
+  'Posted. Streak kept.':'Gepostet. Streak gehalten.',
+  'Posted. Add a photo next time.':'Gepostet. Nächstes Mal mit Foto.',
   'That did not post. Check your connection and try again.':'Das ging nicht raus. Prüf deine Verbindung und probier es nochmal.',
   'That was a lot of coffee at once. Give it a minute.':'Das war gerade viel Kaffee auf einmal. Warte kurz.',
   'Changes saved':'Änderungen gespeichert',
@@ -988,8 +987,8 @@ export const DE = {
   'Details for your own machine':'Details zu deiner eigenen Maschine',
   'Your private note':'Deine private Notiz',
   'Your note':'Deine Notiz',
-  '＋ Add details':'＋ Details ergänzen',
-  '＋ Add a private note':'＋ Private Notiz',
+  'Add details':'Details ergänzen',
+  'Add a private note':'Private Notiz',
   'Edit these details':'Details bearbeiten',
   'This one is yours. What you write here stays on your device and shows up on this page and in your passport — nobody else sees it, and nobody else can pick this entry.':
     'Der Eintrag gehört dir. Was du hier schreibst, bleibt auf deinem Gerät und steht auf dieser Seite und in deinem Pass — niemand sonst sieht es, und niemand sonst kann diesen Eintrag auswählen.',
@@ -1001,7 +1000,7 @@ export const DE = {
   'Grind setting, what it likes, what it hates…':'Mahlgrad, was sie mag, was sie nicht mag…',
   'Where you bought it, what it cost, how you dial it in…':
     'Wo du sie gekauft hast, was sie gekostet hat, wie du sie einstellst…',
-  'Saved ✓':'Gespeichert ✓',
+  'Details saved':'Details gespeichert',
 
   /* ---------- the picker ---------- */
   'Favourites':'Favoriten',
@@ -1012,7 +1011,7 @@ export const DE = {
   'Also yours':'Auch deine',
   'Add to favourites':'Zu den Favoriten',
   'Remove from favourites':'Aus den Favoriten',
-  'Added to favourites ★':'Zu den Favoriten ★',
+  'Added to favourites':'Zu den Favoriten hinzugefügt',
   'Removed from favourites':'Aus den Favoriten entfernt',
   'Star the ones you use most to hold them at the top. That is Premium, <u>free right now, with a code</u>.':
     'Markier die, die du am meisten nutzt — die bleiben oben. Das ist Premium, <u>gerade kostenlos, mit einem Code</u>.',
@@ -1101,7 +1100,7 @@ export const DE = {
   'Cold brew':'Cold Brew',
   'Aeropress':'AeroPress',
   'Iced latte':'Iced Latte',
-  '＋ Add your own drink…':'＋ Eigenes Getränk hinzufügen…',
+  'Add your own drink…':'Eigenes Getränk hinzufügen…',
 
   /* ---------- milk ---------- */
   'Whole milk':'Vollmilch',
@@ -1289,9 +1288,10 @@ export const DE = {
   'loved where you had it':'mag den Ort, an dem du ihn hattest',
   'loved your choice of coffee':'mag deine Kaffeewahl',
   'reacted to your pour':'hat auf deinen Kaffee reagiert',
-  '🥇 1st place on today\'s podium':'🥇 1. Platz auf dem Podium des Tages',
-  '🥈 2nd place on today\'s podium':'🥈 2. Platz auf dem Podium des Tages',
-  '🥉 3rd place on today\'s podium':'🥉 3. Platz auf dem Podium des Tages',
+  /* The podium body — "1st place on today's podium" — is the same
+     sentence the points table says, so its German is the key further up,
+     under levels & points. It began with a medal emoji until
+     migrations/20260914120000_the_server_writes_no_emoji.sql. */
   'Challenge complete: {title} · +{n} points':'Challenge geschafft: {title} · +{n} Punkte',
   'We looked at what you reported and acted on it. Thank you for flagging it.':
     'Wir haben uns deine Meldung angesehen und gehandelt. Danke, dass du sie geschickt hast.',
@@ -1329,10 +1329,8 @@ export const DE = {
   'Datenschutz / Privacy Policy':'Datenschutzerklärung',
 
   /* ---------- the bits that were still English on screen ---------- */
-  'PREMIUM':'PREMIUM',
-  'ACTIVE':'AKTIV',
-  'SYNCED':'SYNCHRON',
-  '✦ Crema Premium':'✦ Crema Premium',
+  'Active':'Aktiv',
+  'Synced':'Synchronisiert',
   'Signed out':'Abgemeldet',
   'Could not read that file':'Diese Datei ließ sich nicht lesen',
   'A pour on Crema':'Ein Kaffee auf Crema',
@@ -1354,7 +1352,7 @@ export const DE = {
   'Download your data':'Deine Daten herunterladen',
   'One file with every pour, comment and setting':'Eine Datei mit jedem Kaffee, Kommentar und jeder Einstellung',
   'Putting it together…':'Wird zusammengestellt…',
-  'Saved — that is everything we hold 📦':'Gespeichert — mehr haben wir nicht über dich 📦',
+  'Saved — that is everything we hold':'Gespeichert — mehr haben wir nicht über dich',
   'That did not download. Try again.':'Der Download hat nicht geklappt. Versuch es noch mal.',
   'Delete your account':'Konto löschen',
   'Everything goes. This cannot be undone.':'Alles wird gelöscht. Das lässt sich nicht rückgängig machen.',
@@ -1368,13 +1366,18 @@ export const DE = {
   'Delete my account for good':'Mein Konto endgültig löschen',
   'Deleting…':'Wird gelöscht…',
   'Keep my account':'Konto behalten',
-  'Your account is gone. Take care ☕':'Dein Konto ist gelöscht. Mach\'s gut ☕',
+  'Your account is gone. Take care.':'Dein Konto ist gelöscht. Mach\'s gut.',
   'That did not work. Try again.':'Das hat nicht geklappt. Versuch es noch mal.',
   'Type your username to confirm':'Tippe deinen Benutzernamen zum Bestätigen',
   'No profile to delete':'Kein Profil zum Löschen',
 
   /* ---------- misc ---------- */
-  'Challenge complete: {title} · +{n} 🎯':'Challenge geschafft: {title} · +{n} 🎯',
-  '{n} challenges complete 🎯':'{n} Challenges geschafft 🎯',
-  'Coming soon':'Kommt bald'
+  '{n} challenges complete':'{n} Challenges geschafft',
+  'Coming soon':'Kommt bald',
+
+  /* ---------- Crema is on Google Play (an Android browser tab) ---------- */
+  'Crema is on Google Play':'Crema gibt es bei Google Play',
+  'Get the Crema app for Android. Your account and your pours come with you.':
+    'Hol dir die Crema-App für Android. Dein Konto und deine Kaffees kommen mit.',
+  'Get it on Google Play':'Bei Google Play laden'
 };

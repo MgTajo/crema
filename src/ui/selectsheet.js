@@ -5,7 +5,7 @@
    Reported from the Play alpha: "the selection menu does not look good,
    it is the basic Android selection menu." It was. The FIELD has always
    been Crema's — `.field.sel` in styles.css draws the border, the radius,
-   the type and the ▾ — but the list that drops out of it belongs to the
+   the type and the chevron — but the list that drops out of it belongs to the
    platform, and on Android that is a grey system dialog in the middle of
    the screen with the app's typeface nowhere in it.
 
@@ -101,14 +101,15 @@ function rows(s){
   return s.opts.map(o => {
     const on = o.v === s.cur;
     /* `ic` is optional and only a choice sheet sets it — an <option>
-       has nothing to draw. It is a glyph, not markup, and goes through
-       esc() like everything else. */
+       has nothing to draw. It is the NAME of a glyph in ui/icons.js,
+       never a character: the camera and the gallery used to be emoji
+       here, drawn in the phone's colours rather than the sheet's. */
     return `<button type="button" class="selrow${on?' on':''}${o.v?'':' none'}"
       role="option" aria-selected="${on?'true':'false'}"${o.dis?' disabled':''}
       data-action="select-pick" data-v="${esc(o.v)}">
-      ${o.ic?`<span class="selrow-i" aria-hidden="true">${esc(o.ic)}</span>`:''}
+      ${o.ic?`<span class="selrow-i" aria-hidden="true">${icon(o.ic,20)}</span>`:''}
       <span class="selrow-t">${esc(o.l)}${o.sub?`<small>${esc(o.sub)}</small>`:''}</span>
-      <span class="selrow-c">${on?'✓':''}</span></button>`;
+      <span class="selrow-c">${on?icon('check',18):''}</span></button>`;
   }).join('');
 }
 

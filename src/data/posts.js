@@ -53,6 +53,17 @@ function imagesOf(row){
   return row.image_key ? [row.image_key] : [];
 }
 
+/* The caption a person wrote — or, for a pour posted without one before
+   2026-09-14, the default the client wrote FOR them: "<drink> ☕". Crema
+   draws no emoji since then, and that one was never anybody's words, so
+   exactly that shape reads back as the drink alone. The row is left as it
+   is, and anything else — an emoji somebody typed included — is shown as
+   typed. */
+const captionOf = row => {
+  const c = row.caption || '';
+  return row.drink && c === `${row.drink} ☕` ? row.drink : c;
+};
+
 /* ---------- row → the app's post shape ---------- */
 export function postOf(row, myUid){
   if(row.profiles) registerUser(rowToUser(row.profiles));
@@ -74,7 +85,7 @@ export function postOf(row, myUid){
        So `imgs` is always the whole set INCLUDING the first, and `img`
        is always imgs[0] — no caller has to remember which is which. */
     imgs: imagesOf(row),
-    caption: row.caption || '',
+    caption: captionOf(row),
     cafe: cafe ? cafe.name : undefined,
     recipe: row.recipe || null,
     createdAt: row.created_at,
@@ -141,7 +152,7 @@ export function applyRowEdit(post, row){
   post.drink=row.drink;
   post.art=!!row.art;
   post.pattern=row.pattern||null;
-  post.caption=row.caption||'';
+  post.caption=captionOf(row);
   post.recipe=row.recipe||null;
   const cafe=row.cafe_id ? CAFES.find(c=>c.id===row.cafe_id) : null;
   post.cafe=cafe?cafe.name:undefined;

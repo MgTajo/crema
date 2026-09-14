@@ -199,11 +199,13 @@ export async function postPour(page, caption) {
   await expect(postCard(page, caption)).toBeVisible({ timeout: 15000 });
 }
 
-/* A pour, found by the caption the run stamped into it. The card
+/* A pour, found by the caption the run stamped into it. The pour
    carries the post id in `data-post`, which is what every assertion
-   against the database then asks about. */
+   against the database then asks about — and, since the feed lost its
+   cards on 2026-09-14, what this locator leans on too: the attribute is
+   the stable part, a class name is a design decision. */
 export function postCard(page, caption) {
-  return page.locator('.card', { hasText: caption }).first();
+  return page.locator('[data-post]', { hasText: caption }).first();
 }
 
 export async function postIdOf(card) {

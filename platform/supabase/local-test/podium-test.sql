@@ -78,6 +78,10 @@ begin
          like '%2nd place%', 'Bo not told 2nd';
   assert (select body from notifications where type='podium' and user_id='33333333-3333-3333-3333-333333333333')
          like '%3rd place%', 'Cy not told 3rd';
+  -- The sentence and nothing else, since migrations/20260914120000: the
+  -- body used to open with a medal emoji, and push sends it as it stands.
+  assert (select body from notifications where type='podium' and user_id='11111111-1111-1111-1111-111111111111')
+         = '1st place on today''s podium', 'podium body is not the plain sentence';
   -- deep link must be present so the push opens the pour
   assert not exists (select 1 from notifications where type='podium' and post_id is null),
          'podium notification without post_id';

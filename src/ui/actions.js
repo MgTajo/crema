@@ -50,6 +50,7 @@ import { pushOv, popOv, renderOverlay, pickerList } from './overlays.js';
 import { openSelect, applySelect, writeSelect, openChoice, settleChoice } from './selectsheet.js';
 import { initHistory } from './history.js';
 import { markSeen, DAILY_CHAMPION } from '../core/announce.js';
+import { notePlayOffer } from '../core/device.js';
 
 /* ============================================================ BACK */
 /* Moving to a tab, remembering where you came from. See ui/history.js
@@ -119,6 +120,11 @@ const GUEST_READS=new Set(['open-post','recipe','share-post','close-ov','reload'
                               somebody tapping "Got it", which is the opposite of
                               what the button says it does. */
                            'dismiss-whatsnew',
+                           /* The Play Store sheet is raised for guests more
+                              than for anyone — it is a browser-tab prompt,
+                              and most people reading Crema in a tab have
+                              no account. Following a link asks nothing. */
+                           'play-open',
                            'premium-mail','copy-premium-mail',
                            /* A bean or machine page is reference material with
                               nothing of anyone's on it — the same reading a
@@ -206,6 +212,15 @@ document.addEventListener('click',e=>{
        The flag is written before the sheet is popped so that a crash
        between the two cannot bring it back tomorrow. */
     case 'dismiss-whatsnew': markSeen(DAILY_CHAMPION); popOv(); break;
+    /* The Play link is a real <a href>, so the browser follows it on its
+       own; this only writes down that it was taken — a month's rest rather
+       than a week's, see core/device.js — and takes the sheet down once the
+       navigation has had its moment. Popping it in the same tick would pull
+       the anchor out of the document under the click, and the check means
+       a sheet somebody already closed never costs them a different one. */
+    case 'play-open': notePlayOffer('opened');
+      setTimeout(()=>{ const top=ui.ovStack[ui.ovStack.length-1]; if(top&&top.type==='play') popOv(); }, 300);
+      break;
     case 'notif-go':{ const n=state.notifications[+el.dataset.idx]; if(!n)break;
       if(n.post) openNotifiedPost(n.post);
       else if(n.challenge) pushOv({type:'challenge',id:n.challenge});
@@ -252,14 +267,15 @@ document.addEventListener('click',e=>{
     case 'accept-follow': acceptFollow(id); break;
     case 'decline-follow': declineFollow(id); break;
     case 'follow-cafe': toggleCafeFollow(id); break;
-    /* ⚠️ The chevron is `el`, and the panel needs its own name — writing
-       `const el` here shadowed the clicked element, so the line that flips
-       ▾ to ▴ reached for `t`, which is the translate function. `t.innerHTML`
-       is undefined and .replace() on it throws: 14 rows in `client_errors`
-       between 2026-08-31 and 2026-09-11, all of them this. The panel still
-       opened — the throw came after the classList.toggle — so it read as an
-       arrow that never turned round rather than as a broken button. */
-    case 'recipe':{const panel=$('#rp-'+id); if(panel){panel.classList.toggle('open'); const o=panel.classList.contains('open'); el.innerHTML=el.innerHTML.replace(o?'▾':'▴',o?'▴':'▾');} break;}
+    /* ⚠️ The button is `el`, and the panel needs its own name — writing
+       `const el` here once shadowed the clicked element, so the line that
+       turned the arrow reached for `t`, which is the translate function,
+       and threw: 14 rows in `client_errors` between 2026-08-31 and
+       2026-09-11, all of them this. The panel still opened, so it read as
+       an arrow that never turned round rather than as a broken button.
+       Since 2026-09-14 the arrow is an SVG chevron that turns by a class,
+       so nothing here rewrites the button's contents at all. */
+    case 'recipe':{const panel=$('#rp-'+id); if(panel){panel.classList.toggle('open'); el.classList.toggle('open',panel.classList.contains('open'));} break;}
     case 'ptab':{ ui.profTab=el.dataset.t; renderView();
       /* the saves are rows, not a filter over the feed page */
       if(ui.profTab==='saved'&&!saved.loaded) loadSaved().then(ok=>{ if(ok) renderView(); });
@@ -280,7 +296,7 @@ document.addEventListener('click',e=>{
     case 'add-cmt': addComment(id); break;
 
     case 'share-post': sharePost(id); break;
-    case 'menu-copy': copyText(postLink(id),t('Link copied 🔗')); popOv(); break;
+    case 'menu-copy': copyText(postLink(id),t('Link copied')); popOv(); break;
     case 'menu-save': toggleSave(id); popOv(); break;
     case 'menu-report': popOv(); pushOv({type:'report',id}); break;
     case 'report-send': sendReport(id,el.dataset.reason); break;
@@ -291,7 +307,7 @@ document.addEventListener('click',e=>{
     case 'directions':{ const c=CAFES.find(x=>x.id===id); if(!c)break;
       const url='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(c.name+', '+c.area+', '+c.city);
       let w=null; try{w=window.open(url,'_blank','noopener');}catch(err){}
-      if(!w) copyText(url,t('Maps link copied 🔗')); break;}
+      if(!w) copyText(url,t('Maps link copied')); break;}
 
     case 'cafe-filter': ui.cafeF[el.dataset.f]=!ui.cafeF[el.dataset.f]; renderView(); break;
 
@@ -301,8 +317,8 @@ document.addEventListener('click',e=>{
        bound swallows the navigation silently, which looks like a dead
        button — so the address is copyable right underneath, and that
        row is the fallback rather than a second-guessing of the first. */
-    case 'cafe-lead': toast(t('Opening your mail app ✉️')); break;
-    case 'copy-cafe-mail': copyText(CAFE_MAIL,t('{mail} copied ✉️',{mail:CAFE_MAIL})); break;
+    case 'cafe-lead': toast(t('Opening your mail app')); break;
+    case 'copy-cafe-mail': copyText(CAFE_MAIL,t('{mail} copied',{mail:CAFE_MAIL})); break;
     case 'share-crema':{
       /* location.href is the bundle's own URL inside the shell
          (capacitor://crema-app.com/index.html), which is not a link
@@ -338,7 +354,7 @@ document.addEventListener('click',e=>{
       /* The sheet rather than a toast: a toast cannot hold the code
          field, so the old one could only point at Settings and hope. */
       if(!state.me.premium){ openPremium(t('Favourites')); break; }
-      toast(togglePin(kind,v)?t('Added to favourites ★'):t('Removed from favourites'));
+      toast(togglePin(kind,v)?t('Added to favourites'):t('Removed from favourites'));
       paintPicker(); break;}
 
     case 'cpat':{ syncCreate(); ui.create.pattern=(ui.create.pattern===el.dataset.p)?null:el.dataset.p; renderOverlay(); break;}
@@ -369,10 +385,10 @@ document.addEventListener('click',e=>{
        that failed again is indistinguishable from a button that does
        nothing. */
     case 'retry-photo':{ syncCreate(); const c=ui.create;
-      ensureUploaded(c).then(ok=>{ if(ok&&ui.create===c) toast(t('Photo uploaded ✓')); }); break;}
+      ensureUploaded(c).then(ok=>{ if(ok&&ui.create===c) toast(t('Photo uploaded')); }); break;}
     case 'photo-remove': removeShot(+el.dataset.i); break;
     case 'photo-pick':{ syncCreate(); ui.create.photoI=+el.dataset.i; renderOverlay(); break;}
-    /* The ＋ tile on a free account: the one place the photo limit is
+    /* The + tile on a free account: the one place the photo limit is
        met, so the offer names it rather than saying "Premium". */
     case 'photo-premium': openPremium(t('Up to three photos on a pour')); break;
 
@@ -424,8 +440,8 @@ document.addEventListener('click',e=>{
     case 'open-premium': openPremium(el.dataset.f||''); break;
     case 'redeem-premium': redeemCode(el.dataset.i||'pm-code'); break;
     case 'premium-off': premiumOff(); break;
-    case 'premium-mail': toast(t('Opening your mail app ✉️')); break;
-    case 'copy-premium-mail': copyText(PREMIUM_MAIL,t('{mail} copied ✉️',{mail:PREMIUM_MAIL})); break;
+    case 'premium-mail': toast(t('Opening your mail app')); break;
+    case 'copy-premium-mail': copyText(PREMIUM_MAIL,t('{mail} copied',{mail:PREMIUM_MAIL})); break;
     case 'open-recap': openRecap(); break;
     case 'share-recap': shareRecap(); break;
     case 'pick-standout': pickStandout(el.dataset.id); break;
@@ -623,7 +639,7 @@ const PHOTO_BUTTONS = {
 };
 
 /* ---------- where the photo comes from ----------
-   Two of the four buttons above do not say. The ＋ tile on a pour and
+   Two of the four buttons above do not say. The + tile on a pour and
    "Add a photo" in Settings both mean "a photo, from wherever you keep
    them", and @capacitor/camera answers that with source:'PROMPT' — its
    own Android dialog, which is a grey system list with none of Crema in
@@ -647,8 +663,8 @@ function askPhotoSource(){
     id: 'photo-source',
     title: t('Add a photo'),
     options: [
-      { v:'CAMERA', l:t('Take photo'), ic:'📷' },
-      { v:'PHOTOS', l:t('Gallery'),    ic:'🖼️' },
+      { v:'CAMERA', l:t('Take photo'), ic:'cam' },
+      { v:'PHOTOS', l:t('Gallery'),    ic:'image' },
     ],
   });
   pushOv({ type:'select', id:'photo-source' });
@@ -1211,7 +1227,7 @@ async function savePassword(){
   if(a.length<8){ p.error=t('At least 8 characters, please.'); renderOverlay(); return; }
   if(a!==b){ p.error=t('Those two do not match.'); renderOverlay(); return; }
   p.busy=true; p.error=''; renderOverlay();
-  try{ await updatePassword(a); popOv(); toast(t('Password changed 🔑')); }
+  try{ await updatePassword(a); popOv(); toast(t('Password changed')); }
   catch(e){ p.busy=false; p.error=authError(e); renderOverlay(); }
 }
 
@@ -1237,7 +1253,7 @@ async function downloadMyData(){
     const a=document.createElement('a'); a.href=url; a.download=name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2000);
-    toast(t('Saved — that is everything we hold 📦'));
+    toast(t('Saved — that is everything we hold'));
   }catch(e){
     console.warn('export failed',e);
     toast(t('That did not download. Try again.'));
@@ -1268,7 +1284,7 @@ async function deleteAccount(){
     await clearSaved();
     popOv();
     await signOut();
-    toast(t('Your account is gone. Take care ☕'));
+    toast(t('Your account is gone. Take care.'));
   }catch(e){
     console.warn('account deletion failed',e);
     /* The Edge Function's messages are English sentences, and they are
@@ -1363,7 +1379,7 @@ async function turnPushOn(){
     try{ await setNotifyPrefs(u.id,state.me); }
     catch(e){ console.warn('notification prefs failed',e); }
     renderOverlay();
-    toast(t('Reminders on ☕'));
+    toast(t('Reminders on'));
     return;
   }
 
@@ -1440,7 +1456,7 @@ async function finishOnboarding(){
     }
   }
   state.onboarded=true; ui.obError=''; save(); applyMe();
-  ui.ovStack=[]; render(); toast(t('Welcome to Crema ☕'));
+  ui.ovStack=[]; render(); toast(t('Welcome to Crema'));
 }
 
 /* The single place the app reacts to signing in or out. Signing out is
@@ -1464,9 +1480,9 @@ onAuthChange(async s=>{
          seen for the same reason onboarding marks it: a first morning
          is not the moment to be told what changed. */
       markSeen(DAILY_CHAMPION);
-      toast(t('Welcome to Crema ☕'));
+      toast(t('Welcome to Crema'));
     }
-    else toast(t('Signed in ☕'));
+    else toast(t('Signed in'));
     ui.freshAccount=false;
   }
   else toast(t('Signed out. You can still look around.'));
@@ -1525,7 +1541,7 @@ export function syncBadges(){
 
   if(fresh.length===1){
     const b=computeBadges().find(x=>x.id===fresh[0]);
-    if(b) toast(`${b.i} ${t('Badge earned')} · ${t(b.n)}`);
+    if(b) toast(`${icon(b.i,18)} ${t('Badge earned')} · ${t(b.n)}`);
   }
   if(ui.route==='profile'&&!ui.ovStack.length) renderView();
 }
@@ -1535,8 +1551,8 @@ async function saveProfile(){
   if(!(state.me.name||'').trim()){ toast(t('Add your name first')); return; }
   state.me.name=(state.me.name||'').trim(); state.me.city=(state.me.city||'').trim(); state.me.handle=(state.me.handle||'').trim();
   save(); applyMe(); renderView();
-  const u=currentUser(); if(!u){ popOv(); toast(t('Profile updated ✓')); return; }
-  try{ await pushProfile(u.id,state.me); popOv(); toast(t('Profile updated ✓')); }
+  const u=currentUser(); if(!u){ popOv(); toast(t('Profile updated')); return; }
+  try{ await pushProfile(u.id,state.me); popOv(); toast(t('Profile updated')); }
   catch(e){
     if(e.status===409){ toast(t('That username is taken. Try another.')); return; }
     console.warn('profile sync failed',e); popOv(); toast(t('Saved here. We will sync it shortly.'));
@@ -1744,7 +1760,7 @@ function saveGear(kind,name){
   /* popOv() repaints the sheet underneath, which is the bean or machine
      page these details belong on — so the change is on it immediately. */
   popOv();
-  toast(t('Saved ✓'));
+  toast(t('Details saved'));
 }
 
 /* ---------- the photos on a new post ----------
@@ -1759,7 +1775,7 @@ function saveGear(kind,name){
 
    A pour can carry up to three of them (step-1.28), which is Premium.
    The rule that keeps it simple: the camera and gallery buttons always
-   REPLACE the photo you are looking at, and the ＋ tile is the only
+   REPLACE the photo you are looking at, and the + tile is the only
    thing that adds one. So a free account with its single photo behaves
    exactly as it always did — Retake still retakes — and the Premium
    difference is one tile that either adds a second photo or explains
@@ -1818,7 +1834,7 @@ function bakeAndUpload(c, sh, announce){
   /* Only a key is worth deleting; a data: URL was never uploaded. */
   const stale=(sh.img&&!/^data:/.test(sh.img))?sh.img:null;
   sh.img=cv.toDataURL('image/jpeg',0.82); sh.failed=false;
-  renderOverlay(); if(announce) toast(t('Photo added 📸'));
+  renderOverlay(); if(announce) toast(t('Photo added'));
   const u=currentUser(); if(!u) return;
   sh.uploading=true; renderOverlay();
   cv.toBlob(blob=>{
@@ -1843,7 +1859,7 @@ function bakeAndUpload(c, sh, announce){
 }
 
 /* `mode` is 'replace' (the camera and gallery buttons, which act on the
-   photo currently shown) or 'add' (the ＋ tile). */
+   photo currently shown) or 'add' (the + tile). */
 function handleUpload(file, mode){
   if(!file.type||!file.type.startsWith('image/')){toast(t('That file is not an image')); return;}
   syncCreate();
@@ -1994,7 +2010,7 @@ async function redeemCode(inputId){
     if((ui.ovStack[ui.ovStack.length-1]||{}).type==='premium') popOv();
     else renderOverlay();
     renderView();
-    toast(t('Premium unlocked ✦'));
+    toast(t('Premium unlocked'));
   }catch(err){
     console.warn('redeem failed',err);
     ui.premium.busy=false;
@@ -2143,7 +2159,7 @@ async function shareRecap(){
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2000);
     if(u) logRecapExport(u.id, r.key, 'download');
-    toast(t('Saved as a picture 📸'));
+    toast(t('Saved as a picture'));
   }catch(err){
     console.warn('recap share failed',err);
     toast(t('That card would not save. Try again.'));
@@ -2186,7 +2202,7 @@ function uploadAvatar(file){
           await pushAvatar(u.id,key);
           state.me.avatar=key; save(); applyMe();
           ui.avatarBusy=false; renderOverlay(); renderView();
-          toast(t('Photo updated 📸'));
+          toast(t('Photo updated'));
           /* only once the row points at the new one — an orphan in R2 is
              cheap, a profile pointing at a deleted object is not */
           if(previous) deleteImage(previous);
@@ -2295,7 +2311,7 @@ function toggleSave(id){
   if(p.saved){ if(!saved.list.some(x=>x.id===p.id)) saved.list.unshift(p); }
   else saved.list=saved.list.filter(x=>x.id!==p.id);
   paintSave(p);
-  toast(p.saved?t('Saved to your collection 🔖'):t('Removed from saved'));
+  toast(p.saved?t('Saved to your collection'):t('Removed from saved'));
   const u=currentUser(); if(!u) return;
   const want=p.saved;
   (want?social.savePost(u.id,id):social.unsavePost(u.id,id)).catch(err=>{
@@ -2462,7 +2478,7 @@ function addComment(id){
   const c={u:'me',t:text,ago:'now',likes:0};
   p.comments.push(c); if(p.commentN!=null) p.commentN++; save();
   const list=$('#cmt-list'); if(list){if(list.querySelector('.empty')) list.innerHTML=''; list.insertAdjacentHTML('beforeend',commentRow(c,p.id,p.comments.length-1));}
-  inp.value=''; paintMentions(null); toast(t('Comment added 💬'));
+  inp.value=''; paintMentions(null); toast(t('Comment added'));
   const u=currentUser(); if(!u) return;
   social.addComment(u.id,id,text)
     .then(row=>{ if(row) c.id=row.id; refreshChallenges(); })
@@ -2477,7 +2493,7 @@ function addComment(id){
 
 function toggleCafeFollow(id){
   const on=state.cafeFollow[id]=!state.cafeFollow[id]; save(); renderOverlay();
-  toast(on?t('Following café ☕'):t('Unfollowed'));
+  toast(on?t('Following café'):t('Unfollowed'));
   const u=currentUser(); if(!u) return;
   (on?social.followCafe(u.id,id):social.unfollowCafe(u.id,id)).catch(err=>{
     if(err.status===409) return; console.warn('cafe follow failed',err);
@@ -2521,7 +2537,7 @@ export async function refreshChallenges(){
        right; this is the in-the-moment version for someone who is
        looking at the screen when it lands. */
     const c=CHALLENGES.find(x=>x.done);
-    toast(won===1&&c?t('Challenge complete: {title} · +{n} 🎯',{title:c.title,n:c.points}):t('{n} challenges complete 🎯',{n:won}));
+    toast(won===1&&c?t('Challenge complete: {title} · +{n} points',{title:t(c.title),n:c.points}):t('{n} challenges complete',{n:won}));
     refreshScore();
   }
 }
@@ -2531,7 +2547,7 @@ async function sendReport(postId,reason){
   popOv();
   const u=currentUser();
   if(!u){ toast(t('Sign in to report a pour')); return; }
-  try{ await social.report(u.id,{ postId, reason }); toast(t('Reported. Thanks for keeping Crema kind 🙏')); }
+  try{ await social.report(u.id,{ postId, reason }); toast(t('Reported. Thanks for keeping Crema kind.')); }
   catch(e){ console.warn('report failed',e); toast(t('That report did not send. Try again.')); }
 }
 
@@ -2741,7 +2757,7 @@ function brewAgain(id){
   /* The recipe stores one combined "Brand Model" string; the picker needs
      the two halves back or it silently falls back to your own machine. */
   if(r.machine){ const m=splitMachine(r.machine); ui.create.machineBrand=m.brand; ui.create.machineModel=m.model; }
-  ui.ovStack=[]; pushOv({type:'create'}); toast(t('Recipe loaded. Brew it again ☕'));
+  ui.ovStack=[]; pushOv({type:'create'}); toast(t('Recipe loaded. Brew it again.'));
 }
 function sharePost(id){
   const p=findPost(id); if(!p) return;
@@ -2775,11 +2791,11 @@ async function shareLink(title, text, url){
     navigator.share({ title, text, url }).catch(()=>{});
     return;
   }
-  copyText(url, t('Link copied 🔗'));
+  copyText(url, t('Link copied'));
 }
 
 function copyText(text,msg){
-  const done=()=>toast(msg||t('Copied ✓'));
+  const done=()=>toast(msg||t('Copied'));
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text,done)); }
   else fallbackCopy(text,done);
 }
@@ -2832,7 +2848,7 @@ function composeFromSheet(c){
   /* A milk drink can take latte art, but only counts as art if the user
      actually tagged a pattern — otherwise it is just a cappuccino. */
   const hasArt=!!DRINK_ART[drink] && !!c.pattern;
-  const caption=T(c.caption)||`${drink} ☕`;
+  const caption=T(c.caption)||drink;
   const cafe=(c.source==='cafe'&&c.cafe)?CAFES.find(x=>x.id===c.cafe):null;
   const recipe={};
   if(cafe){
@@ -2904,7 +2920,7 @@ async function submitPost(){
   /* Land on the tab that will actually contain what you just posted: a
      followers-only pour never appears in Today. */
   ui.ovStack=[]; ui.route='home'; ui.filter=np.visibility==='followers'?'following':'today'; render();
-  setTimeout(()=>toast(keys.length?t('Posted. Streak kept 🔥'):t('Posted ☕ · add a photo next time')),120);
+  setTimeout(()=>toast(keys.length?t('Posted. Streak kept.'):t('Posted. Add a photo next time.')),120);
 
   /* Optimistic: the post is already on screen. Reconcile on failure. */
   if(u) createPost(np,u.id).then(()=>{

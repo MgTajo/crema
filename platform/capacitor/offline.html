@@ -28,12 +28,12 @@
 <style>
   :root{
     --bg:#F7F1E7; --surface:#FFFDF9; --ink:#24170F; --muted:#9A8877;
-    --line:#E4D9C8; --crema:#8A5A28;
+    --line:#E4D9C8; --crema:#8A5A28; --heart:#F5EADA;
   }
   @media (prefers-color-scheme: dark){
     :root{
       --bg:#17100B; --surface:#221812; --ink:#F2E9DC; --muted:#A08D79;
-      --line:#3B2B21; --crema:#DCA362;
+      --line:#3B2B21; --crema:#DCA362; --heart:#17100B;
     }
   }
   *{box-sizing:border-box}
@@ -68,7 +68,10 @@
 </head>
 <body>
   <div class="card">
-    <div class="disc">☕</div>
+    <!-- The mark, drawn inline: a disc with the foam heart at ~40% of its
+         width. It was a coffee emoji until 2026-09-14, which is a picture
+         of somebody else's cup in somebody else's colours. -->
+    <div class="disc"><svg width="26" height="26" viewBox="0 0 100 100" aria-hidden="true"><path style="fill:var(--heart)" d="M50 92C50 92 6 62 6 34.5 6 18.5 17.5 8 30.5 8 39.5 8 46 13.2 50 20.5 54 13.2 60.5 8 69.5 8 82.5 8 94 18.5 94 34.5 94 62 50 92 50 92Z"/></svg></div>
     <h1 data-i18n="title">No connection</h1>
     <p data-i18n="body">Crema needs the network to catch up. Your pours are safe — nothing was lost.</p>
     <button id="retry" data-i18n="retry">Try again</button>

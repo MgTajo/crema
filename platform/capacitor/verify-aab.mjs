@@ -77,7 +77,20 @@
       This is the cheapest possible stand-in for running the store build
       on a phone, which nothing in CI does.
 
-   Exit 0 means all four hold. Anything else means do not upload.
+   4. DOES IT TARGET AN API LEVEL PLAY WILL TAKE?
+
+      Added 2026-09-14, the day Crema reached Play's production track and
+      Play's policy centre said "App must target Android 16 (API level
+      36)". The bundles built here already did. The flag was raised by a
+      bundle from July still sitting in the internal testing track, and
+      nothing in this file would have noticed the day a new one did not:
+      the floor rises every August, and a regenerated Capacitor template
+      or a hand-edit to variables.gradle is all it takes to fall below it.
+      So the bundle's own manifest is read — the protobuf AndroidManifest
+      aapt2 writes into base/manifest/ — and its targetSdkVersion is held
+      against the floor.
+
+   Exit 0 means all five hold. Anything else means do not upload.
    ============================================================ */
 import fs from 'fs';
 import path from 'path';
@@ -94,6 +107,12 @@ const EXPECTED =
 
 const AAB = process.argv[2]
   || path.join(HERE, 'android/app/build/outputs/bundle/release/app-release.aab');
+
+/* Play's target API floor for app updates: API 36 from 2026-08-31, with
+   the extension Crema was granted running to 2026-11-01. It rises every
+   August. When the policy centre names a new level, this is the line to
+   change — and a bundle failing check 4 is the prompt to go and look. */
+const PLAY_MIN_TARGET_SDK = 36;
 
 if(!fs.existsSync(AAB)){
   console.error(`no bundle at ${AAB}\nRun:  npm run build:android`);
@@ -302,6 +321,77 @@ if(assets.length < 40){
   say(`✗ assets/public/ has ${assets.length} files; the web app is missing or partial`);
 }else{
   say(`✓ assets/public/ carries ${assets.length} files`);
+}
+
+/* ---------- 2b. the API level ----------
+   base/manifest/AndroidManifest.xml in a bundle is not XML: aapt2 writes
+   it as a protobuf XmlNode (Resources.proto). Walking it takes twenty
+   lines and no tool that might not be installed, which is the same
+   reason the signature check above uses keytool rather than bundletool.
+   Only the fields on the way to <uses-sdk> are read:
+     XmlNode.element = 1 · XmlElement.name = 3, .attribute = 4, .child = 5
+     XmlAttribute.name = 2, .value = 3, .compiled_item = 6
+     Item.prim = 7 · Primitive.int_decimal_value = 6 */
+console.log('\ntarget SDK');
+{
+  const fields = buf => {
+    const out = []; let p = 0;
+    const varint = () => { let r = 0, s = 0, b; do { b = buf[p++]; r += (b & 0x7f) * 2 ** s; s += 7; } while (b & 0x80); return r; };
+    while (p < buf.length) {
+      const key = varint(), f = Math.floor(key / 8), w = key % 8;
+      if (w === 0) out.push([f, varint()]);
+      else if (w === 2) { const n = varint(); out.push([f, buf.subarray(p, p + n)]); p += n; }
+      else if (w === 5) { out.push([f, buf.readUInt32LE(p)]); p += 4; }
+      else if (w === 1) p += 8;
+      else throw new Error('unexpected wire type ' + w);
+    }
+    return out;
+  };
+  const text = b => Buffer.from(b).toString('utf8');
+  const usesSdk = node => {
+    for (const [f, el] of fields(node)) {
+      if (f !== 1) continue;
+      let name = ''; const attrs = [], kids = [];
+      for (const [ef, ev] of fields(el)) {
+        if (ef === 3) name = text(ev); else if (ef === 4) attrs.push(ev); else if (ef === 5) kids.push(ev);
+      }
+      if (name === 'uses-sdk') {
+        const sdk = {};
+        for (const a of attrs) {
+          let an = '', av = '', num = null;
+          for (const [af, x] of fields(a)) {
+            if (af === 2) an = text(x);
+            else if (af === 3) av = text(x);
+            else if (af === 6) for (const [itf, it] of fields(x)) if (itf === 7) for (const [pf, pv] of fields(it)) if (pf === 6) num = pv;
+          }
+          const v = num != null ? num : parseInt(av, 10);
+          if (an === 'targetSdkVersion') sdk.target = v;
+          else if (an === 'minSdkVersion') sdk.min = v;
+        }
+        return sdk;
+      }
+      for (const k of kids) { const r = usesSdk(k); if (r) return r; }
+    }
+    return null;
+  };
+
+  let sdk = null;
+  try {
+    const manifest = execSync(`unzip -p ${JSON.stringify(AAB)} base/manifest/AndroidManifest.xml`, { maxBuffer: 16 << 20 });
+    sdk = usesSdk(manifest);
+  } catch (e) { sdk = null; }
+
+  if (!sdk || !Number.isFinite(sdk.target)) {
+    fail.push('could not read targetSdkVersion from the bundle — Play checks it, so this must too');
+    say('✗ no <uses-sdk android:targetSdkVersion> found in base/manifest/AndroidManifest.xml');
+  } else if (sdk.target < PLAY_MIN_TARGET_SDK) {
+    fail.push(`targets API ${sdk.target}; Play takes no updates below API ${PLAY_MIN_TARGET_SDK}`);
+    say(`✗ targetSdkVersion ${sdk.target} is below Play's floor of ${PLAY_MIN_TARGET_SDK}.`);
+    say('  Set compileSdkVersion and targetSdkVersion in android/variables.gradle,');
+    say('  rebuild, and test the new platform behaviour on an emulator first.');
+  } else {
+    say(`✓ targets API ${sdk.target} (min ${sdk.min}); Play's floor is ${PLAY_MIN_TARGET_SDK}`);
+  }
 }
 
 /* ---------- 3. what R8 took out ----------

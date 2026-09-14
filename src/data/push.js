@@ -29,6 +29,7 @@ import { VAPID_PUBLIC_KEY, NATIVE_PUSH_PLATFORMS } from '../config.js';
 import { rest } from './supabase.js';
 import { lang } from '../i18n.js';
 import { native, platform, plugin, call } from '../core/native.js';
+import { mobileOS } from '../core/device.js';
 
 /* ============================================================
    THE NATIVE HALF — step 4.1.
@@ -225,11 +226,11 @@ export const standalone = () =>
     && window.matchMedia('(display-mode: standalone)').matches)
   || (typeof navigator!=='undefined' && navigator.standalone===true);
 
-export const isIOS = () =>
-  typeof navigator!=='undefined'
-  && (/iPad|iPhone|iPod/.test(navigator.platform||'')
-      /* iPadOS 13+ reports as a Mac; the touch points give it away. */
-      || (navigator.platform==='MacIntel' && (navigator.maxTouchPoints||0) > 1));
+/* The test itself lives in core/device.js since 2026-09-14, where the
+   Play Store offer asks the same question from the Android side — one
+   classification, so the two prompts can never both decide they are
+   talking to the same phone. */
+export const isIOS = () => typeof navigator!=='undefined' && mobileOS(navigator)==='ios';
 
 /* Safari specifically, not just "an iPhone".
    On iOS every browser is WebKit underneath, but only Safari puts "Add

@@ -7,7 +7,7 @@
    ============================================================ */
 import { $, esc, fmt, cap, initials, seedOf, daysAgo } from '../core/util.js';
 import { S } from '../data/assets.js';
-import { beanCatalog, flag } from '../data/catalog.js';
+import { beanCatalog } from '../data/catalog.js';
 import { USERS, PODIUM, CHALLENGES } from '../data/world.js';
 import { state, ui, session, feed, discover, social, saved, mine, challenges, streak, streakInfo,
          myPosts, allPosts, myBeans, myCountries, machinePassport, activityBars, feedPosts, coffeeStats,
@@ -55,10 +55,10 @@ export function renderAppbar(){
 export function renderHome(){
   const list=feedPosts();
   const empty = feed.loading&&!feed.loaded
-    ? `<div class="empty"><div class="big">☕</div>${session?t('Loading your feed…'):t('Loading today\'s pours…')}</div>`
+    ? `<div class="empty"><div class="big">${icon('cup',30)}</div>${session?t('Loading your feed…'):t('Loading today\'s pours…')}</div>`
     : ui.filter==='following'
-      ? `<div class="empty"><div class="big">👥</div>${t('Nobody you follow has poured yet.')}<br>${t('Find baristas on Explore.')}</div>`
-      : `<div class="empty"><div class="big">🌅</div>${t('Nobody has poured today yet.')}<br>${session?t('Tap ＋ and be the first.'):t('Come back in the morning.')}</div>`;
+      ? `<div class="empty"><div class="big">${icon('users',30)}</div>${t('Nobody you follow has poured yet.')}<br>${t('Find baristas on Explore.')}</div>`
+      : `<div class="empty"><div class="big">${icon('sunrise',30)}</div>${t('Nobody has poured today yet.')}<br>${session?t('Tap {plus} and be the first.',{plus:icon('plus',15,'inl')}):t('Come back in the morning.')}</div>`;
   return `<div class="pad">
     ${followRequestsBlock()}
     ${streakBlock()}
@@ -108,7 +108,7 @@ function arrivalsPill(){
 export function paintArrivalsPill(){
   const wrap=$('#view .pad'); if(!wrap) return false;
   const seg=wrap.querySelector(':scope > .seg'); if(!seg) return false;
-  if(wrap.querySelectorAll(':scope > .card').length !== feedPosts().length) return false;
+  if(wrap.querySelectorAll(':scope > .post').length !== feedPosts().length) return false;
 
   const have=wrap.querySelector(':scope > .newpours');
   const html=arrivalsPill();
@@ -225,7 +225,7 @@ function friendsTodayStrip(){
   const shown=ids.slice(0,6), extra=ids.length-shown.length;
   return `<div class="ftoday" data-action="filter" data-f="following">
     <div class="ftoday-faces">${shown.map(id=>avatar(id)).join('')}${extra>0?`<div class="ftoday-more">+${extra}</div>`:''}</div>
-    <div class="ftoday-t">${tn(ids.length,'{n} friend has already brewed today ☕','{n} friends have already brewed today ☕',{n:ids.length})}</div>
+    <div class="ftoday-t">${tn(ids.length,'{n} friend has already brewed today','{n} friends have already brewed today',{n:ids.length})}</div>
   </div>`;
 }
 
@@ -237,9 +237,9 @@ export function renderExplore(){
   const podium=PODIUM.slice(0,3);
   const board=podium.length
     ? `<div class="rlist">${podium.map(podiumRow).join('')}</div>`
-    : `<div class="empty" style="padding:22px">🏆<br>${t('Nothing on today\'s podium yet.')}<br>${t('Post a pour. The day\'s three most-loved coffees land here.')}</div>`;
+    : `<div class="empty" style="padding:22px"><div class="big sm">${icon('trophy',24)}</div>${t('Nothing on today\'s podium yet.')}<br>${t('Post a pour. The day\'s three most-loved coffees land here.')}</div>`;
   const people=discover.loaded&&!sugg.length
-    ? `<div class="empty" style="padding:20px">👋<br>${t('Nobody else to follow yet. You are early.')}</div>`
+    ? `<div class="empty" style="padding:20px"><div class="big sm">${icon('users',24)}</div>${t('Nobody else to follow yet. You are early.')}</div>`
     : sugg.length
       ? `<div class="hscroll">${sugg.map(u=>`<div class="ucard"><div data-action="open-user" data-id="${u.id}" style="cursor:pointer">${avatar(u.id,'big')}<b>${esc(u.name)}</b><span>${u.city?esc(u.city):esc(t(u.levelName))}</span></div>
         ${followBtn(u.id,'sm block')}</div>`).join('')}</div>`
@@ -253,7 +253,7 @@ export function renderExplore(){
     ${challengeBlock()}
     <div class="section-h"><h2>${t('Today\'s podium')}</h2></div>
     ${board}
-    <div style="font-size:12px;color:var(--muted);text-align:center;margin:8px 2px 0">
+    <div class="t-s t-muted" style="text-align:center;margin:8px 2px 0">
       ${t('The three most-loved pours of the day, counting likes and comments alike. The board clears at midnight, so everyone starts level tomorrow.')}</div>
     <div class="section-h"><h2>${t('Trending patterns')}</h2></div>
     <div class="chips" style="margin-bottom:8px">${['rosetta','swan','tulip','heart','abstract','wave','phoenix'].map(x=>`<span class="chip tag" data-action="open-tag" data-id="${x}">#${x}</span>`).join('')}</div>
@@ -312,10 +312,10 @@ const cafeMailto=()=>`mailto:${CAFE_MAIL}?subject=${encodeURIComponent(CAFE_SUBJ
 
 export function renderCafes(){
   const perks=[
-    ['📍',t('Your café, on the map'),t('A page with the beans you pour and the machine you pull them on.')],
-    ['☕',t('Every pour tagged to you'),t('Someone photographs their flat white at your bar and your name is on it.')],
-    ['❤️',t('Regulars you can actually see'),t('People follow your café and see what gets poured there.')],
-    ['🎁',t('An offer worth showing'),t('Put something behind a posted pour: a discount, a filter on the house.')]
+    ['cafe',t('Your café, on the map'),t('A page with the beans you pour and the machine you pull them on.')],
+    ['cup',t('Every pour tagged to you'),t('Someone photographs their flat white at your bar and your name is on it.')],
+    ['heart',t('Regulars you can actually see'),t('People follow your café and see what gets poured there.')],
+    ['gift',t('An offer worth showing'),t('Put something behind a posted pour: a discount, a filter on the house.')]
   ];
   return `<div class="pad">
     <div class="cafe-soon">
@@ -325,10 +325,10 @@ export function renderCafes(){
     </div>
 
     <div class="cafe-pitch">
-      <div class="cp-top"><span>☕</span><div><b>${t('Own a café?')}</b><i>${t('Get in before your street does.')}</i></div></div>
+      <div class="cp-top"><span>${icon('cup',20)}</span><div><b>${t('Own a café?')}</b><i>${t('Get in before your street does.')}</i></div></div>
       <p class="cp-lead">${t('We are opening Crema to a small first group of cafés. Pilot places are handled in the order they arrive, one city at a time, and the cafés in that first group decide with their feedback what gets built next.')}</p>
-      <div class="cp-perks">${perks.map(p=>`<div><span>${p[0]}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('')}</div>
-      <a class="btn block" href="${cafeMailto()}" data-action="cafe-lead">✉️ ${t('Ask for a pilot place')}</a>
+      <div class="cp-perks">${perks.map(p=>`<div><span>${icon(p[0],18)}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('')}</div>
+      <a class="btn block" href="${cafeMailto()}" data-action="cafe-lead">${icon('mail',18)} ${t('Ask for a pilot place')}</a>
       <div class="cp-mail" data-action="copy-cafe-mail">${t('or write to')} <b>${CAFE_MAIL}</b> · ${t('tap to copy')}</div>
       <p class="cp-fine">${t('Tell us your café and your city, and we will come back to you when your city opens. It costs nothing during the pilot.')}</p>
     </div>
@@ -365,7 +365,7 @@ function recapTeaser(){
   if(!r||r.pours<3) return '';
   const prem=state.me.premium;
   return `<div class="recap-row" data-action="${prem?'open-recap':'open-premium'}"${prem?'':` data-f="${t('Your week in coffee')}"`}>
-    <div class="rr-i">${prem?'📅':'🔒'}</div>
+    <div class="rr-i">${icon(prem?'calendar':'lock',18)}</div>
     <div class="rr-t"><b>${t('Your week in coffee')}</b>
       <span>${tn(r.pours,'{n} pour on {d} of 7 days — your week, as a card you can post','{n} pours on {d} of 7 days — your week, as a card you can post',{d:r.daysWithCoffee})}</span></div>
     <div class="rr-go">${prem?t('Open'):t('Premium')}</div></div>`;
@@ -386,17 +386,17 @@ export function renderProfile(){
   const hasPours=pourCount>0, beans=myBeans(), origins=myCountries(), ACT=activityBars();
   const recent=mine.slice().sort((a,b)=>daysAgo(a.createdAt,a.ago)-daysAgo(b.createdAt,b.ago)).slice(0,8);
   const grid = ui.profTab==='pours'
-    ? (hasPours?`<div class="grid">${mine.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty"><div class="big">☕</div>${t('No pours yet.')}<br>${t('Tap ＋ to log your first coffee.')}</div>`)
+    ? (hasPours?`<div class="grid">${mine.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty"><div class="big">${icon('cup',30)}</div>${t('No pours yet.')}<br>${t('Tap {plus} to log your first coffee.',{plus:icon('plus',15,'inl')})}</div>`)
     : ui.profTab==='saved'
     ? (savedPosts.length?`<div class="grid">${savedPosts.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`
        : saved.loading&&!saved.loaded ? `<div class="empty">${t('Loading your collection…')}</div>`
-       : `<div class="empty"><div class="big">🔖</div>${t('Nothing saved yet.')}<br>${t('Tap the bookmark on any post.')}</div>`)
+       : `<div class="empty"><div class="big">${icon('save',30)}</div>${t('Nothing saved yet.')}<br>${t('Tap the bookmark on any post.')}</div>`)
     : ui.profTab==='badges' ? renderBadges() : renderStats();
-  const bioHTML = state.me.bio ? esc(state.me.bio) : `<span style="color:var(--muted);cursor:pointer" data-action="open-settings">＋ ${t('Add a bio in Settings')}</span>`;
+  const bioHTML = state.me.bio ? esc(state.me.bio) : `<span style="color:var(--muted);cursor:pointer" data-action="open-settings">${icon('plus',14,'inl')} ${t('Add a bio in Settings')}</span>`;
   const journeyHTML = `<div class="journey"><h3>${t('Recent activity')}</h3><p class="sub">${t('Your last few weeks of coffee.')}</p>
       <div class="jstats">
-        <div><b>${ACT.reduce((a,b)=>a+b,0)}</b><span>${t('last 3 weeks')}</span></div>
-        <div><b>${days}&nbsp;🔥</b><span>${t('day streak')}</span></div>
+        <div><b>${ACT.reduce((a,b)=>a+b,0)}</b><span>${t('in 3 weeks')}</span></div>
+        <div><b>${days}&nbsp;${icon('bolt',17,'inl')}</b><span>${t('day streak')}</span></div>
         <div><b>${new Set(mine.filter(p=>p.pattern).map(p=>p.pattern)).size}</b><span>${t('art styles')}</span></div></div>
       <div class="actbars">${ACT.map((c,i)=>{const d=new Date(Date.now()-(ACT.length-1-i)*864e5).toLocaleDateString(locale(),{weekday:'short',day:'numeric',month:'short'});return `<div class="ab${i===ACT.length-1?' today':''}" data-d="${d}" data-c="${c}"><i style="height:${c===0?8:c===1?52:100}%"></i></div>`;}).join('')}<div class="bartip" id="bartip" hidden></div></div>
       <div class="acthint"><span>${t('3 weeks ago')}</span><span>${t('today')}</span></div>
@@ -413,12 +413,12 @@ export function renderProfile(){
       <div class="beans">${gear.map(m=>`<div class="bean" data-action="open-machine" data-id="${esc(m.name)}"><span class="fl">${icon('mach',14)}</span>${esc(m.name)}</div>`).join('')}</div></div>`:'';
   const passportHTML = beans.length?`<div class="section-h" style="margin-bottom:8px"><h2>${t('Bean passport')}</h2><a data-action="open-passport">${t('See all')}</a></div>
     <div class="passport"><div class="ph"><div class="lft"><img src="${S.beans}" alt="${t('coffee beans')}"><b>${tn(beans.length,'{n} bean','{n} beans')}</b></div><span data-action="open-passport" style="cursor:pointer">${origins.length?`${tn(origins.length,'{n} origin','{n} origins')} · `:''}${t('tap for details')}</span></div>
-      <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return `<div class="bean" data-action="open-bean" data-id="${esc(cat?cat.n:n)}"><span class="fl">${(cat&&flag[cat.c])||'🫘'}</span>${esc(cat?cat.n:n)}</div>`;}).join('')}</div></div>`:'';
+      <div class="beans">${beans.map(n=>{const cat=beanCatalog(n);return `<div class="bean" data-action="open-bean" data-id="${esc(cat?cat.n:n)}"><span class="fl">${icon('bean',14)}</span>${esc(cat?cat.n:n)}</div>`;}).join('')}</div></div>`:'';
   return `<div class="pad">
     ${langToggle()}
-    <div class="prof-top"><div class="prof-av${state.me.premium?' prem':''}" style="background:${u.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:30px;cursor:pointer" data-action="open-settings" title="${t('Change your photo in Settings')}">${initials(u.name)}${u.avatar?`<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}</div>
+    <div class="prof-top"><div class="prof-av${state.me.premium?' prem':''}" style="background:${u.color};color:#fff;font-family:var(--serif);font-size:var(--fs-xl);cursor:pointer" data-action="open-settings" title="${t('Change your photo in Settings')}">${initials(u.name)}${u.avatar?`<img src="${esc(imageUrl(u.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}</div>
       <div class="prof-id"><b>${esc(u.name)}</b><div class="h">${u.handle}${u.city?` · ${esc(u.city)}`:''}</div>
-        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} ${t('Level')} ${lvl[0]} · ${t(lvl[1])}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:var(--gold);color:var(--on-crema);border-color:transparent">${t('PREMIUM')}</span>`:''}</div></div>
+        <span class="lvl" data-action="open-scoring">${icon('bolt',13)} ${t('Level')} ${lvl[0]} · ${t(lvl[1])}</span>${state.me.premium?`<span class="lvlchip" style="margin-left:6px;background:var(--gold);color:var(--on-crema)">${t('Premium')}</span>`:''}</div></div>
     <div class="bio">${bioHTML}</div>
     ${badgeStrip(USERS.me.badges,{own:true})}
     <div class="lvlbar" data-action="open-scoring" style="cursor:pointer">
@@ -428,7 +428,7 @@ export function renderProfile(){
       <div><b>${pourCount}</b><span>${t('Pours')}</span></div>
       <div class="click" data-action="open-flist" data-id="followers"><b>${fmt(u.followerN)}</b><span>${t('Followers')}</span></div>
       <div class="click" data-action="open-flist" data-id="following"><b>${followingN}</b><span>${t('Following')}</span></div>
-      <div><b>${days} 🔥</b><span>${t('Day streak')}</span></div></div>
+      <div><b>${days}&nbsp;${icon('bolt',17,'inl')}</b><span>${t('Streak')}</span></div></div>
     ${hasPours?journeyHTML:startedHTML}
     ${recapTeaser()}
     ${passportHTML}
@@ -496,7 +496,7 @@ function statsLocked(s){
           <div class="stx-hours">${s.hours.map((c,h)=>`<i class="${h===s.peakHour?'on':''}" style="height:${c?Math.max(9,Math.round(c/Math.max(1,Math.max(...s.hours))*100)):3}%"></i>`).join('')}</div></div>
       </div>
       <div class="stx-lockmsg">
-        <span class="pn-lock">🔒</span>
+        <span class="pn-lock">${icon('lock',22)}</span>
         <b>${t('The rest of your numbers are Premium')}</b>
         <i>${t('Your rhythm, the hour you pour at, your machine and milk, your brew ratio, your week and your shelf.')}</i>
         <span class="pchip">${t('Free right now, with a code')}</span>
@@ -507,7 +507,7 @@ function statsLocked(s){
 
 export function renderStats(){
   const s=coffeeStats();
-  if(!s) return `<div class="empty"><div class="big">📊</div>${t('No numbers yet.')}<br>${t('Log a few coffees and this fills up on its own.')}<br><br>
+  if(!s) return `<div class="empty"><div class="big">${icon('chart',30)}</div>${t('No numbers yet.')}<br>${t('Log a few coffees and this fills up on its own.')}<br><br>
     <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`;
   if(!state.me.premium) return statsLocked(s);
   const top=s.drinks[0];
@@ -592,7 +592,7 @@ export function renderStats(){
       ${s.brew.secs?`<div><b>${Math.round(s.brew.secs)}s</b><span>${t('shot time')}</span></div>`:''}
     </div>`,
     tn(s.brew.n,'From the one pour where you logged both dose and yield.','From the {n} pours where you logged both dose and yield.')));
-  else out.push(`<div class="stx-hint" data-action="open-create">⚖️ ${t('Log a dose and a yield on your next pour, and your brew ratio shows up here.')}</div>`);
+  else out.push(`<div class="stx-hint" data-action="open-create">${icon('scale',15,'inl')} ${t('Log a dose and a yield on your next pour, and your brew ratio shows up here.')}</div>`);
 
   return `<div class="stx">${out.join('')}</div>`;
 }
@@ -602,14 +602,14 @@ export function renderBadges(){
      idea for tomorrow morning. See nextBadge() for why it is one and why
      it is never a badge you have not started. */
   const nextUp = up ? `<div class="bnext" data-action="open-create">
-      <div class="bic">${up.i}</div>
+      <div class="bic">${icon(up.i,22)}</div>
       <div><b>${t('Closest: {name}',{name:t(up.n)})}</b><span>${t(up.d)} · ${Math.min(up.have,up.need)}/${up.need}</span></div>
       <i style="--p:${Math.round(Math.min(1,up.have/up.need)*100)}%"></i></div>` : '';
-  return `<div style="font-size:12.5px;color:var(--muted);font-weight:600;margin:6px 2px 2px">${t('{a} of {b} earned',{a:earned,b:b.length})}</div>
+  return `<div class="t-s t-muted" style="font-weight:600;margin:6px 2px 2px">${t('{a} of {b} earned',{a:earned,b:b.length})}</div>
   ${nextUp}
-  <div class="bgrid">${b.map(x=>`<div class="badge ${x.e?'':'locked'}"><div class="bic">${x.i}</div>
+  <div class="bgrid">${b.map(x=>`<div class="badge ${x.e?'':'locked'}"><div class="bic">${icon(x.i,22)}</div>
     <div><b>${t(x.n)}</b><span>${x.e?t(x.d):(x.p?t(x.d)+' · '+x.p:t(x.d))}</span></div></div>`).join('')}</div>
-  <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin:12px 2px 4px">${t('Badges are for the fun of it. They earn no points and unlock nothing — but the ones you have show on your profile, and other people can see them.')}</div>`;
+  <div class="t-s t-muted" style="margin:12px 2px 4px">${t('Badges are for the fun of it. They earn no points and unlock nothing — but the ones you have show on your profile, and other people can see them.')}</div>`;
 }
 
 /* ----- tabbar & master render ----- */

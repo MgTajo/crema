@@ -47,8 +47,8 @@ const C={
   muted:'#9A8877', line:'#E4D9C8', crema:'#8A5A28', gold:'#C98A4B',
   soft:'#F5EADA', card:'#FFFDF9'
 };
-/* Deliberately WITHOUT Newsreader / Public Sans / JetBrains Mono, even
-   though they are the brand faces and are loaded on the page. Named
+/* Deliberately WITHOUT Newsreader / Public Sans, even though they are
+   the brand faces and are loaded on the page. Named
    here they would render on screen — the inline card is part of the
    document — and then silently fall back to Georgia in the exported
    PNG, which is its own document and never sees @font-face. Naming
@@ -60,7 +60,8 @@ const C={
    to rasterise rather than looking slightly wrong. */
 const SERIF="Georgia, 'Iowan Old Style', Palatino, 'Times New Roman', serif";
 const SANS="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-const MONO="ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
+/* No monospace since 2026-09-14: the card speaks in the same two voices
+   the app does. */
 
 const txt=(x,y,s,o={})=>`<text x="${x}" y="${y}" font-family="${o.f||SANS}" font-size="${o.size||28}"`
   +` fill="${o.fill||C.ink}" font-weight="${o.weight||400}"`
@@ -81,11 +82,10 @@ function tile(x,y,w,h,label,value,note){
   const v=clip(value,26);
   const size=v.length>17?30:v.length>13?34:v.length>9?42:52;
   return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="${C.card}" stroke="${C.line}" stroke-width="2"/>`
-    +txt(x+28,y+40,label.toUpperCase(),{f:MONO,size:18,fill:C.muted,weight:500,spacing:2.4})
+    +txt(x+28,y+40,label.toUpperCase(),{f:SANS,size:18,fill:C.muted,weight:500,spacing:2.4})
     +txt(x+28,y+40+size*0.92,v,{f:SERIF,size,fill:C.ink})
     /* Anchored to the bottom of the tile, and the tile is tall enough
-       that it clears the value's descenders — an emoji in the value
-       reaches lower than any letter does. */
+       that it clears the value's descenders. */
     +(note?txt(x+28,y+h-24,clip(note,30),{size:21,fill:C.ink2}):'');
 }
 
@@ -244,10 +244,10 @@ function bars(r){
     }else{
       const h=Math.max(BAR_MIN, Math.round(n/scale*maxH));
       out+=bar(x,BASE-h,BW,h,best?C.crema:C.gold)
-        +txt(x+BW/2,BASE-h-18,''+n,{f:MONO,size:24,fill:best?C.crema:C.ink2,weight:500,anchor:'middle'});
+        +txt(x+BW/2,BASE-h-18,''+n,{f:SANS,size:24,fill:best?C.crema:C.ink2,weight:500,anchor:'middle'});
     }
     out+=txt(x+BW/2,BASE+40,labels[i],
-      {f:MONO,size:21,fill:n?C.crema:C.muted,weight:500,anchor:'middle',spacing:1.5});
+      {f:SANS,size:21,fill:n?C.crema:C.muted,weight:500,anchor:'middle',spacing:1.5});
   });
   return out;
 }
@@ -293,7 +293,7 @@ export function statTiles(r,standing){
   if(bean) out.push([t('the bag'), bean.name,
     r.newBeans.length?t('{n} new that week',{n:r.newBeans.length}):t('{n}×',{n:bean.count})]);
   if(r.cafePours) out.push([t('poured out'), ''+r.cafePours, t('at a café')]);
-  if(r.bestRun>1) out.push([t('best run'), r.bestRun+' 🔥',
+  if(r.bestRun>1) out.push([t('best run'), ''+r.bestRun,
     tn(r.bestRun,'day in a row','days in a row')]);
   out.push([t('busiest day'), ''+r.busiest, t('in one day')]);
 
@@ -324,8 +324,8 @@ export function recapSVG(r,me,photos,standing){
   ${mark(M,M,60)}
   ${txt(M+78,M+45,'Crema',{f:SERIF,size:48})}
 
-  ${txt(M,250,t('YOUR WEEK IN COFFEE'),{f:MONO,size:23,fill:C.crema,weight:500,spacing:4.5})}
-  ${txt(M,296,range(r.from,r.to),{f:MONO,size:25,fill:C.ink2,weight:500,spacing:1.5})}
+  ${txt(M,250,t('YOUR WEEK IN COFFEE'),{f:SANS,size:23,fill:C.crema,weight:500,spacing:4.5})}
+  ${txt(M,296,range(r.from,r.to),{f:SANS,size:25,fill:C.ink2,weight:500,spacing:1.5})}
 
   ${txt(M,428,''+r.pours,{f:SERIF,size:150,fill:C.ink})}
   ${txt(M+numW(r.pours),388,r.pours===1?t('coffee, logged'):t('coffees, logged'),{f:SERIF,size:42,fill:C.ink2,style:'italic'})}
@@ -337,7 +337,7 @@ export function recapSVG(r,me,photos,standing){
   ${four.map((s,i)=>tile(at(i)[0],at(i)[1],tw,th,s[0],s[1],s[2])).join('\n  ')}
 
   ${txt(M,H-32,name?t('{name} on Crema',{name:clip(name,28)}):'crema-app.com',{size:26,fill:C.ink2,weight:500})}
-  ${name?txt(W-M,H-32,'crema-app.com',{f:MONO,size:24,fill:C.muted,weight:500,anchor:'end'}):''}
+  ${name?txt(W-M,H-32,'crema-app.com',{f:SANS,size:24,fill:C.muted,weight:500,anchor:'end'}):''}
 </svg>`;
 }
 

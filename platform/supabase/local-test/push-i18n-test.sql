@@ -79,16 +79,16 @@ begin
 end $$;
 \echo '    ok'
 
-\echo '--- T2: the podium body keeps its medal ---'
+\echo '--- T2: the podium body, in both languages, and without a medal ---'
 delete from net.calls;
 insert into notifications (user_id, actor_id, type, post_id, body)
 values ('11111111-1111-1111-1111-111111111111', null,
-        'podium','aaaaaaaa-0000-0000-0000-000000000001','🥇 1st place on today''s podium');
+        'podium','aaaaaaaa-0000-0000-0000-000000000001','1st place on today''s podium');
 do $$
 begin
-  assert tbody('https://push.example/ann-de') = '🥇 1. Platz auf dem Podium des Tages',
+  assert tbody('https://push.example/ann-de') = '1. Platz auf dem Podium des Tages',
     'German podium: ' || coalesce(tbody('https://push.example/ann-de'),'<null>');
-  assert tbody('https://push.example/ann-en') = '🥇 1st place on today''s podium',
+  assert tbody('https://push.example/ann-en') = '1st place on today''s podium',
     'English podium: ' || coalesce(tbody('https://push.example/ann-en'),'<null>');
 end $$;
 \echo '    ok'

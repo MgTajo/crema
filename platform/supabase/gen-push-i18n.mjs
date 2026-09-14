@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /* ============================================================
-   Generate the push_i18n seed for step-1.32.sql.
+   Generate the push_i18n seed (first shipped in step-1.32.sql).
 
      node platform/supabase/gen-push-i18n.mjs          # print the block
-     node platform/supabase/gen-push-i18n.mjs --check  # is it in step?
+     node platform/supabase/gen-push-i18n.mjs --check  # does the newest seed match?
 
    Why this exists.
 
@@ -24,8 +24,9 @@
      * the four strings that exist only as push (streak, digest)
 
    Re-run it after touching any of those, paste the block into a new
-   migration, and run that. `--check` says whether the committed
-   step-1.32.sql still matches what src/i18n.de.js would produce now; it
+   migration, and run that. `--check` says whether the newest committed
+   seed — that migration, or step-1.32.sql before one existed — still
+   matches what src/i18n.de.js would produce now; it
    is what a future "did we forget" question should ask rather than a
    reader diffing 60 quoted strings by eye.
    ============================================================ */
@@ -54,10 +55,12 @@ const KEYS = [
   'loved your choice of coffee',
   'reacted to your pour',
   'mentioned you in a comment',
-  // step-1.18 — the podium, medal and all
-  "🥇 1st place on today's podium",
-  "🥈 2nd place on today's podium",
-  "🥉 3rd place on today's podium",
+  // step-1.18 — the podium. Without its medal since
+  // migrations/20260914120000_the_server_writes_no_emoji.sql, which is also
+  // where the seed --check compares against now lives.
+  "1st place on today's podium",
+  "2nd place on today's podium",
+  "3rd place on today's podium",
   // step-1.17 — the challenge payout, which is built out of parts
   'Challenge complete: {title} · +{n} points',
   // step-1.30 / step-1.31 — the daily race and a friend's first pour
@@ -108,12 +111,29 @@ const block =
   + rows.map(([k, de]) => `  (${q(k)}, 'de', ${q(de)})`).join(',\n')
   + '\non conflict (key, lang) do update set txt = excluded.txt;';
 
+/* Which file holds the seed Postgres was last given. step-1.32.sql wrote
+   the first; changing any key, or its German, means pasting the block
+   into a NEW migration — so the newest migration that seeds push_i18n is
+   the one that has to match, and step-1.32.sql only until the first of
+   those exists. Migration names sort by their timestamp prefix. */
+function newestSeed(){
+  const dir = path.join(HERE, 'migrations');
+  const migrations = fs.existsSync(dir)
+    ? fs.readdirSync(dir).filter(f => /^\d{14}_.*\.sql$/.test(f)).sort().reverse() : [];
+  for (const f of migrations) {
+    const p = path.join(dir, f);
+    if (fs.readFileSync(p, 'utf8').includes('insert into push_i18n')) return p;
+  }
+  return path.join(HERE, 'step-1.32.sql');
+}
+
 if (process.argv.includes('--check')) {
-  const cur = fs.readFileSync(path.join(HERE, 'step-1.32.sql'), 'utf8');
-  const ok = cur.includes(block);
+  const seed = newestSeed();
+  const name = path.relative(HERE, seed);
+  const ok = fs.readFileSync(seed, 'utf8').includes(block);
   if (missing.length) console.error('no German for: ' + missing.map(q).join(', '));
-  console.log(ok ? 'step-1.32.sql seed matches src/i18n.de.js'
-                 : 'DRIFT — step-1.32.sql seed is not what src/i18n.de.js would produce');
+  console.log(ok ? `${name} seed matches src/i18n.de.js`
+                 : `DRIFT — the ${name} seed is not what src/i18n.de.js would produce`);
   process.exit(ok && !missing.length ? 0 : 1);
 }
 

@@ -11,6 +11,15 @@
 
    The `F` suffix on a name is that glyph's filled state. Only the ones
    that have a real on/off meaning get one (liked, saved, current tab).
+
+   ⚠️ There are no emoji anywhere in Crema, and this file is why that can
+   hold (2026-09-14). An emoji is a picture drawn by the phone's font, in
+   the phone's palette: the same "☕" is a different drawing on Android,
+   on iOS and on a laptop, it cannot take the colour of the text around
+   it, and a picked state cannot turn it Roast. Everything that used to
+   be one is a glyph below, drawn in the same hand as the reaction icons
+   that proved the point. A new picture is a new entry here, not a
+   character in a string.
    ============================================================ */
 export const I={
   /* feed — the brand's grid, and the app's Home */
@@ -68,9 +77,75 @@ export const I={
      eyeOff is the same lid with the pupil cut down to the arc a stroke
      can still read at 18px, which is the only size either is drawn at. */
   eye:'<path d="M2.6 12S6.2 5.8 12 5.8 21.4 12 21.4 12 17.8 18.2 12 18.2 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="3.1"/>',
-  eyeOff:'<path d="M9.7 6.1A9.7 9.7 0 0 1 12 5.8c5.8 0 9.4 6.2 9.4 6.2a17.3 17.3 0 0 1-3.4 4.1"/><path d="M6.3 7.8A17 17 0 0 0 2.6 12S6.2 18.2 12 18.2a9.9 9.9 0 0 0 3.7-.7"/><path d="M9.9 9.9a3.1 3.1 0 0 0 4.3 4.3"/><path d="M4.2 4.2l15.6 15.6"/>'
+  eyeOff:'<path d="M9.7 6.1A9.7 9.7 0 0 1 12 5.8c5.8 0 9.4 6.2 9.4 6.2a17.3 17.3 0 0 1-3.4 4.1"/><path d="M6.3 7.8A17 17 0 0 0 2.6 12S6.2 18.2 12 18.2a9.9 9.9 0 0 0 3.7-.7"/><path d="M9.9 9.9a3.1 3.1 0 0 0 4.3 4.3"/><path d="M4.2 4.2l15.6 15.6"/>',
+
+  /* ---------- the controls that used to be typed characters ----------
+     ⋯, ✓, ▾, › and ＋ were glyphs from whatever font the phone had, so
+     each one sat at a different weight and height from the icons next
+     to it. The dots of `more` are strokes round a tiny circle rather
+     than fills, so they stay inside the no-fill rule and still read as
+     dots at 20px. */
+  more:'<circle cx="5.5" cy="12" r="1.1"/><circle cx="12" cy="12" r="1.1"/><circle cx="18.5" cy="12" r="1.1"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  chevDown:'<path d="M6 9.5l6 6 6-6"/>',
+  chevRight:'<path d="M9.5 6l6 6-6 6"/>',
+
+  /* ---------- the post menu and Settings ---------- */
+  link:'<path d="M10.2 13.8a4 4 0 0 0 5.66 0l3.18-3.18a4 4 0 0 0-5.66-5.66l-1.6 1.6"/><path d="M13.8 10.2a4 4 0 0 0-5.66 0l-3.18 3.18a4 4 0 0 0 5.66 5.66l1.6-1.6"/>',
+  pencil:'<path d="M4.5 19.5l1-4.2L15.8 5a2.12 2.12 0 0 1 3 3L8.7 18.5z"/><path d="M13.8 7l3.2 3.2"/>',
+  trash:'<path d="M4.5 7h15"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l.9 12.2a1.5 1.5 0 0 0 1.5 1.3h6.2a1.5 1.5 0 0 0 1.5-1.3L17.5 7"/><path d="M10.2 11v5.5M13.8 11v5.5"/>',
+  flag:'<path d="M5.5 21V4"/><path d="M5.5 4.5c2.5-1.3 4.7-1.3 7 0s4.5 1.3 7 0v9c-2.5 1.3-4.7 1.3-7 0s-4.5-1.3-7 0"/>',
+  block:'<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
+  lock:'<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
+  key:'<circle cx="8" cy="15.5" r="4"/><path d="M10.9 12.6 19.5 4"/><path d="M15.8 7.7l2.4 2.4"/><path d="M13.3 10.2l1.9 1.9"/>',
+  bellOff:'<path d="M6 9.5a6 6 0 0 1 12 0c0 4.5 1.8 5.5 1.8 5.5H4.2S6 14 6 9.5z"/><path d="M10 19a2 2 0 0 0 4 0"/><path d="M4 4l16 16"/>',
+  /* moderation — the scales, because a decision is weighed */
+  scale:'<path d="M12 4.5V20"/><path d="M8 20h8"/><path d="M5.5 7.5h13"/><path d="M5.5 7.5 3 13.2a2.6 2.6 0 0 0 5 0z"/><path d="M18.5 7.5 16 13.2a2.6 2.6 0 0 0 5 0z"/>',
+  /* the export — the share glyph turned round: into the tray */
+  download:'<path d="M12 3.5V15"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4.5 16v4h15v-4"/>',
+  doc:'<path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4"/><path d="M9.5 12.5h5M9.5 16h5"/>',
+  mail:'<rect x="3.5" y="5.5" width="17" height="13" rx="3"/><path d="M4.5 8l7.5 5.5L19.5 8"/>',
+  star:'<path d="M12 4l2.12 5.69 6.06.25-4.76 3.77 1.64 5.85L12 16.2l-5.06 3.36 1.64-5.85-4.76-3.77 6.06-.25z"/>',
+  /* Premium's mark. Four points, not five, so it is never mistaken for
+     the favourites star it often sits beside. */
+  sparkle:'<path d="M12 3.5c.7 4.8 3.7 7.8 8.5 8.5-4.8.7-7.8 3.7-8.5 8.5-.7-4.8-3.7-7.8-8.5-8.5 4.8-.7 7.8-3.7 8.5-8.5z"/>',
+
+  /* ---------- empty states, perks and the stats ---------- */
+  calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17"/><path d="M8 3v4M16 3v4"/>',
+  chart:'<path d="M4 20.5h16"/><path d="M7 16.5v-5M12 16.5v-9M17 16.5v-3"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  alert:'<path d="M10.3 4.6a2 2 0 0 1 3.4 0l7.1 12.4A2 2 0 0 1 19.1 20H4.9a2 2 0 0 1-1.7-3z"/><path d="M12 9.5v4.5"/><path d="M12 17.1v.2"/>',
+  list:'<path d="M9 7h11M9 12h11M9 17h11"/><path d="M4.5 7h.01M4.5 12h.01M4.5 17h.01"/>',
+  users:'<circle cx="9" cy="8.5" r="3.5"/><path d="M3 19.5a6 6 0 0 1 12 0"/><path d="M15.5 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M17.5 14a6 6 0 0 1 3.5 5.5"/>',
+  globe:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.3 2.4 3.5 5.2 3.5 8.5s-1.2 6.1-3.5 8.5c-2.3-2.4-3.5-5.2-3.5-8.5s1.2-6.1 3.5-8.5z"/>',
+  house:'<path d="M4 11.2 12 4.5l8 6.7"/><path d="M6.2 9.6V20h11.6V9.6"/><path d="M10 20v-5.2h4V20"/>',
+  image:'<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="9.8" r="1.6"/><path d="M4.5 17.5l4.5-4.2 3.2 3 2.8-2.6 4.5 4.3"/>',
+  /* more than one photo on a pour — two frames, the back one open */
+  photos:'<rect x="7.5" y="7.5" width="12.5" height="12.5" rx="2.5"/><path d="M4 16.2V6a2 2 0 0 1 2-2h10.2"/>',
+  /* the gold ring, as a Premium perk */
+  ring:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/>',
+  gift:'<rect x="4" y="8.5" width="16" height="4" rx="1.2"/><path d="M5.5 12.5v7.5h13v-7.5"/><path d="M12 8.5V20"/><path d="M12 8.5c-3.2 0-5-1.2-5-2.8 0-1.2 1-2 2.2-1.8C10.8 4.2 12 6.3 12 8.5z"/><path d="M12 8.5c3.2 0 5-1.2 5-2.8 0-1.2-1-2-2.2-1.8C13.2 4.2 12 6.3 12 8.5z"/>',
+  ticket:'<path d="M3.5 7.5h17V10a2 2 0 0 0 0 4v2.5h-17V14a2 2 0 0 0 0-4z"/><path d="M15 8.5v7" stroke-dasharray="1.2 2.3"/>',
+  /* "nobody has poured today yet" — the morning, before anybody has */
+  sunrise:'<path d="M3.5 19h17"/><path d="M7 19a5 5 0 0 1 10 0"/><path d="M12 5.5V9"/><path d="M4.9 10.9l2.1 1.6M19.1 10.9 17 12.5"/>',
+  medal:'<circle cx="12" cy="15" r="5"/><path d="M9 10.5 6.5 3.5h3.8L12 8"/><path d="M15 10.5l2.5-7h-3.8L12 8"/>',
+
+  /* ---------- the badges ----------
+     Eleven, one each, in the order domain/scoring.js lists them. The
+     three latte-art ones are the patterns themselves: the rosetta above,
+     and a tulip and a swan drawn in the same single weight. */
+  tulip:'<path d="M12 14.5C9 14.5 7 11.5 7 5l2.5 3L12 4.5 14.5 8 17 5c0 6.5-2 9.5-5 9.5z"/><path d="M12 14.5V21"/><path d="M12 19c-.8-2.2-2.6-3.3-5-3.5.3 2.4 2 3.6 5 3.5z"/>',
+  swan:'<path d="M9.5 15.5C8 13.5 8 11.5 9.5 9.5S11 5.5 9.5 4.5c-1.2-.8-2.7-.3-3.2.9L4.6 6.4"/><path d="M4 14c1.2 4 4.2 6 8.5 6 4.5 0 8-3.2 8-9-2 2-5 3-8.5 2.6"/>',
+  target:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12h.01"/>',
+  /* cold brew — a cube of ice, seen corner on */
+  ice:'<path d="M12 3.5 19.5 7.7v8.6L12 20.5l-7.5-4.2V7.7z"/><path d="M4.8 7.9 12 12l7.2-4.1"/><path d="M12 12v8.3"/>',
+  /* the century club — a hundred, drawn rather than typed */
+  hundred:'<path d="M4.3 9.2 6.6 7.6v8.8"/><ellipse cx="11.9" cy="12" rx="2.5" ry="4.4"/><ellipse cx="18.4" cy="12" rx="2.5" ry="4.4"/>'
 };
-export const icon=(n,w=24)=>`<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
+/* `cls` is optional and only for the handful of places CSS has to find
+   the glyph — the recipe chevron that turns, for one. A name that is not
+   in the set draws nothing rather than the word "undefined". */
+export const icon=(n,w=24,cls='')=>`<svg${cls?` class="${cls}"`:''} width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]||''}</svg>`;
 export const pin=color=>`<svg viewBox="0 0 24 30" aria-hidden="true"><path d="M12 0C6 0 2 4.2 2 10c0 7 10 20 10 20s10-13 10-20C22 4.2 18 0 12 0z" fill="${color}"/><circle cx="12" cy="10" r="4.4" fill="#FFFDF9"/></svg>`;
 
 /* ----- the mark -----

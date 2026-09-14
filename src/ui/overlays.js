@@ -10,8 +10,7 @@ import { S } from '../data/assets.js';
 import { imageUrl } from '../data/media.js';
 import { LEVELS, MILK_LIST, DRINK_ART, HAS_MILK, ADD_DRINK, BEANS, POPULAR_MACHINES, popularBeans,
          beanCatalog, beanInfo, roastStep, machineInfo, MACHINE_KINDS, ROAST_MAX,
-         machineIndex, norm, searchMachines, searchBeans, searchOwn, machineKnown, beanKnown,
-         flag } from '../data/catalog.js';
+         machineIndex, norm, searchMachines, searchBeans, searchOwn, machineKnown, beanKnown } from '../data/catalog.js';
 import { USERS, CAFES, CHALLENGES, userOf } from '../data/world.js';
 import { state, ui, session, social, findPost, allPosts, myPosts, freshCreate, challenges,
          beanPassport, machinePassport, canEdit, streakInfo, myMachines, myCoffees, isPinned,
@@ -24,6 +23,7 @@ import { objectPosition } from '../domain/framing.js';
 import { recapSVG, shotPhotos } from './recap.js';
 import { pushSupported, iosNeedsInstall, pushPermission, standalone } from '../data/push.js';
 import { native } from '../core/native.js';
+import { PLAY_URL } from '../core/device.js';
 import { art, artSet, cupSVG } from '../domain/art.js';
 import { levelOf, nextLevel, levelProgress, POINT_RULES } from '../domain/scoring.js';
 import { t, tn } from '../i18n.js';
@@ -125,6 +125,7 @@ export function renderOverlay(){
     T==='delaccount'?overlayDeleteAccount():
     T==='signin'?overlaySignin(top.why):
     T==='ios'?overlayIosInstall():
+    T==='play'?overlayPlay():
     T==='whatsnew'?overlayWhatsNew():
     T==='picker'?overlayPicker():
     T==='create'?overlayCreate():''; });
@@ -162,11 +163,11 @@ function overlaySignin(why){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Sign in')}">
     <div class="ov-body" style="padding:26px 20px 22px;text-align:center">
       ${logoMark(46)}
-      <h2 style="font-family:var(--serif);font-weight:400;font-size:25px;letter-spacing:-.02em;margin:12px 0 6px">${esc(h)}</h2>
-      <p style="color:var(--ink2);font-size:14px;line-height:1.55;margin:0 auto 20px;max-width:280px">${esc(s)}</p>
+      <h2 class="sheet-h">${esc(h)}</h2>
+      <p class="sheet-p">${esc(s)}</p>
       <button class="btn block" data-action="guest-signin" data-m="up">${t('Create your account')}</button>
       <button class="btn ghost block" style="margin-top:9px" data-action="guest-signin" data-m="in">${t('I already have one')}</button>
-      <div style="margin-top:16px;font-size:13px;color:var(--muted);cursor:pointer" data-action="close-ov">${t('Keep looking around')}</div>
+      <div class="sheet-link" data-action="close-ov">${t('Keep looking around')}</div>
     </div></div>`;
 }
 
@@ -194,14 +195,38 @@ function overlayIosInstall(){
     <div class="grab"></div>
     <div class="ov-body" style="padding:8px 20px 22px;text-align:center">
       ${logoMark(46)}
-      <h2 style="font-family:var(--serif);font-weight:400;font-size:24px;letter-spacing:-.02em;margin:12px 0 6px">${t('Put Crema on your Home Screen')}</h2>
-      <p style="color:var(--ink2);font-size:13.5px;line-height:1.55;margin:0 auto 18px;max-width:300px">${t('It opens full screen, with its own icon — and on an iPhone it is the only way Crema can remind you about your streak.')}</p>
+      <h2 class="sheet-h">${t('Put Crema on your Home Screen')}</h2>
+      <p class="sheet-p">${t('It opens full screen, with its own icon — and on an iPhone it is the only way Crema can remind you about your streak.')}</p>
       <div class="iossteps">
         ${step(1,t('Tap <b>Share</b> at the bottom of Safari')+' <span class="iosicon">'+icon('share',15)+'</span>')}
         ${step(2,t('Scroll down and tap <b>Add to Home Screen</b>'))}
         ${step(3,t('Tap <b>Add</b>. That is it.'))}
       </div>
       <button class="btn ghost block" style="margin-top:16px" data-action="close-ov">${t('Maybe later')}</button>
+    </div></div>`;
+}
+
+/* ---------- Crema is on Google Play (Android, in a browser tab) ----------
+   The twin of the sheet above for the other half of the phones. There is
+   nothing to walk anybody through, so there are no steps: one sentence
+   that answers the question somebody with a streak actually has — does
+   my account come with me — and a button that is a real link.
+
+   A real <a href>, not a handler that navigates, so it behaves the way a
+   link is expected to: long-press copies it, and on Android the Play
+   Store app picks up a play.google.com URL by itself. `play-open` in
+   ui/actions.js only writes down that it was taken and takes the sheet
+   down behind it. When this is raised, and how often, is app.js and
+   core/device.js. */
+function overlayPlay(){
+  return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Crema is on Google Play')}">
+    <div class="grab"></div>
+    <div class="ov-body" style="padding:8px 20px 22px;text-align:center">
+      ${logoMark(56)}
+      <h2 class="sheet-h">${t('Crema is on Google Play')}</h2>
+      <p class="sheet-p">${t('Get the Crema app for Android. Your account and your pours come with you.')}</p>
+      <a class="btn block" href="${PLAY_URL}" target="_blank" rel="noopener" data-action="play-open">${icon('download',18)} ${t('Get it on Google Play')}</a>
+      <button class="btn ghost block" style="margin-top:9px" data-action="close-ov">${t('Not now')}</button>
     </div></div>`;
 }
 
@@ -236,10 +261,10 @@ function overlayWhatsNew(){
   return `<div class="ov-back" data-action="dismiss-whatsnew"></div><div class="sheet bottom" role="dialog" aria-label="${t('First coffee in Crema wins the morning')}">
     <div class="grab"></div>
     <div class="ov-body" style="padding:10px 20px 22px;text-align:center">
-      <div style="font-size:42px;line-height:1">🥇</div>
-      <h2 style="font-family:var(--serif);font-weight:400;font-size:24px;letter-spacing:-.02em;margin:10px 0 6px">${t('First coffee in Crema wins the morning')}</h2>
-      <p style="color:var(--ink2);font-size:13.5px;line-height:1.55;margin:0 auto 16px;max-width:300px">${t('Every day, the very first coffee logged in the whole app pays {n} points towards your level. One a day, for one person. Log yours early enough and it is yours.',{n:bonus})}</p>
-      <p style="color:var(--muted);font-size:12.5px;line-height:1.5;margin:0 auto 18px;max-width:300px">${t('And you will hear about it whenever someone you follow logs a coffee. You can turn that off in Settings.')}</p>
+      <div class="sheet-ic">${icon('medal',44)}</div>
+      <h2 class="sheet-h">${t('First coffee in Crema wins the morning')}</h2>
+      <p class="sheet-p" style="margin-bottom:12px">${t('Every day, the very first coffee logged in the whole app pays {n} points towards your level. One a day, for one person. Log yours early enough and it is yours.',{n:bonus})}</p>
+      <p class="sheet-p sheet-fine">${t('And you will hear about it whenever someone you follow logs a coffee. You can turn that off in Settings.')}</p>
       <button class="btn block" data-action="dismiss-whatsnew">${t('Got it')}</button>
     </div></div>`;
 }
@@ -255,15 +280,15 @@ function overlayPost(id){
       <div class="media" data-action="none" data-media="${p.id}">${artSet((p.imgs&&p.imgs.length?p.imgs:[p.img]).map(k=>imageUrl(k,'hero')),p.pattern,p.quality,seedOf(p.id),p.drink)}<div class="heartpop" data-hp="${p.id}">${icon('heartF',90)}</div></div>
       <div class="p-head">
         <div class="idwrap" data-action="open-user" data-id="${p.user}">${avatar(p.user)}
-          <div class="who"><b>${esc(u.name)} <span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${esc(p.cafe)}`:''} · ${agoTag(p.createdAt,p.ago)}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
+          <div class="who"><b><span class="nm">${esc(u.name)}</span><span class="lvlchip">Lv${u.level}</span></b><span>${esc(u.handle)}${p.cafe?` · ${t('at')} ${esc(p.cafe)}`:''} · ${agoTag(p.createdAt,p.ago)}${editedMark(p)}${privateMark(p)}${hiddenMark(p)}</span></div></div>
         ${p.user==='me'?'':followMini(p.user)}
-        <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">⋯</button></div>
+        <button class="kebab" data-action="open-menu" data-id="${p.id}" aria-label="${t('More options')}">${icon('more',22)}</button></div>
       <div class="p-body"><div class="cap"><b>${esc(u.name)}</b> ${mentionify(p.caption)}</div>
-        <div class="chips"><span class="chip drinkchip">${esc(t(p.drink||'Coffee'))}</span>${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip">🥛 ${esc(t(r.milk))}</span>`:''}${p.cafe?`<span class="chip">📍 ${esc(p.cafe)}</span>`:''}</div></div>
+        <div class="chips"><span class="chip drinkchip">${esc(t(p.drink||'Coffee'))}</span>${p.art&&p.pattern?`<span class="chip tag" data-action="open-tag" data-id="${p.pattern}">#${p.pattern}</span>`:''}${r&&r.milk?`<span class="chip"><span class="g">${icon('milk',12)}</span>${esc(t(r.milk))}</span>`:''}${p.cafe?`<span class="chip"><span class="g">${icon('cafe',12)}</span>${esc(p.cafe)}</span>`:''}</div></div>
       ${reactionBar(p)}
       ${rows.length?`<div class="scoreblk" style="padding-top:0"><div class="recipe-panel open" style="margin:0">${recipePanel(r)}
-        <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">☕ ${t('Brew this recipe')}</button></div></div></div>`:''}
-      <div id="cmt-head" style="padding:14px 14px 4px;font-weight:700;font-family:var(--serif);font-size:16px">${commentCount(p)} ${t('comments')}</div>
+        <div style="padding:9px 12px;background:var(--surface)"><button class="btn ghost sm" data-action="brew" data-id="${p.id}">${icon('cup',16)} ${t('Brew this recipe')}</button></div></div></div>`:''}
+      <div id="cmt-head" class="cmt-head">${commentCount(p)} ${t('comments')}</div>
       <div id="cmt-list">${p.comments.length?p.comments.map((c,i)=>commentRow(c,p.id,i)).join(''):
         (commentCount(p)?`<div class="empty" style="padding:24px">${t('Loading comments…')}</div>`
           :`<div class="empty" style="padding:24px">${session?t('Be the first to comment.'):t('No comments yet.')}</div>`)}</div>
@@ -287,12 +312,12 @@ function overlayCafe(id){
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${c.name}</b></div>
     <div class="ov-body">
       <div style="height:130px;background:linear-gradient(135deg,${c.color},#24170F);position:relative"><div style="position:absolute;left:16px;bottom:-26px">${cafeThumb(c)}</div></div>
-      <div style="padding:34px 16px 8px"><b style="font-family:var(--serif);font-size:22px">${c.name}</b>
-        <div style="color:var(--muted);font-size:13px;margin:3px 0 10px">${c.spec} · ${c.area}, ${c.city}</div>
-        <div class="chips" style="margin:0 0 12px"><span class="chip"><span class="star">★ ${c.rating}</span></span><span class="chip">${t('{n} followers',{n:fmt(c.followers)})}</span>${c.hours?`<span class="chip" style="color:${c.hours.startsWith('Open')?'var(--green)':'var(--terra)'}">${esc(c.hours)}</span>`:''}</div>
-        <p style="font-size:14px;line-height:1.55;color:var(--ink2);margin:0 0 14px">${c.blurb}</p>
-        ${c.promo?`<div style="background:var(--pm1);border:1px solid var(--pm2);border-radius:14px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center"><span style="font-size:26px">🎟️</span><div><b style="color:var(--green)">${t('10% off any drink')}</b><div style="font-size:12.5px;color:var(--green)">${t('Show any post tagged here at the counter.')}</div></div></div>`:''}
-        <div style="display:flex;gap:10px"><button class="btn ${followed?'ghost':''} block" data-action="follow-cafe" data-id="${c.id}">${followed?'✓ '+t('Following'):t('Follow café')}</button><button class="btn ghost" data-action="directions" data-id="${c.id}" aria-label="${t('Directions')}">🧭</button></div></div>
+      <div style="padding:34px 16px 8px"><b class="h-l">${c.name}</b>
+        <div class="t-s t-muted" style="margin:3px 0 10px">${c.spec} · ${c.area}, ${c.city}</div>
+        <div class="chips" style="margin:0 0 12px"><span class="chip"><span class="star">${icon('star',13)} ${c.rating}</span></span><span class="chip">${t('{n} followers',{n:fmt(c.followers)})}</span>${c.hours?`<span class="chip" style="color:${c.hours.startsWith('Open')?'var(--green)':'var(--terra)'}">${esc(c.hours)}</span>`:''}</div>
+        <p class="t-m" style="color:var(--ink2);margin:0 0 14px">${c.blurb}</p>
+        ${c.promo?`<div style="background:var(--pm1);border:1px solid var(--pm2);border-radius:14px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;color:var(--green)">${icon('ticket',26)}<div><b>${t('10% off any drink')}</b><div class="t-s">${t('Show any post tagged here at the counter.')}</div></div></div>`:''}
+        <div style="display:flex;gap:10px"><button class="btn ${followed?'ghost':''} block" data-action="follow-cafe" data-id="${c.id}">${followed?icon('check',16)+' '+t('Following'):t('Follow café')}</button><button class="btn ghost" data-action="directions" data-id="${c.id}" aria-label="${t('Directions')}">${icon('compass',20)}</button></div></div>
       <div class="section-h" style="margin:14px 16px 10px"><h2>${t('Community pours here')}</h2></div>
       ${tagged.length?`<div class="grid" style="padding:0 16px 20px">${tagged.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty" style="padding:10px 16px 26px">${t('No pours tagged here yet. Be the first.')}</div>`}
     </div></div>`;
@@ -362,7 +387,7 @@ function gearOwnBlock(kind,name,own){
                 :t('Your private note');
   if(!state.me.premium) return has?'':premiumNote(what);
   return `<button class="btn ghost block" style="margin-top:12px" data-action="gear-edit" data-kind="${kind}" data-v="${esc(name)}">
-    ${has?t('Edit these details'):(own?t('＋ Add details'):t('＋ Add a private note'))}</button>`;
+    ${has?t('Edit these details'):`${icon('plus',16)} ${own?t('Add details'):t('Add a private note')}`}</button>`;
 }
 
 function overlayBean(name){
@@ -376,7 +401,6 @@ function overlayBean(name){
   const roast=b?b.roast:(g.roast||'');
   const notes=b?b.notes:(g.notes||'').split(',').map(s=>s.trim()).filter(Boolean);
   const step=b?b.step:roastStep(roast);
-  const country=b?b.c:'';
   /* Four facts, so the two-column grid comes out square. Blend vs single
      origin is deliberately NOT a fifth: it is a reading of the origin
      line sitting directly above it, and a row that repeats its
@@ -391,11 +415,11 @@ function overlayBean(name){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${esc(name)}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${esc(name)}</b></div>
     <div class="ov-body">
-      <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t"><span class="fl">${flag[country]||'🫘'}</span>
+      <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t"><span class="fl">${icon('bean',30)}</span>
         <div><b>${esc(name)}</b><span>${esc(heroSub)}</span></div></div></div>
       <div style="padding:16px">
         ${notes.length?`<div class="section-h" style="margin:2px 0 10px"><h2>${t('Tasting notes')}</h2>
-          ${b?`<span style="font-size:11.5px;color:var(--muted)">${t('as the roaster describes it')}</span>`:''}</div>
+          ${b?`<span class="t-s t-muted">${t('as the roaster describes it')}</span>`:''}</div>
           ${noteChips(notes)}`:''}
         ${rows.some(r=>r[1])?`<div class="section-h" style="margin:18px 0 10px"><h2>${t('Details')}</h2></div>
           ${detailRows(rows)}${roastScale(step)}`
@@ -438,7 +462,7 @@ function overlayMachine(name){
         <div><b>${esc(name)}</b><span>${esc(heroSub)}</span></div></div></div>
       <div style="padding:16px">
         ${rows.some(r=>r[1])?`<div class="section-h" style="margin:2px 0 10px"><h2>${t('Details')}</h2></div>${detailRows(rows)}
-          ${i?`<div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin:8px 2px 0">${t('True of every {brand} of this kind. Crema does not hold specs for individual models.',{brand:esc(i.brand)})}</div>`:''}`
+          ${i?`<div class="t-s t-muted" style="margin:8px 2px 0">${t('True of every {brand} of this kind. Crema does not hold specs for individual models.',{brand:esc(i.brand)})}</div>`:''}`
         :`<div class="empty" style="padding:18px 0">${own
             ? t('Nothing written down about this brewer yet — it is yours, so nobody else can fill it in.')
             : t('The catalogue has no details for this machine yet.')}</div>`}
@@ -478,7 +502,7 @@ function overlayGearEdit(o){
     <div class="grab"></div>
     <div class="ov-bar" style="border:0"><b>${esc(name)}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 16px">
-      <p style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin:0 0 14px">${own
+      <p class="t-s" style="color:var(--ink2);margin:0 0 14px">${own
         ? t('This one is yours. What you write here stays on your device and shows up on this page and in your passport — nobody else sees it, and nobody else can pick this entry.')
         : t('This coffee or machine is in the catalogue, so its facts stay as they are. Your note is yours alone.')}</p>
       ${fields}
@@ -501,7 +525,7 @@ function profileGate(u,rel){
   const first=esc((u.name||'').split(' ')[0]||t('They'));
   const pending=rel==='pending';
   return `<div class="lockcard">
-    <div class="big">${pending?'⏳':'🔒'}</div>
+    <div class="big">${icon(pending?'clock':'lock',30)}</div>
     <b>${pending?t('Waiting on {name}',{name:first}):t('Follow {name} to see their pours',{name:first})}</b>
     <span>${pending
       ? t('Your request is in. The moment they accept, their pours and recipes show up here.')
@@ -526,15 +550,15 @@ function overlayUser(uid){
         <div style="display:flex;align-items:flex-end;gap:12px;margin-top:-28px">
           ${avatar(uid,'xl')}
           ${followBtn(uid,'sm','margin-left:auto')}</div>
-        <div style="margin-top:10px"><b style="font-family:var(--serif);font-size:22px">${esc(u.name)}</b> <span class="lvlchip">Lv${u.level}</span>
-          <div style="color:var(--muted);font-size:13px;margin:2px 0 8px">${esc(u.handle)}${open&&u.city?` · 📍 ${esc(u.city)}`:''}</div>
-          ${open&&u.bio?`<p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:0 0 12px">${esc(u.bio)}</p>`:''}</div>
+        <div style="margin-top:10px"><b class="h-l">${esc(u.name)}</b> <span class="lvlchip">Lv${u.level}</span>
+          <div class="t-s t-muted" style="margin:2px 0 8px">${esc(u.handle)}${open&&u.city?` · ${icon('cafe',13,'inl')} ${esc(u.city)}`:''}</div>
+          ${open&&u.bio?`<p class="t-m" style="color:var(--ink2);margin:0 0 12px">${esc(u.bio)}</p>`:''}</div>
         ${/* The whole reason profiles.badges exists. Behind the same
              `open` gate as the bio, the city and the pour count: what
              somebody has made is for the followers they accepted, and a
              badge is a summary of what they have made. */
           open?badgeStrip(u.badges):''}
-        <div class="stats">${open?`<div><b>${fmt(u.pourN)}</b><span>${t('Pours')}</span></div>`:''}<div><b>${fmt(u.followerN)}</b><span>${t('Followers')}</span></div><div><b>${t(u.levelName)}</b><span>${t('Level')} ${u.level}</span></div></div>
+        <div class="stats">${open?`<div><b>${fmt(u.pourN)}</b><span>${t('Pours')}</span></div>`:''}<div><b>${fmt(u.followerN)}</b><span>${t('Followers')}</span></div><div><b>${u.level}</b><span>${t(u.levelName)}</span></div></div>
         ${open?`<div class="section-h"><h2>${t('Recent pours')}</h2></div>
         ${theirs.length?`<div class="grid">${theirs.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:`<div class="empty">${t('No pours yet.')}</div>`}`
         :profileGate(u,rel)}
@@ -548,10 +572,10 @@ function overlayNotifs(){
     /* A moderation notice has no actor either — nobody did this to you,
        a decision did — and it is the one row where the symbol carries
        weight, so it gets its own rather than the default cup. */
-    const noFace=n.type==='challenge'?'🏆':n.type==='podium'?'🏅'
-                :n.type==='daily_champion'?'🥇'
-                :n.type==='moderation'?'⚖️':n.type==='report_update'?'🚩':'☕';
-    const av=n.u?avatar(n.u):`<div class="avatar" style="background:var(--crema)">${noFace}</div>`;
+    const noFace=n.type==='challenge'?'trophy':n.type==='podium'?'medal'
+                :n.type==='daily_champion'?'medal'
+                :n.type==='moderation'?'scale':n.type==='report_update'?'flag':'cup';
+    const av=n.u?avatar(n.u):`<div class="avatar sym">${icon(noFace,20)}</div>`;
     /* A request is the one notification that is a question, so it keeps
        its buttons here too — the row above the feed is the prominent
        copy, this is the one you find when you come looking. */
@@ -562,7 +586,7 @@ function overlayNotifs(){
       <div class="nb"><div class="nt">${n.u?`<b>${esc(userOf(n.u).name)}</b> `:''}${esc(notifBody(n.text))}</div><span>${t('{time} ago',{time:agoTag(n.at,n.time)})}</span>${ask}</div></div>`;}).join('');
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${t('Notifications')}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${t('Notifications')}</b></div>
-    <div class="ov-body">${rows||`<div class="empty"><div class="big">🔔</div>${t('All caught up.')}</div>`}</div></div>`;
+    <div class="ov-body">${rows||`<div class="empty"><div class="big">${icon('bell',30)}</div>${t('All caught up.')}</div>`}</div></div>`;
 }
 
 function overlayMenu(id){
@@ -571,13 +595,13 @@ function overlayMenu(id){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet bottom" role="dialog" aria-label="${t('Post options')}">
     <div class="grab"></div>
     <div class="ov-body" style="padding:4px 18px 18px">
-      <div class="mrow" data-action="menu-copy" data-id="${id}"><div class="mi">🔗</div>${t('Copy link')}</div>
-      ${p.recipe?`<div class="mrow" data-action="brew" data-id="${id}"><div class="mi">☕</div>${t('Brew this recipe')}</div>`:''}
-      <div class="mrow" data-action="menu-save" data-id="${id}"><div class="mi">🔖</div>${p.saved?t('Remove from saved'):t('Save to collection')}</div>
-      ${mine&&canEdit(p)?`<div class="mrow" data-action="menu-edit" data-id="${id}"><div class="mi">✏️</div>${t('Edit this pour')}</div>`:''}
-      ${mine?`<div class="mrow danger" data-action="menu-delete" data-id="${id}"><div class="mi">🗑️</div>${t('Delete this pour')}</div>`
-            :`<div class="mrow danger" data-action="menu-report" data-id="${id}"><div class="mi">🚩</div>${t('Report')}</div>
-              <div class="mrow danger" data-action="menu-block" data-id="${p.user}"><div class="mi">🚫</div>${t('Block {name}',{name:esc((who&&who.name||t('this person')).split(' ')[0])})}</div>`}
+      <div class="mrow" data-action="menu-copy" data-id="${id}"><div class="mi">${icon('link',20)}</div>${t('Copy link')}</div>
+      ${p.recipe?`<div class="mrow" data-action="brew" data-id="${id}"><div class="mi">${icon('cup',20)}</div>${t('Brew this recipe')}</div>`:''}
+      <div class="mrow" data-action="menu-save" data-id="${id}"><div class="mi">${icon('save',20)}</div>${p.saved?t('Remove from saved'):t('Save to collection')}</div>
+      ${mine&&canEdit(p)?`<div class="mrow" data-action="menu-edit" data-id="${id}"><div class="mi">${icon('pencil',20)}</div>${t('Edit this pour')}</div>`:''}
+      ${mine?`<div class="mrow danger" data-action="menu-delete" data-id="${id}"><div class="mi">${icon('trash',20)}</div>${t('Delete this pour')}</div>`
+            :`<div class="mrow danger" data-action="menu-report" data-id="${id}"><div class="mi">${icon('flag',20)}</div>${t('Report')}</div>
+              <div class="mrow danger" data-action="menu-block" data-id="${p.user}"><div class="mi">${icon('block',20)}</div>${t('Block {name}',{name:esc((who&&who.name||t('this person')).split(' ')[0])})}</div>`}
       <button class="btn ghost block" style="margin-top:14px" data-action="close-ov">${t('Cancel')}</button>
     </div></div>`;
 }
@@ -597,8 +621,8 @@ function overlayReport(id){
     <div class="grab"></div>
     <div class="ov-bar" style="border:0"><b>${t('Report this pour')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 18px 18px">
-      <p style="font-size:13px;color:var(--ink2);line-height:1.5;margin:0 0 12px">${t('Thanks for helping keep Crema kind. A person reads every report, and the author never finds out who sent it.')}</p>
-      ${reportReasons().map(r=>`<div class="mrow" data-action="report-send" data-id="${id}" data-reason="${r[0]}"><div class="mi">🚩</div>${r[1]}</div>`).join('')}
+      <p class="t-m" style="color:var(--ink2);margin:0 0 12px">${t('Thanks for helping keep Crema kind. A person reads every report, and the author never finds out who sent it.')}</p>
+      ${reportReasons().map(r=>`<div class="mrow" data-action="report-send" data-id="${id}" data-reason="${r[0]}"><div class="mi">${icon('flag',20)}</div>${r[1]}</div>`).join('')}
       <button class="btn ghost block" style="margin-top:14px" data-action="close-ov">${t('Cancel')}</button>
     </div></div>`;
 }
@@ -609,10 +633,10 @@ function overlayTag(pat){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="#${pat}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>#${pat}</b></div>
     <div class="ov-body"><div style="padding:14px 16px 20px">
-      <div style="font-size:13px;color:var(--muted);font-weight:600;margin-bottom:8px">${tn(list.length,'{n} pour','{n} pours')}</div>
-      ${ch?`<button class="btn sm" style="margin-bottom:12px" data-action="open-challenge" data-id="${ch.id}">🎯 ${ch.title} · ${t('this week\'s challenge')}</button>`:''}
+      <div class="t-s t-muted" style="font-weight:600;margin-bottom:8px">${tn(list.length,'{n} pour','{n} pours')}</div>
+      ${ch?`<button class="btn sm" style="margin-bottom:12px" data-action="open-challenge" data-id="${ch.id}">${icon('trophy',16)} ${esc(t(ch.title))} · ${t('this week\'s challenge')}</button>`:''}
       ${list.length?`<div class="grid">${list.map(p=>gcell(p.pattern,p.quality,p.id,p.img)).join('')}</div>`:
-        `<div class="empty"><div class="big">🎨</div>${t('No {pattern} pours yet. Be the first.',{pattern:pat})}<br><br><button class="btn sm" data-action="open-create">${t('Post a pour')}</button></div>`}
+        `<div class="empty"><div class="big">${icon('rosetta',30)}</div>${t('No {pattern} pours yet. Be the first.',{pattern:pat})}<br><br><button class="btn sm" data-action="open-create">${t('Post a pour')}</button></div>`}
     </div></div></div>`;
 }
 
@@ -646,7 +670,7 @@ function progressBar(ch){
   const pct=ch.goal?Math.round(100*ch.progress/ch.goal):0;
   return `<div class="chp">
     <div class="chp-bar"><i style="width:${ch.done?100:pct}%"></i></div>
-    <div class="chp-n">${ch.done?`<b class="chp-done">✓ ${t('Done')} · +${ch.points}</b>`
+    <div class="chp-n">${ch.done?`<b class="chp-done">${icon('check',13,'inl')} ${t('Done')} · +${ch.points}</b>`
                                 :`<b>${ch.progress}</b> / ${ch.goal}`}</div>
   </div>`;
 }
@@ -696,21 +720,21 @@ function overlayChallenge(id){
     <div class="ov-body"><div style="padding:0 16px 20px">
       <div class="ch-top" style="height:150px;border-radius:16px;margin-top:14px">${cupSVG(ch.pattern,.92,ch.id.length)}<span class="ends">${ch.done?t('Complete'):t('{time} left',{time:endsIn(ch)})}</span></div>
       <div style="margin:14px 2px 4px">
-        <b style="font-family:var(--serif);font-size:22px">${esc(t(ch.title))}</b>
+        <b class="h-l">${esc(t(ch.title))}</b>
         <div class="chips" style="margin:8px 0">
           <span class="chip">${catLabel(ch.cat)}</span>
           <span class="chip tag">${esc(t(ch.tag))}</span>
           <span class="chip" style="color:var(--st4);border-color:var(--st3);background:var(--st1)">${t('+{n} points',{n:ch.points})}</span>
-          ${ch.done?`<span class="chip" style="color:var(--green)">✓ ${t('Earned')}</span>`:''}</div>
-        <p style="font-size:13.5px;color:var(--ink2);line-height:1.5;margin:4px 0 14px">${esc(t(ch.blurb))}</p>
+          ${ch.done?`<span class="chip" style="color:var(--green)"><span class="g">${icon('check',12)}</span>${t('Earned')}</span>`:''}</div>
+        <p class="t-m" style="color:var(--ink2);margin:4px 0 14px">${esc(t(ch.blurb))}</p>
         ${progressBar(ch)}
         <div class="chrule">
           <div class="rlabel" style="margin:0 0 4px">${t('What counts')}</div>
           <div>${esc(ruleText(ch))}</div>
         </div>
         ${ch.done
-          ? `<div class="chdone">✓ ${t('Finished. The {n} points are already on your score.',{n:ch.points})}${ch.raw>ch.goal?` ${t('You got to {n}.',{n:ch.raw})}`:''}</div>`
-          : `<div style="font-size:12.5px;color:var(--muted);margin:10px 2px 12px">${t('{n} to go. There is nothing to enter, because your pours count on their own.',{n:left})}</div>
+          ? `<div class="chdone">${icon('check',15,'inl')} ${t('Finished. The {n} points are already on your score.',{n:ch.points})}${ch.raw>ch.goal?` ${t('You got to {n}.',{n:ch.raw})}`:''}</div>`
+          : `<div class="t-s t-muted" style="margin:10px 2px 12px">${t('{n} to go. There is nothing to enter, because your pours count on their own.',{n:left})}</div>
              <button class="btn block" data-action="open-create">${t('Log a coffee')}</button>`}
       </div>
     </div></div></div>`;
@@ -722,8 +746,8 @@ function overlayChallenges(){
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${t('This week')}</b></div>
     <div class="ov-body"><div style="padding:14px 16px 20px">
       ${list.length?list.map(challengeCard).join('')
-        :`<div class="empty"><div class="big">🎯</div>${challenges.loaded?t('No challenges are running right now.')+'<br>'+t('Three new ones land every Monday.'):t('Loading challenges…')}</div>`}
-      <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px">
+        :`<div class="empty"><div class="big">${icon('trophy',30)}</div>${challenges.loaded?t('No challenges are running right now.')+'<br>'+t('Three new ones land every Monday.'):t('Loading challenges…')}</div>`}
+      <div class="t-s t-muted" style="text-align:center;margin-top:14px">
         ${t('Three challenges a week, one of each kind. They start every Monday and score themselves from the coffee you log.')}</div>
     </div></div></div>`;
 }
@@ -740,7 +764,7 @@ function overlayFlist(kind){
   const title=following?t('Following'):t('Followers');
   const empty=!social.listsLoaded
     ? `<div class="empty">${t('Loading…')}</div>`
-    : `<div class="empty"><div class="big">👥</div>${following
+    : `<div class="empty"><div class="big">${icon('users',30)}</div>${following
         ?t('Not following anyone yet.')+'<br>'+t('Find people on Explore.')
         :t('No followers yet.')+'<br>'+t('Share your pours to get discovered.')}</div>`;
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${title}">
@@ -757,23 +781,23 @@ function overlayScoring(){
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="${t('Levels')}">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>${t('Levels & points')}</b></div>
     <div class="ov-body"><div style="padding:14px 16px 20px">
-      <p style="font-size:13.5px;color:var(--ink2);line-height:1.55;margin:0 0 14px">${t('Your level grows as you post and practise. Think of it as a friendly marker of how far your craft has come. Nobody is grading you.')}</p>
+      <p class="t-m" style="color:var(--ink2);margin:0 0 14px">${t('Your level grows as you post and practise. Think of it as a friendly marker of how far your craft has come. Nobody is grading you.')}</p>
       <div class="lvlbar" style="margin-top:0">
         <div class="top"><b>${t('Level')} ${cur[0]} · ${t(cur[1])}</b><span>${t('{n} pts',{n:fmt(pts)})}</span></div>
         <div class="track"><i style="width:${pct}%"></i></div>
-        <div style="font-size:11.5px;color:var(--muted);font-weight:600;margin-top:6px">${next
+        <div class="t-s t-muted" style="font-weight:600;margin-top:6px">${next
           ? t('{n} points to Level {lvl} · {name}',{n:fmt(next[2]-pts),lvl:next[0],name:t(next[1])})
           : t('Top of the ladder. There is nothing left to climb.')}</div>
       </div>
       <div class="rlabel" style="margin-top:18px">${t('How points are earned')}</div>
       <div class="rlist" style="margin-bottom:4px">${POINT_RULES.map(r=>`<div class="rlist-row">
-        <div style="flex:1"><b style="font-size:14px">${t(r[0])}</b></div><div class="rlist-val">${r[1]}</div></div>`).join('')}</div>
+        <div style="flex:1"><b class="t-m" style="font-weight:600">${t(r[0])}</b></div><div class="rlist-val">${r[1]}</div></div>`).join('')}</div>
       <div class="rlabel" style="margin-top:18px">${t('The ladder')}</div>
       <div style="display:flex;flex-direction:column;gap:4px">
         ${LEVELS.map(l=>`<div class="lvlrow ${l[0]===cur[0]?'now':''}"><div class="ln">${l[0]}</div><b>${t(l[1])}</b>
-          <span style="margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:700">${l[0]===cur[0]?t('you are here'):(l[2]?t('{n} pts',{n:fmt(l[2])}):t('start'))}</span></div>`).join('')}
+          <span>${l[0]===cur[0]?t('you are here'):(l[2]?t('{n} pts',{n:fmt(l[2])}):t('start'))}</span></div>`).join('')}
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-top:14px">${t('Each level costs about half again as much as the one before, and the names follow the classic latte-art progression: hearts, then tulips, then rosettas, then swans.')}</p>
+      <p class="t-s t-muted" style="margin-top:14px">${t('Each level costs about half again as much as the one before, and the names follow the classic latte-art progression: hearts, then tulips, then rosettas, then swans.')}</p>
     </div></div></div>`;
 }
 /* The streak sheet — what the number means, and the one place that asks
@@ -809,7 +833,7 @@ function overlayStreak(){
       <div class="stk-cal">${dots}</div>
 
       <div class="rlabel" style="margin-top:18px">${t('Rest days')}</div>
-      <p style="font-size:13px;color:var(--ink2);line-height:1.55;margin:0">
+      <p class="t-m" style="color:var(--ink2);margin:0">
         ${t('Once a streak reaches {n} days, missing a single day will not end it. One rest day is forgiven, once. Two days in a row still starts you over.',{n:REST_AFTER})}
         ${s.rested?'<br><b>'+t('Your rest day is currently in use.')+'</b>'
                   :s.canRest?'<br><b>'+t('Your rest day is available.')+'</b>':''}
@@ -835,8 +859,8 @@ function overlayStreak(){
      · granted — show the switches for what may be sent. */
 function remindersBlock(){
   const p=ui.push||(ui.push={ enabled:false, busy:false });
-  const note=x=>`<div class="mrow" style="cursor:default"><div class="mi">🔔</div>
-    <div style="flex:1;font-size:13px;color:var(--ink2);font-weight:500;line-height:1.5">${x}</div></div>`;
+  const note=x=>`<div class="mrow" style="cursor:default"><div class="mi">${icon('bell',20)}</div>
+    <div class="t-s" style="flex:1;color:var(--ink2)">${x}</div></div>`;
 
   if(iosNeedsInstall()) return note(
     t('Add Crema to your Home Screen to get reminders: tap Share, then <b>Add to Home Screen</b>. Safari cannot send notifications from a browser tab on iPhone.'));
@@ -866,14 +890,14 @@ function remindersBlock(){
     : t('Notifications are blocked for Crema in your browser settings. Allow them there and this comes back.'));
 
   return `
-    <p style="font-size:13px;color:var(--ink2);line-height:1.55;margin:0 0 10px">
+    <p class="t-m" style="color:var(--ink2);margin:0 0 10px">
       ${t('A nudge in the morning to log today\'s coffee, and one in the evening if your streak is about to lapse. Nothing else unless you ask for it.')}</p>
     <button class="btn block" data-action="push-on"${p.busy?' disabled':''}>${p.busy?t('Just a moment…'):t('Remind me')}</button>`;
 
   function switches(){
     const sw=(action,on,label,sub)=>`<div class="mrow" data-action="${action}">
-      <div class="mi">${on?'🔔':'🔕'}</div>
-      <div style="flex:1">${label}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${sub}</div></div>
+      <div class="mi">${icon(on?'bell':'bellOff',20)}</div>
+      <div style="flex:1">${label}<div class="mrow-sub">${sub}</div></div>
       <span class="swch${on?' on':''}"></span></div>`;
 
     return `${sw('toggle-notify-morning',state.me.notifyMorning,t('Morning coffee nudge'),t('If you have not logged one yet that day'))}
@@ -901,7 +925,7 @@ function overlayPassport(){
     const sub=[b.cat&&b.cat.roaster, b.cat&&t(b.cat.origin), b.cat&&t(b.cat.roast)].filter(Boolean).join(' · ')
       || [own.roaster,own.origin&&t(own.origin),own.roast&&t(own.roast)].filter(Boolean).join(' · ');
     return `<div class="rlist-row click" data-action="open-bean" data-id="${esc(b.name)}">
-      <div class="bean-fl">${(b.cat&&flag[b.cat.c])||'🫘'}</div>
+      <div class="bean-fl">${icon('bean',18)}</div>
       <div class="who" style="flex:1;min-width:0"><b>${esc(b.name)}</b>
         <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sub?esc(sub):t('Your own coffee')}</span></div>
       <div class="rlist-val">${b.pours?`${b.pours} <small>${tn(b.pours,'pour','pours')}</small>`:`<small>${t('not logged yet')}</small>`}</div>
@@ -912,14 +936,14 @@ function overlayPassport(){
       <button class="act" style="margin-left:auto" data-action="open-gearpass">${icon('mach',20)}</button></div>
     <div class="ov-body">
       <div class="bean-hero"><img src="${S.beans}" alt=""><div class="bean-hero-t">
-        <span class="fl">🛂</span><div><b>${tn(beans.length,'{n} bean tried','{n} beans tried')}</b>
+        <span class="fl">${icon('bean',30)}</span><div><b>${tn(beans.length,'{n} bean tried','{n} beans tried')}</b>
         <span>${tn(totalPours,'{n} pour','{n} pours')}${origins.length?' · '+tn(origins.length,'{n} origin','{n} origins'):''}</span></div></div></div>
       <div style="padding:16px">
-        ${origins.length?`<div class="chips" style="margin:0 0 14px">${origins.map(c=>`<span class="chip">${flag[c]||'🫘'} ${esc(t(c))}</span>`).join('')}</div>`:''}
+        ${origins.length?`<div class="chips" style="margin:0 0 14px">${origins.map(c=>`<span class="chip"><span class="g">${icon('globe',12)}</span>${esc(t(c))}</span>`).join('')}</div>`:''}
         ${beans.length
           ? `<div class="rlist">${beans.map(row).join('')}</div>
-             <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">${t('Every coffee you have logged, most-poured first.')}</div>`
-          : `<div class="empty"><div class="big">🫘</div>${t('No beans yet.')}<br>${t('Add the coffee you used when you log a pour and it lands here.')}<br><br>
+             <div class="t-s t-muted" style="text-align:center;margin-top:12px">${t('Every coffee you have logged, most-poured first.')}</div>`
+          : `<div class="empty"><div class="big">${icon('bean',30)}</div>${t('No beans yet.')}<br>${t('Add the coffee you used when you log a pour and it lands here.')}<br><br>
              <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`}
         <button class="btn ghost block" style="margin-top:16px" data-action="open-gearpass">${icon('mach',17)} ${t('Machine passport')}</button>
         <div style="height:8px"></div>
@@ -956,7 +980,7 @@ function overlayGearPassport(){
       <div class="bean-fl">${icon('mach',20)}</div>
       <div class="who" style="flex:1;min-width:0"><b>${esc(m.name)}</b>
         <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sub)}</span></div>
-      <div class="rlist-val">${m.pours?`${m.pours} <small>${tn(m.pours,'pour','pours')}</small>${list.length>1?`<br><span style="font-size:11px;font-weight:600;color:var(--muted)">${pct}%</span>`:''}`
+      <div class="rlist-val">${m.pours?`${m.pours} <small>${tn(m.pours,'pour','pours')}</small>${list.length>1?`<span class="rv-sub">${pct}%</span>`:''}`
         :`<small>${t('not logged yet')}</small>`}</div>
     </div>`;
   };
@@ -965,16 +989,16 @@ function overlayGearPassport(){
       <button class="act" style="margin-left:auto" data-action="open-passport">${icon('bean',20)}</button></div>
     <div class="ov-body">
       <div class="bean-hero"><img src="${S.esp}" alt=""><div class="bean-hero-t">
-        <span class="fl">🛠️</span><div><b>${tn(list.length,'{n} brewer','{n} brewers')}</b>
+        <span class="fl">${icon('mach',30)}</span><div><b>${tn(list.length,'{n} brewer','{n} brewers')}</b>
         <span>${tn(totalPours,'{n} pour','{n} pours')}${kinds.length>1?' · '+tn(kinds.length,'{n} kind','{n} kinds'):''}</span></div></div></div>
       <div style="padding:16px">
         ${kinds.length?`<div class="chips" style="margin:0 0 14px">${kinds.map(k=>`<span class="chip">${icon('mach',12)} ${esc(t(k))}</span>`).join('')}</div>`:''}
         ${list.length
           ? `<div class="rlist">${list.map(row).join('')}</div>
-             <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">${most&&list.length>1
+             <div class="t-s t-muted" style="text-align:center;margin-top:12px">${most&&list.length>1
                 ? t('Most of your coffee comes off the {name}.',{name:esc(most.name)})
                 : t('Every brewer you have logged, most-poured first.')}</div>`
-          : `<div class="empty"><div class="big">🛠️</div>${t('No brewers yet.')}<br>${t('Name the machine you used when you log a pour and it lands here.')}<br><br>
+          : `<div class="empty"><div class="big">${icon('mach',30)}</div>${t('No brewers yet.')}<br>${t('Name the machine you used when you log a pour and it lands here.')}<br><br>
              <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`}
         <button class="btn ghost block" style="margin-top:16px" data-action="open-passport">${icon('bean',17)} ${t('Bean passport')}</button>
         <div style="height:8px"></div>
@@ -1021,21 +1045,21 @@ function overlaySettings(){
       <div class="rlabel" style="margin-top:18px">${t('Reminders')}</div>
       ${remindersBlock()}
       <div class="rlabel" style="margin-top:18px">${t('About')}</div>
-      <div class="mrow" data-action="open-scoring"><div class="mi">⭐</div>${t('How levels work')}</div>
-      <div class="mrow" data-action="open-streak"><div class="mi">⚡</div>${t('How streaks work')}</div>
-      <div style="font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center">${t('Signed in · your pours live in your account')}</div>
+      <div class="mrow" data-action="open-scoring"><div class="mi">${icon('star',20)}</div>${t('How levels work')}</div>
+      <div class="mrow" data-action="open-streak"><div class="mi">${icon('bolt',20)}</div>${t('How streaks work')}</div>
+      <div class="t-s t-muted" style="margin-top:14px;text-align:center">${t('Signed in · your pours live in your account')}</div>
       ${state.me.isAdmin?`<div class="rlabel" style="margin-top:18px">Moderation</div>
-      <div class="mrow" data-action="open-admin"><div class="mi">⚖️</div>Reports &amp; decisions</div>`:''}
+      <div class="mrow" data-action="open-admin"><div class="mi">${icon('scale',20)}</div>Reports &amp; decisions</div>`:''}
       <div class="rlabel" style="margin-top:18px">${t('Your data')}</div>
-      <div class="mrow" data-action="export-data"><div class="mi">📦</div>
+      <div class="mrow" data-action="export-data"><div class="mi">${icon('download',20)}</div>
         <div style="flex:1">${ui.exporting?t('Putting it together…'):t('Download your data')}
-          <div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('One file with every pour, comment and setting')}</div></div></div>
-      <div class="mrow danger" data-action="open-delete-account"><div class="mi">🗑️</div>
+          <div class="mrow-sub">${t('One file with every pour, comment and setting')}</div></div></div>
+      <div class="mrow danger" data-action="open-delete-account"><div class="mi">${icon('trash',20)}</div>
         <div style="flex:1">${t('Delete your account')}
-          <div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('Everything goes. This cannot be undone.')}</div></div></div>
+          <div class="mrow-sub">${t('Everything goes. This cannot be undone.')}</div></div></div>
       <div class="rlabel" style="margin-top:18px">${t('Legal')}</div>
-      <a class="mrow" href="/impressum/index.html" target="_blank" rel="noopener"><div class="mi">📄</div>Impressum</a>
-      <a class="mrow" href="/privacy/index.html" target="_blank" rel="noopener"><div class="mi">🔒</div>${t('Datenschutz / Privacy Policy')}</a>
+      <a class="mrow" href="/impressum/index.html" target="_blank" rel="noopener"><div class="mi">${icon('doc',20)}</div>Impressum</a>
+      <a class="mrow" href="/privacy/index.html" target="_blank" rel="noopener"><div class="mi">${icon('lock',20)}</div>${t('Datenschutz / Privacy Policy')}</a>
     </div></div>`;
 }
 
@@ -1057,18 +1081,19 @@ function overlayDeleteAccount(){
     <div class="grab"></div>
     <div class="ov-bar" style="border:0"><b>${t('Delete your account')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 18px">
-      ${d.error?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;margin-bottom:12px">${esc(d.error)}</div>`:''}
-      <p style="font-size:13.5px;line-height:1.55;color:var(--muted);margin:2px 0 10px">
+      ${d.error?`<div class="t-s" style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;margin-bottom:12px">${esc(d.error)}</div>`:''}
+      <p class="t-m" style="color:var(--muted);margin:2px 0 10px">
         ${t('Your pours, photos, comments, likes, streak, level and settings are deleted straight away. Comments other people left on your pours go with them.')}</p>
-      <p style="font-size:13.5px;line-height:1.55;color:var(--muted);margin:0 0 14px">
+      <p class="t-m" style="color:var(--muted);margin:0 0 14px">
         ${t('What stays: any moderation decision about you, with your name removed. Nothing else.')}</p>
       <div class="mrow" data-action="export-data" style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px">
-        <div class="mi">📦</div><div style="flex:1">${ui.exporting?t('Putting it together…'):t('Download your data first')}
-        <div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('You cannot get it back afterwards')}</div></div></div>
+        <div class="mi">${icon('download',20)}</div><div style="flex:1">${ui.exporting?t('Putting it together…'):t('Download your data first')}
+        <div class="mrow-sub">${t('You cannot get it back afterwards')}</div></div></div>
       <!-- The label is generic and the username is the placeholder, not
-           the label: .field label is uppercased in styles.css, and a
+           the label. Field labels were uppercased until 2026-09-14, and a
            handle rendered as DELCHECK33 above a field that wants
-           delcheck33 asks people to type the wrong thing. -->
+           delcheck33 asked people to type the wrong thing. They are
+           sentence case now, but a label is still no place for a value. -->
       <div class="field"><label>${t('Type your username to confirm')}</label>
         <input id="del-confirm" value="" placeholder="${esc(handle)}" autocomplete="off" autocapitalize="off" spellcheck="false" data-enter="delete-account"></div>
       <button class="btn block"${d.busy?' disabled':''} style="background:var(--terra);border-color:var(--terra)" data-action="delete-account">
@@ -1117,7 +1142,7 @@ function modTarget(r){
   if(tg.kind==='post') return `<div class="mod-target">
     <div class="mod-thumb">${tg.image_key
       ? `<img src="${esc(imageUrl(tg.image_key,'thumb'))}" alt="" onerror="this.remove()">`
-      : '<span>☕</span>'}</div>
+      : icon('cup',22)}</div>
     <div class="mod-tb">
       <b>${esc(tg.drink||'pour')}</b> by ${who} ${flags}
       <p>${esc(tg.caption||'(no caption)')}</p>
@@ -1126,7 +1151,7 @@ function modTarget(r){
     </div></div>`;
 
   if(tg.kind==='comment') return `<div class="mod-target">
-    <div class="mod-thumb"><span>💬</span></div>
+    <div class="mod-thumb">${icon('chat',22)}</div>
     <div class="mod-tb">
       comment by ${who} ${flags}
       <p>${esc(tg.body||'')}</p>
@@ -1135,7 +1160,7 @@ function modTarget(r){
     </div></div>`;
 
   return `<div class="mod-target">
-    <div class="mod-thumb"><span>👤</span></div>
+    <div class="mod-thumb">${icon('user',22)}</div>
     <div class="mod-tb">the account ${who} ${flags}
       <p>Reported as a person rather than as one pour.</p></div></div>`;
 }
@@ -1188,14 +1213,14 @@ function overlayAdmin(){
   const tabs=[['open','Open'],['all','All reports'],['log','Decisions']]
     .map(x=>`<button class="${admin.tab===x[0]?'on':''}" data-action="mod-tab" data-t="${x[0]}">${x[1]}</button>`).join('');
   const body = admin.err
-    ? `<div class="empty"><div class="big">⚠️</div>${esc(admin.err)}</div>`
+    ? `<div class="empty"><div class="big">${icon('alert',30)}</div>${esc(admin.err)}</div>`
     : admin.loading && !admin.loaded
-      ? `<div class="empty"><div class="big">⚖️</div>Loading the queue…</div>`
+      ? `<div class="empty"><div class="big">${icon('scale',30)}</div>Loading the queue…</div>`
       : admin.tab==='log'
         ? (admin.log.length ? admin.log.map(modLogRow).join('')
-           : `<div class="empty"><div class="big">📋</div>No decisions recorded yet.</div>`)
+           : `<div class="empty"><div class="big">${icon('list',30)}</div>No decisions recorded yet.</div>`)
         : (admin.list.length ? admin.list.map(modCard).join('')
-           : `<div class="empty"><div class="big">✅</div>${admin.tab==='open'?'Nothing waiting. The queue is empty.':'No reports.'}</div>`);
+           : `<div class="empty"><div class="big">${icon('check',30)}</div>${admin.tab==='open'?'Nothing waiting. The queue is empty.':'No reports.'}</div>`);
 
   return `<div class="ov-back" data-action="close-ov"></div><div class="sheet" role="dialog" aria-label="Moderation">
     <div class="ov-bar"><button class="iconbtn" data-action="close-ov" aria-label="${t('Back')}">${icon('back',20)}</button><b>Moderation</b></div>
@@ -1225,17 +1250,17 @@ function overlayAdmin(){
    cannot drift into saying different things about the same money.
    ============================================================ */
 export const PERKS=()=>[
-  ['📅',t('Your week in coffee'),t('A card of your week, made to post')],
-  ['📊',t('Your stats'),t('What you actually brew, when, and at what ratio')],
-  ['◍',t('The gold ring'),t('Your avatar wears it everywhere you appear')],
-  ['🚫',t('Always ad-free'),t('Whatever Crema does later, not to you')],
-  ['★',t('Favourites'),t('Hold the ones you use at the top of every picker')],
-  ['🥤',t('Name your own drink types'),t('Ristretto, Bombón, whatever you actually order')],
-  ['📷',t('Three photos on a pour'),t('The shot and the cup, not one or the other')],
-  ['✎',t('Your own bean & machine details'),t('Fill in the coffees and gear you added yourself')]
+  ['calendar',t('Your week in coffee'),t('A card of your week, made to post')],
+  ['chart',t('Your stats'),t('What you actually brew, when, and at what ratio')],
+  ['ring',t('The gold ring'),t('Your avatar wears it everywhere you appear')],
+  ['block',t('Always ad-free'),t('Whatever Crema does later, not to you')],
+  ['star',t('Favourites'),t('Hold the ones you use at the top of every picker')],
+  ['cup',t('Name your own drink types'),t('Ristretto, Bombón, whatever you actually order')],
+  ['cam',t('Three photos on a pour'),t('The shot and the cup, not one or the other')],
+  ['pencil',t('Your own bean & machine details'),t('Fill in the coffees and gear you added yourself')]
 ];
 const perkList=()=>PERKS().map(p=>
-  `<div class="pm-perk"><span>${p[0]}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('');
+  `<div class="pm-perk"><span>${icon(p[0],18)}</span><div><b>${p[1]}</b><i>${p[2]}</i></div></div>`).join('');
 
 /* The code field, the ask, and the address to ask at. `id` differs per
    surface because both can be in the DOM at once — the settings sheet
@@ -1264,7 +1289,7 @@ function codeForm(id){
    opens on the general case. */
 export function premiumOffer(id,lead){
   return `<div class="pm-card on">
-    <b class="pm-h">${t('✦ Crema Premium')}</b>
+    <b class="pm-h">${icon('sparkle',16)} ${t('Crema Premium')}</b>
     ${lead?`<div class="pm-lead">${lead}</div>`:''}
     <div class="pm-free">${t('Free right now, while Crema is young — no card, no trial countdown, no price to compare. It needs a code, and the codes are being handed out by hand. That will not last: when billing starts, this window shuts.')}</div>
     ${perkList()}
@@ -1272,12 +1297,12 @@ export function premiumOffer(id,lead){
     <div class="pm-fine">${t('Logging your coffee stays free for everyone, always, whatever the drink, the machine or the bean.')}</div></div>`;
 }
 
-/* The block in Settings — where every 🔒 in the app eventually points. */
+/* The block in Settings — where every lock in the app eventually points. */
 function premiumBlock(m){
   if(m.premium) return `
-    <div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">✦</div>
-      <div style="flex:1">${t('Premium active')}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${t('Free for now. We will ask you before anything costs money.')}</div></div>
-      <span class="lvlchip" style="background:var(--gold);color:var(--on-crema);border-color:transparent">${t('ACTIVE')}</span></div>
+    <div class="mrow" style="cursor:default;border-bottom:0"><div class="mi">${icon('sparkle',20)}</div>
+      <div style="flex:1">${t('Premium active')}<div class="mrow-sub">${t('Free for now. We will ask you before anything costs money.')}</div></div>
+      <span class="lvlchip" style="background:var(--gold);color:var(--on-crema)">${t('Active')}</span></div>
     <div class="pm-card" style="margin:4px 0 8px">${perkList()}</div>
     <button class="btn ghost block" data-action="premium-off">${t('Turn Premium off')}</button>`;
   return premiumOffer('sp-code','');
@@ -1298,7 +1323,7 @@ function overlayPremium(feature){
     <div class="ov-bar" style="border:0"><b>${t('Crema Premium')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 20px">
       ${premiumOffer('pm-code',lead)}
-      <div style="text-align:center;font-size:13px;color:var(--muted);margin-top:14px;cursor:pointer" data-action="close-ov">${t('Not now')}</div>
+      <div class="sheet-link" style="margin-top:14px" data-action="close-ov">${t('Not now')}</div>
     </div></div>`;
 }
 
@@ -1347,7 +1372,7 @@ function overlayRecap(){
       <button class="btn block" style="margin-top:14px" data-action="share-recap">${icon('share',18)} ${t('Share your week')}</button>
       <div class="recap-note">${t('Saves as a picture, sized for a post or a story. Nothing leaves Crema until you send it.')}
         ${r.live?`<br>${t('This week is still running — the card counts every pour until midnight.')}`:''}</div>`
-      : `<div class="empty"><div class="big">📅</div>${t('No coffee logged this week.')}<br>${t('This card covers one Monday to Sunday, and lands every Sunday at 4pm.')}<br><br>
+      : `<div class="empty"><div class="big">${icon('calendar',30)}</div>${t('No coffee logged this week.')}<br>${t('This card covers one Monday to Sunday, and lands every Sunday at 4pm.')}<br><br>
          <button class="btn sm" data-action="open-create">${t('Log a coffee')}</button></div>`}
     </div></div>`;
 }
@@ -1363,7 +1388,7 @@ function overlayRecap(){
 function avatarField(m){
   const uploading=ui.avatarBusy;
   return `<div class="av-field">
-    <div class="prof-av sm" style="background:${USERS.me.color};color:#fff;font-family:var(--serif);font-weight:600;font-size:22px">
+    <div class="prof-av sm" style="background:${USERS.me.color};color:#fff;font-family:var(--serif);font-size:var(--fs-l)">
       ${initials(USERS.me.name||t('You'))}${m.avatar?`<img src="${esc(imageUrl(m.avatar,'thumb'))}" alt="" onerror="this.remove()">`:''}
       ${uploading?`<span class="av-busy">…</span>`:''}</div>
     <div class="av-actions">
@@ -1379,10 +1404,10 @@ function avatarField(m){
 function accountBlock(){
   const email=(session&&session.user&&session.user.email)||'';
   return `
-    <div class="mrow" style="cursor:default"><div class="mi">☕</div>
-      <div style="flex:1">${t('Signed in')}<div style="font-size:11.5px;color:var(--muted);font-weight:500">${esc(email||(session&&session.user&&session.user.id)||'')}</div></div>
-      <span class="lvlchip" style="color:var(--green);border-color:var(--pm2);background:var(--pm1)">${t('SYNCED')}</span></div>
-    <div class="mrow" data-action="open-password"><div class="mi">🔑</div>${t('Change password')}</div>
+    <div class="mrow" style="cursor:default"><div class="mi">${icon('user',20)}</div>
+      <div style="flex:1;min-width:0">${t('Signed in')}<div class="mrow-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(email||(session&&session.user&&session.user.id)||'')}</div></div>
+      <span class="lvlchip" style="color:var(--green);background:var(--pm1)">${t('Synced')}</span></div>
+    <div class="mrow" data-action="open-password"><div class="mi">${icon('key',20)}</div>${t('Change password')}</div>
     <button class="btn ghost block" style="margin-top:10px" data-action="sign-out">${t('Sign out')}</button>`;
 }
 
@@ -1394,7 +1419,7 @@ function overlayPassword(){
     <div class="grab"></div>
     <div class="ov-bar" style="border:0"><b>${t('Change password')}</b><button class="iconbtn" data-action="close-ov" aria-label="${t('Close')}">${icon('x',20)}</button></div>
     <div class="ov-body" style="padding:0 16px 18px">
-      ${p.error?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;margin-bottom:12px">${esc(p.error)}</div>`:''}
+      ${p.error?`<div class="t-s" style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;margin-bottom:12px">${esc(p.error)}</div>`:''}
       <div class="field"><label>${t('New password')}</label><input id="pw-new" type="password" autocomplete="new-password" placeholder="${t('At least 8 characters')}" data-enter="pw-save"></div>
       <div class="field"><label>${t('Repeat it')}</label><input id="pw-again" type="password" autocomplete="new-password" placeholder="${t('Once more')}" data-enter="pw-save"></div>
       <button class="btn block"${p.busy?' disabled':''} data-action="pw-save">${p.busy?t('Saving…'):t('Save password')}</button>
@@ -1412,7 +1437,7 @@ function overlayOnboard(){
   let body='';
   if(s===1) body=`
     <div class="obhero">${logoMark(56)}<h1>${t('Welcome to Crema')}</h1><p>${t('Log the coffee you make and watch the habit build. The people here care about the same 30 seconds of the morning that you do.')}</p></div>
-    ${err?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;margin-bottom:12px">${esc(err)}</div>`:''}
+    ${err?`<div class="t-s" style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;margin-bottom:12px">${esc(err)}</div>`:''}
     <div class="field"><label>${t('Your name')}</label><input id="ob-name" value="${esc(state.me.name)}" placeholder="${t('e.g. Alex Rivera')}" autocomplete="name"></div>
     <div class="rowfields">
       <div class="field"><label>${t('Username')}</label><input id="ob-handle" value="${esc(state.me.handle||'')}" placeholder="${t('yourname')}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
@@ -1423,7 +1448,7 @@ function overlayOnboard(){
     ${machinePicker('ob',state.me.machineBrand,state.me.machineModel)}
     <div class="rowfields"><div class="field sel"><label>${t('Go-to drink')}</label><select id="ob-drink">${drinkOptions(state.me.favDrink,{allowAdd:false})}</select></div>
     <div class="field sel"><label>${t('Go-to milk')}</label><select id="ob-milk">${selectOptions(MILK_LIST,state.me.favMilk)}</select></div></div>
-    <div style="display:flex;gap:10px;margin-top:6px"><button class="btn ghost" data-action="ob-back">${t('Back')}</button><button class="btn" style="flex:1" data-action="ob-finish">${t('Start brewing')} ☕</button></div>`;
+    <div style="display:flex;gap:10px;margin-top:6px"><button class="btn ghost" data-action="ob-back">${t('Back')}</button><button class="btn" style="flex:1" data-action="ob-finish">${t('Start brewing')}</button></div>`;
   return `<div class="ov-back"></div><div class="sheet" role="dialog" aria-label="${t('Welcome')}"><div class="ov-body" style="padding:26px 22px">${dots}${body}</div></div>`;
 }
 
@@ -1438,7 +1463,7 @@ function overlayOnboard(){
      Popular    a shortlist for the first ever pour
      Browse     brands, which just prefill the search
      Search     flat over brand + model, umlaut-folded (see norm())
-     ＋ Add      whatever you typed, free, one tap, no second form
+     + Add      whatever you typed, free, one tap, no second form
 
    The search box doubles as the add field on purpose: someone who has
    typed their bag's name in full has already done the work, and asking
@@ -1472,8 +1497,8 @@ function pickerRow(kind,value,sub,cur,pinnable){
     <button class="pk-info" data-action="gear-info" data-kind="${kind}" data-v="${esc(value)}"
       aria-label="${t('Details')}">${icon('info',16)}</button>
     ${pinnable?`<button class="pk-pin${isPinned(kind,value)?' on':''}" data-action="pin" data-kind="${kind}" data-v="${esc(value)}"
-       aria-label="${isPinned(kind,value)?t('Remove from favourites'):t('Add to favourites')}">★</button>`:''}
-    ${on?`<span class="pk-on">✓</span>`:''}</div>`;
+       aria-label="${isPinned(kind,value)?t('Remove from favourites'):t('Add to favourites')}">${icon('star',16)}</button>`:''}
+    ${on?`<span class="pk-on">${icon('check',18)}</span>`:''}</div>`;
 }
 const pkSection=(title,body,note)=>body?`<div class="pk-sec"><div class="pk-h">${title}${note?`<span>${note}</span>`:''}</div>${body}</div>`:'';
 
@@ -1516,7 +1541,7 @@ export function pickerList(){
        reads as the search being broken, not as an offer. */
     const exact=(isM?machineKnown(q):beanKnown(q)) || own.some(v=>v.toLowerCase()===q.toLowerCase());
     if(!exact) h+=`<div class="pk-add" data-action="pick-new" data-kind="${p.kind}">
-      <span class="pk-i">＋</span>
+      <span class="pk-i">${icon('plus',18)}</span>
       <span class="pk-t"><b>${t('Add “{q}”',{q:esc(q)})}</b><span>${(hits.length||own.length)
         ? (isM?t('None of these? Save it as your own machine'):t('None of these? Save it as your own coffee'))
         : (isM?t('Not in the list. Save it as your own machine'):t('Not in the list. Save it as your own coffee'))}</span></span></div>`;
@@ -1533,12 +1558,12 @@ export function pickerList(){
   const favs=mine.filter(v=>isPinned(p.kind,v));
   const rest=mine.filter(v=>!isPinned(p.kind,v));
   const canPin=mine.length>1;
-  h+=pkSection('★ '+t('Favourites'), favs.map(v=>pickerRow(p.kind,v,sub(v),cur,canPin)).join(''));
+  h+=pkSection(icon('star',13,'inl')+' '+t('Favourites'), favs.map(v=>pickerRow(p.kind,v,sub(v),cur,canPin)).join(''));
   h+=pkSection(favs.length?t('Also yours'):t('Yours'),
     rest.slice(0,SHELF_N).map(v=>pickerRow(p.kind,v,sub(v),cur,canPin)).join(''),
     rest.length?t('most recent first'):'');
   if(!state.me.premium&&canPin)
-    h+=`<div class="pk-note" data-action="open-premium" data-f="${t('Favourites')}"><span>★</span>
+    h+=`<div class="pk-note" data-action="open-premium" data-f="${t('Favourites')}"><span>${icon('star',15)}</span>
       <span>${t('Star the ones you use most to hold them at the top. That is Premium, <u>free right now, with a code</u>.')}</span></div>`;
 
   const pop=(isM
@@ -1581,9 +1606,9 @@ function visibilityPicker(c){
   const v=c.visibility==='followers'?'followers':'public';
   return `<div class="rlabel">${t('Who can see this')}</div>
     <div class="seg" style="margin:-4px 0 4px">
-      <button class="${v==='public'?'on':''}" data-action="cvis" data-v="public">🌍 ${t('Everyone')}</button>
-      <button class="${v==='followers'?'on':''}" data-action="cvis" data-v="followers">🔒 ${t('Followers only')}</button></div>
-    <div style="font-size:11.5px;color:var(--muted);margin:0 2px 12px">${v==='public'
+      <button class="${v==='public'?'on':''}" data-action="cvis" data-v="public">${icon('globe',15,'inl')} ${t('Everyone')}</button>
+      <button class="${v==='followers'?'on':''}" data-action="cvis" data-v="followers">${icon('lock',15,'inl')} ${t('Followers only')}</button></div>
+    <div class="t-s t-muted" style="margin:0 2px 12px">${v==='public'
       ? t('Appears in Today, where anyone can find it.')
       : t('Only the followers you have accepted can see it, and it never appears in Today.')}</div>`;
 }
@@ -1593,7 +1618,7 @@ function visibilityPicker(c){
    is the whole story and a row of empty tiles under it would be the app
    explaining a feature to someone who has not used the first one yet.
 
-   The ＋ tile is where the Premium line actually falls, and it is the
+   The + tile is where the Premium line actually falls, and it is the
    only place it does: everything above it — taking a photo, reframing
    it, retaking it — is the same for everyone. On a free account the
    tile is still there and still tappable; it says what it would do and
@@ -1624,8 +1649,8 @@ function photoStrip(c,pics,n,editing){
     ${i===0&&n>1?`<span class="pstrip-first">${t('Cover')}</span>`:''}</button>`;
   const room=n<PHOTOS_PREMIUM;
   const add=!room ? '' : state.me.premium
-    ? `<label class="pstrip-add" title="${t('Add another photo')}"><input type="file" id="c-photo-add" accept="image/*" hidden>＋</label>`
-    : `<button class="pstrip-add locked" data-action="photo-premium" title="${t('Up to three photos on a pour')}">＋<i>🔒</i></button>`;
+    ? `<label class="pstrip-add" title="${t('Add another photo')}"><input type="file" id="c-photo-add" accept="image/*" hidden>${icon('plus',22)}</label>`
+    : `<button class="pstrip-add locked" data-action="photo-premium" title="${t('Up to three photos on a pour')}">${icon('plus',22)}<i>${icon('lock',11)}</i></button>`;
   const note=n>1
     ? t('The first photo is the cover — it is the one the feed, your grid and the link preview show.')
     : state.me.premium
@@ -1660,7 +1685,7 @@ function overlayCreate(){
      ends up posting the second one alone and wondering where the
      first went. */
   const keptN=pics.length-failedN;
-  const pats=[['heart',t('Heart')],['rosetta',t('Rosetta')],['tulip',t('Tulip')],['swan',t('Swan')],['abstract',t('Abstract art')]];
+  const pats=[['heart',t('Heart')],['rosetta',t('Rosetta')],['tulip',t('Tulip')],['swan',t('Swan')],['abstract',t('Abstract')]];
   const mkList=(base,cur)=>{const l=base.slice(); if(cur&&!l.includes(cur))l.push(cur); return l;};
   /* `translate` is on for catalogue values (milk) and off for names
      that are nobody's to translate — a café's own bean list. Either way
@@ -1686,7 +1711,7 @@ function overlayCreate(){
         ${sh&&(!editing||sh.added)?`<button class="prev-x" data-action="photo-remove" data-i="${c.photoI}" aria-label="${t('Remove this photo')}">${icon('x',15)}</button>`:''}
       </div>
       ${photoStrip(c,pics,n,editing)}
-      ${anyFailed?`<div style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45;margin:10px 0 2px">
+      ${anyFailed?`<div class="t-s" style="background:rgba(168,84,74,.10);border:1px solid rgba(168,84,74,.28);color:var(--terra);border-radius:12px;padding:10px 12px;margin:10px 0 2px">
         ${editing?tn(failedN,'That photo could not reach the server. Try again, or drop it and keep the pour as it was.',
                               'Those photos could not reach the server. Try again, or drop them and keep the pour as it was.')
                  :tn(failedN,'That photo could not reach the server. Try again, or post without it.',
@@ -1698,24 +1723,24 @@ function overlayCreate(){
             : keptN ? tn(keptN,'Post with the other photo','Post with the other {n} photos')
                     : tn(failedN,'Post without the photo','Post without the photos')}</button></div></div>`:''}
       ${framing?`<div class="frame-hint">${t('Drag the photo to pick what stays in the square.')}</div>`:''}
-      ${editing?(n?`<div style="font-size:11.5px;color:var(--muted);margin:10px 2px 12px">${
+      ${editing?(n?`<div class="t-s t-muted" style="margin:10px 2px 12px">${
         state.me.premium&&n<PHOTOS_PREMIUM
           ? t('The photos already here stay as they were poured — you can still add one.')
           : tn(n,'The photo stays as it was poured. Everything else is yours to fix.','The photos stay as they were poured. Everything else is yours to fix.')}</div>`:'')
       :`<div class="photo-actions">
         <label class="btn ghost sm"><input type="file" id="c-photo-cam" accept="image/*" capture="environment" hidden>${icon('cam',16)} ${n?t('Retake'):t('Take photo')}</label>
-        <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>🖼️ ${n?t('Change'):t('Gallery')}</label>
+        <label class="btn ghost sm"><input type="file" id="c-photo-lib" accept="image/*" hidden>${icon('image',16)} ${n?t('Change'):t('Gallery')}</label>
       </div>`}
       <div class="field sel"><label>${t('Drink')}</label><select id="c-drink">${drinkOptions(c.drink)}</select></div>
       ${c.drink===ADD_DRINK?`<div class="field"><label>${t('Your drink')}</label><input id="c-drink-custom" placeholder="${t('e.g. Ristretto')}" value="${esc(c.drinkCustom)}"></div>`:''}
       ${premiumNote(t('Naming a drink of your own'))}
-      ${isArt?`<div class="field"><label>${t('Latte art')} <span style="text-transform:none;letter-spacing:0;color:var(--muted)">· ${t('only if you poured one, tap to toggle')}</span></label>
+      ${isArt?`<div class="field"><label>${t('Latte art')} <span style="color:var(--muted);font-weight:400">· ${t('only if you poured one, tap to toggle')}</span></label>
         <div class="patpick">${pats.map(p=>`<button class="${c.pattern===p[0]?'on':''}" data-action="cpat" data-p="${p[0]}">${cupSVG(p[0],.9,p[0].charCodeAt(0),{noCup:true})}<span>${p[1]}</span></button>`).join('')}</div>
-        ${c.pattern?'':`<div style="font-size:11.5px;color:var(--muted);margin:6px 2px 0">${t('No art? Leave these alone and your {drink} posts without a pattern.',{drink:esc((c.drink||t('coffee')).toLowerCase())})}</div>`}</div>`:''}
+        ${c.pattern?'':`<div class="t-s t-muted" style="margin:6px 2px 0">${t('No art? Leave these alone and your {drink} posts without a pattern.',{drink:esc((c.drink||t('coffee')).toLowerCase())})}</div>`}</div>`:''}
       ${CAFES.length?`<div class="rlabel">${t('Where did you have it?')}</div>
       <div class="seg" style="margin:-4px 0 12px">
-        <button class="${c.source==='home'?'on':''}" data-action="csource" data-s="home">🏠 ${t('I made it')}</button>
-        <button class="${c.source==='cafe'?'on':''}" data-action="csource" data-s="cafe">☕ ${t('At a café')}</button></div>`:''}
+        <button class="${c.source==='home'?'on':''}" data-action="csource" data-s="home">${icon('house',15,'inl')} ${t('I made it')}</button>
+        <button class="${c.source==='cafe'?'on':''}" data-action="csource" data-s="cafe">${icon('cafe',15,'inl')} ${t('At a café')}</button></div>`:''}
       ${c.source==='cafe'?`<div class="field sel"><label>${t('Café')}</label><select id="c-cafe"><option value=""${c.cafe?'':' selected'}>${t('Choose a café…')}</option>${CAFES.map(cf=>`<option value="${cf.id}"${cf.id===c.cafe?' selected':''}>${cf.name} · ${cf.area}</option>`).join('')}</select></div>`:''}
       ${HAS_MILK.has(c.drink)?`<div class="field sel"><label>${t('Milk')}</label><select id="c-milk">${sel(mkList(milkOpts,c.milk),c.milk,t('Optional'),{translate:true})}</select></div>`:''}
       <div class="field"><label>${t('Caption')}</label><textarea id="c-caption" placeholder="${t('Say something about this coffee…')}">${esc(c.caption)}</textarea></div>
@@ -1725,8 +1750,8 @@ function overlayCreate(){
       <div class="field sel"><label>${t('Bean')}</label><select id="c-bean">${sel(chosenCafe.menu.beans,c.bean,t('Which bean did you have?'))}</select></div>
       ${chosenCafe.menu&&chosenCafe.menu.machine?`<div class="recipe-panel open" style="margin:0"><div class="recipe-grid">
         <div class="recipe-mach"><span>${t('Machine')}</span><b>${esc(chosenCafe.menu.machine)}</b></div></div></div>`:''}
-      <div style="font-size:11.5px;color:var(--muted);margin:8px 2px 2px">${t('Your pour will be tagged 📍 {cafe}',{cafe:esc(chosenCafe.name)})}</div>`
-      : `<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">${t('Pick a café above to load the beans and gear they use.')}</div>`)
+      <div class="t-s t-muted" style="margin:8px 2px 2px">${t('Your pour will be tagged at {cafe}',{cafe:esc(chosenCafe.name)})}</div>`
+      : `<div class="t-s t-muted" style="margin:2px 2px 10px">${t('Pick a café above to load the beans and gear they use.')}</div>`)
       : (c.recipeOpen ? `
       <div class="rlabel">${t('Recipe')} <span>· ${t('optional, add only what you know')}</span></div>
       ${beanPicker('c',c.bean)}
@@ -1737,7 +1762,7 @@ function overlayCreate(){
         <div class="field"><label>${t('Time')}</label><input id="c-time" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.time,'s'))}"></div>
         <div class="field"><label>${t('Temp')}</label><input id="c-temp" inputmode="decimal" placeholder="—" value="${esc(withUnit(c.temp,'°'))}"></div></div>
       <button type="button" class="btn ghost sm" style="margin-top:8px" data-action="close-recipe">${t('Remove recipe')}</button>`
-      : `<button type="button" class="btn ghost block" style="margin-top:4px" data-action="open-recipe">${t('+ Add recipe (bean, machine, dose…)')}</button>`)}
+      : `<button type="button" class="btn ghost block" style="margin-top:4px" data-action="open-recipe">${icon('plus',16)} ${t('Add recipe (bean, machine, dose…)')}</button>`)}
       <button class="btn block" style="margin-top:12px" data-action="submit-post">${editing?t('Save changes'):`${icon('bolt',18)} ${t('Post it')}`}</button>
       ${editing?`<button class="btn ghost block" style="margin-top:8px" data-action="close-ov">${t('Cancel')}</button>`:''}
       <div style="height:8px"></div>

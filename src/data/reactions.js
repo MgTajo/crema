@@ -23,6 +23,14 @@ import { rest } from './supabase.js';
    latte art, a pin is a place, a bean is the coffee. Nobody has to read
    the label to guess right.
 
+   ONE WORD EACH since 2026-09-14 — Art, Spot, Coffee; Kunst, Ort, Kaffee.
+   "Great art · Nice spot · Unique coffee" did not fit three abreast on a
+   phone (85px for "Unique coffee" at 13px, 114px for "Besonderer
+   Kaffee"), so the row wrapped into two chips and an orphan, and the same
+   three controls read as two different shapes. A noun is enough because
+   the icon and the act of tapping already say "I liked this"; the whole
+   compliment is still in the tooltip and the accessible name.
+
    Line icons rather than emoji, per §06: they inherit the chip's colour,
    so a picked reaction goes Roast along with its label instead of
    sitting there in a foreign palette.
@@ -36,9 +44,9 @@ import { rest } from './supabase.js';
    The order is the order the eye reads the photo in: the cup first,
    then the room, then what's in it. */
 export const REACTIONS = [
-  ['art',   'rosetta', 'Great art',      'Beautiful latte art'],
-  ['scene', 'cafe',    'Nice spot',      'Lovely place to have it'],
-  ['drink', 'bean',    'Unique coffee',  'A coffee you don\'t see every day']
+  ['art',   'rosetta', 'Art',     'Beautiful latte art'],
+  ['scene', 'cafe',    'Spot',    'Lovely place to have it'],
+  ['drink', 'bean',    'Coffee',  'A coffee you don\'t see every day']
 ];
 export const REACTION_KINDS = REACTIONS.map(r=>r[0]);
 
