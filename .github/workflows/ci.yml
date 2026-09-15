@@ -58,6 +58,13 @@ jobs:
       - name: device — the Play Store offer goes to Android, and rests
         run: node src/core/device.test.mjs
 
+      # A photo upload against a session that ended on another device:
+      # refresh once, and sign out rather than "retry" when the refresh is
+      # refused too. And signing out revokes this device only. The Android
+      # alpha's uploads all failed on 2026-09-15 for want of both.
+      - name: media — an upload survives a session revoked elsewhere
+        run: node src/data/media.test.mjs
+
       # The one bug in step 4.1 that would be catastrophic and silent: a
       # store build pointed at STAGING. Capacitor serves from localhost,
       # localhost resolves to staging, and the resulting app looks

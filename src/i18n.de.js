@@ -671,6 +671,7 @@ export const DE = {
   'That file could not be read':'Diese Datei ließ sich nicht lesen',
   'That photo did not upload. Try again.':'Das Foto wurde nicht hochgeladen. Probier es nochmal.',
   'That photo did not upload. Tap Post to retry.':'Das Foto wurde nicht hochgeladen. Tipp auf Posten, um es nochmal zu versuchen.',
+  'Sign in again to upload a photo':'Melde dich nochmal an, um ein Foto hochzuladen',
   'Photo uploaded':'Foto hochgeladen',
   'That is a lot of photos at once. Give it a minute.':'Das sind gerade viele Fotos auf einmal. Warte kurz.',
   'That photo did not come off. Try again.':'Das Foto ließ sich nicht entfernen. Probier es nochmal.',

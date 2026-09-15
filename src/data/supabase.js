@@ -237,6 +237,22 @@ export async function accessToken(){
   return session && session.access_token;
 }
 
+/* The server refused a token that has not expired yet — its session was
+   revoked somewhere else (a sign-out on another device before 2026-09-15,
+   a password change, an admin). PostgREST only checks the signature, so
+   the feed keeps loading; the Edge Functions ask GoTrue, so uploads are
+   the first thing to find out. accessToken() cannot see it — by the
+   clock the token is fine — so the caller who got the 401 says so here.
+
+   Returns a fresh token if a refresh works. If the refresh token is
+   rejected too, the session is over and the user is signed out, exactly
+   as accessToken() does; a network failure keeps them signed in. */
+export async function sessionRejected(){
+  if(!session) return null;
+  try{ await refresh(); return session && session.access_token; }
+  catch(e){ if(fatalAuth(e)){ store(null); emit(); } return null; }
+}
+
 export async function signUp(email,password){
   const json = await authPost(`signup?redirect_to=${encodeURIComponent(appUrl())}`,{ email, password });
   /* With email confirmation on, signup returns a user but no session. */
@@ -323,8 +339,14 @@ export async function signInWithOAuth(provider){
 export async function signOut(){
   const token = session && session.access_token;
   store(null); emit();
-  /* Best-effort server-side revoke; the local session is already gone. */
-  if(token) fetch(`${SUPABASE_URL}/auth/v1/logout`,{ method:'POST',
+  /* Best-effort server-side revoke; the local session is already gone.
+
+     `scope=local` revokes THIS device's session only. GoTrue's default is
+     global, and until 2026-09-15 that is what this sent: signing out on
+     crema-app.com revoked the Android app's session too, which kept
+     reading the feed on its unexpired token while every photo upload
+     came back 401. Signing out here means signing out here. */
+  if(token) fetch(`${SUPABASE_URL}/auth/v1/logout?scope=local`,{ method:'POST',
     headers:{ apikey:SUPABASE_KEY, Authorization:`Bearer ${token}` } }).catch(()=>{});
 }
 

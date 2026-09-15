@@ -13,7 +13,7 @@
    size instead of hand-writing `/cdn-cgi/image/...` strings.
    ============================================================ */
 import { SUPABASE_URL, SUPABASE_KEY, MEDIA_BASE } from '../config.js';
-import { accessToken } from './supabase.js';
+import { accessToken, sessionRejected, getSession } from './supabase.js';
 
 /* One width per surface, matched to where the image actually renders.
    Storing a single fixed size would waste bandwidth on the feed to
@@ -106,15 +106,29 @@ export function imageSource(src){
   return `${MEDIA_BASE}/${src}`;
 }
 
-async function presign(contentType){
+/* `signedOut` is how the UI tells "sign in again" from "try again": the
+   second is a lie when the session is gone, because it never comes back. */
+const signedOutError = () =>
+  Object.assign(new Error('Sign in again to upload a photo'), { status:401, signedOut:true });
+
+async function presign(contentType, retried){
   const token = await accessToken();
-  if(!token) throw new Error('Sign in to upload a photo');
+  if(!token) throw signedOutError();
   const r = await fetch(`${SUPABASE_URL}/functions/v1/upload-url`,{
     method:'POST',
     headers:{ apikey:SUPABASE_KEY, Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
     body: JSON.stringify({ contentType })
   });
   const body = await r.json().catch(()=>({}));
+  /* 401 on a token accessToken() thought was good: the session was
+     revoked server-side. Refresh once and ask again; if the refresh is
+     refused as well, sessionRejected() has signed the user out and they
+     are told to sign in, rather than to retry something that cannot
+     work. See sessionRejected() in data/supabase.js. */
+  if(r.status===401 && !retried){
+    if(await sessionRejected()) return presign(contentType, true);
+    if(!getSession()) throw signedOutError();
+  }
   if(!r.ok){
     const e = new Error(body.error || `Could not get an upload URL (${r.status})`);
     e.status = r.status;                 // 429 is the rate limit, and is an answer

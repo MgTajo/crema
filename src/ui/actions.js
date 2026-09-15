@@ -1851,7 +1851,9 @@ function bakeAndUpload(c, sh, announce){
       /* 429 from upload-url is the rate limit (step 1b.1), not a
          failure to retry — "tap Post to retry" is the one instruction
          that makes a rate limit worse. */
-      toast(/too many photos/i.test((err&&err.message)||'')
+      toast(err&&err.signedOut
+        ? t('Sign in again to upload a photo')
+        : /too many photos/i.test((err&&err.message)||'')
         ? t('That is a lot of photos at once. Give it a minute.')
         : t('That photo did not upload. Tap Post to retry.'));
     });
@@ -2209,7 +2211,8 @@ function uploadAvatar(file){
         }catch(err){
           console.warn('avatar upload failed',err);
           ui.avatarBusy=false; renderOverlay();
-          toast(err&&/step-1\.13/.test(err.message||'') ? t('Profile photos are not switched on yet') : t('That photo did not upload. Try again.'));
+          toast(err&&err.signedOut ? t('Sign in again to upload a photo')
+            : err&&/step-1\.13/.test(err.message||'') ? t('Profile photos are not switched on yet') : t('That photo did not upload. Try again.'));
         }
       },'image/jpeg',0.85);
     };
